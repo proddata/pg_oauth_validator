@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: PostgreSQL ${{ matrix.pg }} / ${{ matrix.compiler }} / C17
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pg: "18"
+            package: "18"
+            target: "test-pg18"
+            compiler: GCC
+            cc: gcc
+            image: postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+          - pg: "18"
+            package: "18"
+            target: "test-pg18"
+            compiler: Clang
+            cc: clang
+            image: postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+          - pg: "19 beta 2"
+            package: "19"
+            target: "test-pg19"
+            compiler: GCC
+            cc: gcc
+            image: postgres:19beta2-bookworm@sha256:9222211d932c983331df86f01a6224eba868d61000a334e4a3e613626cf884f0
+          - pg: "19 beta 2"
+            package: "19"
+            target: "test-pg19"
+            compiler: Clang
+            cc: clang
+            image: postgres:19beta2-bookworm@sha256:9222211d932c983331df86f01a6224eba868d61000a334e4a3e613626cf884f0
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            clang \
+            cmake \
+            curl \
+            libkrb5-dev \
+            libjansson-dev \
+            libclang-rt-dev \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            openssl \
+            pkg-config \
+            python3-pytest \
+            postgresql-server-dev-${{ matrix.package }}
+
+      - name: Install pinned libjwt spike dependency
+        run: CC=${{ matrix.cc }} ./scripts/ci/install-libjwt.sh
+
+      - name: Validate libjwt behavior under sanitizers
+        if: matrix.pg == '19 beta 2' && matrix.compiler == 'Clang'
+        run: |
+          make sanitizercheck
+          make fuzz-smoke
+          make clean
+
+      - name: Build and test in isolated tree
+        run: make ${{ matrix.target }} CC=${{ matrix.cc }}
+
+      - name: Validate staged and installed package
+        if: matrix.compiler == 'GCC'
+        run: make installedcheck
+
+      - name: Clean and reject untracked build products
+        if: always()
+        run: |
+          make clean-pg${{ matrix.package }}
+          make clean
+          test -z "$(git status --short)"
+
+  quality:
+    name: Source hygiene and Clang static analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container:
+      image: postgres:19beta2-bookworm@sha256:9222211d932c983331df86f01a6224eba868d61000a334e4a3e613626cf884f0
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install analysis dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            clang \
+            clang-tools \
+            cmake \
+            curl \
+            git \
+            libkrb5-dev \
+            libjansson-dev \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            pkg-config \
+            python3 \
+            postgresql-server-dev-19
+
+      - name: Check source-tree hygiene
+        run: make check-source-tree
+
+      - name: Install pinned libjwt dependency
+        run: CC=clang ./scripts/ci/install-libjwt.sh
+
+      - name: Run Clang static analyzer
+        run: |
+          scan-build --status-bugs --keep-going --output .ci-analysis \
+            make verify CC=clang
+
+      - name: Upload static-analysis reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: clang-static-analysis
+          path: .ci-analysis
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Clean and reject untracked build products
+        if: always()
+        run: |
+          make clean
+          test -z "$(git status --short)"

@@ -1,0 +1,111 @@
+name: Release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release-candidate version (for example, 0.1.0-rc.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: PostgreSQL ${{ matrix.pg }} release candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pg: "18"
+            package: "18"
+            target: test-pg18
+            image: postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+          - pg: "19 beta 2"
+            package: "19"
+            target: test-pg19
+            image: postgres:19beta2-bookworm@sha256:9222211d932c983331df86f01a6224eba868d61000a334e4a3e613626cf884f0
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install build and test dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            cmake \
+            curl \
+            git \
+            libkrb5-dev \
+            libjansson-dev \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            openssl \
+            pkg-config \
+            python3-pytest \
+            postgresql-server-dev-${{ matrix.package }}
+
+      - name: Install pinned libjwt dependency
+        run: ./scripts/ci/install-libjwt.sh
+
+      - name: Verify and test PostgreSQL ${{ matrix.pg }} build
+        env:
+          PG_CONFIG: /usr/lib/postgresql/${{ matrix.package }}/bin/pg_config
+        run: |
+          make ${{ matrix.target }} \
+            PG18_CONFIG="$PG_CONFIG" \
+            PG19_CONFIG="$PG_CONFIG"
+
+      - name: Derive reproducible build timestamp
+        run: echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
+      - name: Build release-candidate package
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_OUTPUT: dist/pg${{ matrix.package }}
+          PG_CONFIG: /usr/lib/postgresql/${{ matrix.package }}/bin/pg_config
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          make release-package \
+            RELEASE_VERSION="$RELEASE_VERSION" \
+            SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
+            SOURCE_REVISION="$SOURCE_REVISION" \
+            PG_CONFIG="$PG_CONFIG" \
+            RELEASE_OUTPUT="$RELEASE_OUTPUT"
+
+      - name: Verify checksum and extract build manifest
+        env:
+          RELEASE_OUTPUT: dist/pg${{ matrix.package }}
+        run: |
+          archive=$(find "$RELEASE_OUTPUT" -maxdepth 1 -type f -name '*.tar.gz')
+          test -n "$archive"
+          test "$(printf '%s\n' "$archive" | wc -l)" -eq 1
+          (cd "$RELEASE_OUTPUT" && sha256sum --check "$(basename "$archive").sha256")
+          test -s "$archive.manifest"
+          extracted_manifest=$(mktemp)
+          trap 'rm -f "$extracted_manifest"' EXIT INT TERM
+          tar -xOf "$archive" --wildcards '*/BUILD-MANIFEST' > "$extracted_manifest"
+          cmp "$archive.manifest" "$extracted_manifest"
+
+      - name: Upload package, checksum, and build manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pg-oauth-validator-${{ inputs.version }}-pg${{ matrix.package }}
+          path: |
+            dist/pg${{ matrix.package }}/*.tar.gz
+            dist/pg${{ matrix.package }}/*.tar.gz.sha256
+            dist/pg${{ matrix.package }}/*.tar.gz.manifest
+          if-no-files-found: error
+          retention-days: 14

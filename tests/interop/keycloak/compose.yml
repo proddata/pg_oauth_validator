@@ -1,0 +1,22 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.0@sha256:5fdd7cda82e58775ed124294c7e16fabc33166d38dfc4aabebda7d64e7a964bf
+    command:
+      - start-dev
+      - --import-realm
+      - --hostname=https://keycloak:8443
+      - --https-certificate-file=/opt/keycloak/conf/interop.crt
+      - --https-certificate-key-file=/opt/keycloak/conf/interop.key
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: interop-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: interop-admin-password
+    volumes:
+      - ./realm.json:/opt/keycloak/data/import/realm.json:ro
+      - ${KEYCLOAK_INTEROP_DIR}/tls.crt:/opt/keycloak/conf/interop.crt:ro
+      - ${KEYCLOAK_INTEROP_DIR}/tls.key:/opt/keycloak/conf/interop.key:ro
+    networks:
+      - interop
+
+networks:
+  interop:
+    name: pg-oauth-keycloak-interop
