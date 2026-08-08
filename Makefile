@@ -68,6 +68,12 @@ EXTRA_CLEAN = $(TEST_BIN) $(POLICY_TEST_BIN) $(JWT_ENVELOPE_TEST_BIN) \
 
 # Keep project warnings strict without imposing them on PostgreSQL itself.
 override PG_CFLAGS += -std=c17 -Wall -Wextra -Werror -Wshadow
+ifneq (,$(findstring clang,$(notdir $(CC))))
+# PostgreSQL's PGXS exports GCC-only warning/optimization flags. Keep project
+# warnings fatal while allowing Clang to ignore only unsupported PGXS flags.
+override PG_CFLAGS += -Wno-error=unknown-warning-option \
+	-Wno-error=ignored-optimization-argument -Wno-error=ignored-attributes
+endif
 override PG_CPPFLAGS += $(shell pkg-config --cflags jansson libcurl libjwt openssl 2>/dev/null)
 SHLIB_LINK += -Wl,-Bsymbolic \
 	$(LIBJWT_STATIC) $(JANSSON_STATIC) \
