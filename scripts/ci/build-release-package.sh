@@ -127,11 +127,14 @@ dependency_version()
 }
 
 mkdir -p "$build_dir/src" "$build_dir/tests/integration" "$stage_dir" "$output_dir"
-make -C "$build_dir" -f "$snapshot_dir/Makefile" VPATH="$snapshot_dir" \
+# Keep VPATH relative so Clang's LLVM module source_filename is independent of
+# the random secure temporary directory. Clang's prefix-map flags do not rewrite
+# that bitcode field.
+make -C "$build_dir" -f ../source/Makefile VPATH=../source \
 	PG_CONFIG="$pg_config" EXPECTED_PG_MAJOR="$pg_major" CC="$build_cc" \
 	PG_CFLAGS="$reproducible_cflags" \
 	BITCODE_CFLAGS="$reproducible_bitcode_cflags" all
-make -C "$build_dir" -f "$snapshot_dir/Makefile" VPATH="$snapshot_dir" \
+make -C "$build_dir" -f ../source/Makefile VPATH=../source \
 	PG_CONFIG="$pg_config" EXPECTED_PG_MAJOR="$pg_major" \
 	CC="$build_cc" PG_CFLAGS="$reproducible_cflags" \
 	BITCODE_CFLAGS="$reproducible_bitcode_cflags" \
