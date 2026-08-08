@@ -38,4 +38,3 @@ The module dynamically links the deployment environment's libcurl, OpenSSL,
 and system libraries. Their versions are recorded from the build environment
 in `BUILD-MANIFEST`; operators must use supported, security-maintained runtime
 packages.
-

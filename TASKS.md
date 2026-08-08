@@ -164,6 +164,12 @@ parallel subject to their file boundaries.
   security-relevant package inventory, and bundle libjwt/Jansson notices. Fresh
   PG18 and PG19 beta 2 package smoke builds passed. Advisory disposition and
   GitHub security/approval evidence remain open before candidate promotion.
+- **2026-08-08 advisory review:** exact-version findings and usage-bound
+  dispositions are recorded in
+  `docs/releases/0.1.0-rc.1-vulnerability-disposition.md`. No reachable,
+  unpatched authentication-path advisory was identified. GitHub security
+  results, the full candidate test/rehearsal evidence, and named approvals
+  remain open.
 
 ## Security-review follow-ups
 
