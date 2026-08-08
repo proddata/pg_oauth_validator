@@ -81,7 +81,7 @@ decode_json_object(const CompactSegment *segment, size_t maximum,
 	}
 
 	object = json_loadb((const char *) decoded, decoded_length,
-					JSON_REJECT_DUPLICATES, &parse_error);
+						JSON_REJECT_DUPLICATES, &parse_error);
 	free(decoded);
 	if (object == NULL || !json_is_object(object))
 	{
@@ -168,13 +168,13 @@ pg_oauth_jwt_envelope_parse(const char *token, size_t token_length,
 	}
 
 	envelope->untrusted_header = decode_json_object(&segments[0],
-		policy->max_header_size, &error, PG_OAUTH_JWT_ENVELOPE_HEADER_TOO_LARGE,
-		PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON);
+													policy->max_header_size, &error, PG_OAUTH_JWT_ENVELOPE_HEADER_TOO_LARGE,
+													PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON);
 	if (envelope->untrusted_header == NULL)
 		goto fail;
 	envelope->untrusted_payload = decode_json_object(&segments[1],
-		policy->max_payload_size, &error, PG_OAUTH_JWT_ENVELOPE_PAYLOAD_TOO_LARGE,
-		PG_OAUTH_JWT_ENVELOPE_INVALID_PAYLOAD_JSON);
+													 policy->max_payload_size, &error, PG_OAUTH_JWT_ENVELOPE_PAYLOAD_TOO_LARGE,
+													 PG_OAUTH_JWT_ENVELOPE_INVALID_PAYLOAD_JSON);
 	if (envelope->untrusted_payload == NULL)
 		goto fail;
 

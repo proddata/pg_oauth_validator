@@ -11,11 +11,11 @@
 
 typedef struct CacheControlValues
 {
-	int64_t max_age_seconds;
-	bool has_max_age;
-	bool no_store;
-	bool no_cache;
-	bool must_revalidate;
+	int64_t		max_age_seconds;
+	bool		has_max_age;
+	bool		no_store;
+	bool		no_cache;
+	bool		must_revalidate;
 } CacheControlValues;
 
 static void
@@ -28,15 +28,15 @@ trim(const char **start, const char **end)
 }
 
 static bool
-decimal(const char *start, const char *end, int64_t *value)
+decimal		(const char *start, const char *end, int64_t *value)
 {
-	int64_t parsed = 0;
+	int64_t		parsed = 0;
 
 	if (start == end)
 		return false;
 	for (const char *cursor = start; cursor < end; cursor++)
 	{
-		int digit;
+		int			digit;
 
 		if (*cursor < '0' || *cursor > '9')
 			return false;
@@ -52,7 +52,7 @@ decimal(const char *start, const char *end, int64_t *value)
 static bool
 directive_name(const char *start, const char *end, const char *name)
 {
-	size_t length = (size_t) (end - start);
+	size_t		length = (size_t) (end - start);
 
 	return strlen(name) == length && strncasecmp(start, name, length) == 0;
 }
@@ -99,7 +99,10 @@ parse_cache_control(const char *value, CacheControlValues *parsed)
 		}
 		else if (directive_name(entry, name_end, "no-cache"))
 		{
-			/* Field-name arguments are irrelevant to this whole-response cache. */
+			/*
+			 * Field-name arguments are irrelevant to this whole-response
+			 * cache.
+			 */
 			parsed->no_cache = true;
 		}
 		else if (directive_name(entry, name_end, "must-revalidate"))
@@ -148,7 +151,7 @@ parse_age(const char *value, int64_t *seconds)
 	start = value;
 	end = value + strlen(value);
 	trim(&start, &end);
-	return decimal(start, end, seconds);
+	return decimal (start, end, seconds);
 }
 
 static int64_t
@@ -161,15 +164,15 @@ seconds_to_milliseconds(int64_t seconds)
 
 PgOAuthHttpFreshnessError
 pg_oauth_http_freshness_calculate(const char *cache_control, const char *date,
-							  const char *expires, const char *age,
-							  int64_t response_time_seconds,
-							  const PgOAuthHttpFreshnessPolicy *policy,
-							  PgOAuthHttpFreshness *result)
+								  const char *expires, const char *age,
+								  int64_t response_time_seconds,
+								  const PgOAuthHttpFreshnessPolicy *policy,
+								  PgOAuthHttpFreshness *result)
 {
 	CacheControlValues control;
-	int64_t age_seconds;
-	int64_t freshness_seconds = 0;
-	bool explicit_freshness = false;
+	int64_t		age_seconds;
+	int64_t		freshness_seconds = 0;
+	bool		explicit_freshness = false;
 
 	if (result == NULL)
 		return PG_OAUTH_HTTP_FRESHNESS_INVALID_ARGUMENT;
@@ -191,8 +194,8 @@ pg_oauth_http_freshness_calculate(const char *cache_control, const char *date,
 	}
 	else if (expires != NULL && expires[0] != '\0')
 	{
-		time_t expires_at = curl_getdate(expires, NULL);
-		time_t date_at = date != NULL && date[0] != '\0' ?
+		time_t		expires_at = curl_getdate(expires, NULL);
+		time_t		date_at = date != NULL && date[0] != '\0' ?
 			curl_getdate(date, NULL) : (time_t) response_time_seconds;
 
 		if (expires_at == (time_t) -1 || date_at == (time_t) -1)
@@ -205,11 +208,11 @@ pg_oauth_http_freshness_calculate(const char *cache_control, const char *date,
 	result->explicit_freshness = explicit_freshness;
 	if (explicit_freshness)
 	{
-		int64_t apparent_age = age_seconds;
+		int64_t		apparent_age = age_seconds;
 
 		if (date != NULL && date[0] != '\0')
 		{
-			time_t date_at = curl_getdate(date, NULL);
+			time_t		date_at = curl_getdate(date, NULL);
 
 			if (date_at == (time_t) -1)
 				return PG_OAUTH_HTTP_FRESHNESS_INVALID_HEADER;
@@ -221,7 +224,7 @@ pg_oauth_http_freshness_calculate(const char *cache_control, const char *date,
 			result->ttl_ms = 0;
 		else
 			result->ttl_ms = seconds_to_milliseconds(
-				freshness_seconds - apparent_age);
+													 freshness_seconds - apparent_age);
 	}
 	else
 		result->ttl_ms = policy->default_ttl_ms;
@@ -238,7 +241,8 @@ pg_oauth_http_freshness_error_code(PgOAuthHttpFreshnessError error)
 {
 	switch (error)
 	{
-		case PG_OAUTH_HTTP_FRESHNESS_OK: return "http_freshness_ok";
+		case PG_OAUTH_HTTP_FRESHNESS_OK:
+			return "http_freshness_ok";
 		case PG_OAUTH_HTTP_FRESHNESS_INVALID_ARGUMENT:
 			return "http_freshness_invalid_argument";
 		case PG_OAUTH_HTTP_FRESHNESS_INVALID_HEADER:

@@ -21,7 +21,7 @@ calculate(const char *cache_control, const char *date, const char *expires,
 	PgOAuthHttpFreshness result;
 
 	if (pg_oauth_http_freshness_calculate(cache_control, date, expires, age,
-			RESPONSE_TIME, &policy, &result) != PG_OAUTH_HTTP_FRESHNESS_OK)
+										  RESPONSE_TIME, &policy, &result) != PG_OAUTH_HTTP_FRESHNESS_OK)
 		fail("valid freshness headers were rejected");
 	return result;
 }
@@ -34,7 +34,7 @@ expect_invalid(const char *cache_control, const char *date,
 	PgOAuthHttpFreshness result;
 
 	if (pg_oauth_http_freshness_calculate(cache_control, date, expires, age,
-			RESPONSE_TIME, &policy, &result) !=
+										  RESPONSE_TIME, &policy, &result) !=
 		PG_OAUTH_HTTP_FRESHNESS_INVALID_HEADER)
 		fail(message);
 }
@@ -71,31 +71,31 @@ main(void)
 		fail("must-revalidate incorrectly removed fresh use");
 
 	result = calculate(NULL, "Sun, 06 Nov 1994 08:49:37 GMT",
-		"Sun, 06 Nov 1994 08:51:37 GMT", "20");
+					   "Sun, 06 Nov 1994 08:51:37 GMT", "20");
 	if (result.ttl_ms != 100000 || !result.explicit_freshness)
 		fail("Expires freshness was calculated incorrectly");
 	result = calculate("max-age=60", "Sun, 06 Nov 1994 08:48:37 GMT",
-		NULL, "10");
+					   NULL, "10");
 	if (result.ttl_ms != 0)
 		fail("apparent response age was ignored");
 
 	expect_invalid("max-age=1,max-age=2", NULL, NULL, NULL,
-		"duplicate max-age was accepted");
+				   "duplicate max-age was accepted");
 	expect_invalid("max-age=invalid", NULL, NULL, NULL,
-		"malformed max-age was accepted");
+				   "malformed max-age was accepted");
 	expect_invalid("no-store=value", NULL, NULL, NULL,
-		"valued no-store was accepted");
+				   "valued no-store was accepted");
 	expect_invalid("max-age=60", NULL, NULL, "1,2",
-		"ambiguous Age was accepted");
+				   "ambiguous Age was accepted");
 	expect_invalid(NULL, "invalid-date", "also-invalid", NULL,
-		"malformed HTTP dates were accepted");
+				   "malformed HTTP dates were accepted");
 
 	if (pg_oauth_http_freshness_calculate(NULL, NULL, NULL, NULL,
-			RESPONSE_TIME, &bad_policy, &result) !=
+										  RESPONSE_TIME, &bad_policy, &result) !=
 		PG_OAUTH_HTTP_FRESHNESS_INVALID_ARGUMENT)
 		fail("inconsistent local freshness bounds were accepted");
 	if (strstr(pg_oauth_http_freshness_error_code(
-			PG_OAUTH_HTTP_FRESHNESS_INVALID_HEADER), "max-age") != NULL)
+												  PG_OAUTH_HTTP_FRESHNESS_INVALID_HEADER), "max-age") != NULL)
 		fail("stable freshness error exposed header contents");
 	return EXIT_SUCCESS;
 }

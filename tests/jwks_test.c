@@ -6,7 +6,7 @@
 #include "jwks.h"
 
 static const char alphabet[] =
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 static void
 fail(const char *message)
@@ -65,7 +65,7 @@ valid_policy(void)
 		.max_keys = 16,
 		.max_key_id_size = 1024,
 		.allowed_algorithms = PG_OAUTH_ALGORITHM_RS256 |
-			PG_OAUTH_ALGORITHM_ES256,
+		PG_OAUTH_ALGORITHM_ES256,
 		.minimum_rsa_bits = 2048,
 		.maximum_rsa_bits = 8192,
 	};
@@ -156,10 +156,10 @@ main(void)
 	PgOAuthJwksPolicy policy = valid_policy();
 	PgOAuthSelectedJwk selected;
 	char	   *document = make_rsa_jwks(
-		"\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"sig\"", 256, 0x80);
+										 "\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"sig\"", 256, 0x80);
 
 	if (pg_oauth_jwks_select(document, strlen(document), "rsa-1",
-			PG_OAUTH_ALGORITHM_RS256, &policy, &selected) != PG_OAUTH_JWKS_OK)
+							 PG_OAUTH_ALGORITHM_RS256, &policy, &selected) != PG_OAUTH_JWKS_OK)
 		fail("valid RSA signing key was rejected");
 	if (selected.algorithm != PG_OAUTH_ALGORITHM_RS256 || selected.jwk == NULL)
 		fail("valid key was selected incorrectly");
@@ -168,84 +168,84 @@ main(void)
 
 	document = make_ec_jwks(true);
 	if (pg_oauth_jwks_select(document, strlen(document), "ec-1",
-			PG_OAUTH_ALGORITHM_ES256, &policy, &selected) != PG_OAUTH_JWKS_OK)
+							 PG_OAUTH_ALGORITHM_ES256, &policy, &selected) != PG_OAUTH_JWKS_OK)
 		fail("valid P-256 signing key was rejected");
 	pg_oauth_selected_jwk_clear(&selected);
 	free(document);
 
 	document = make_ec_jwks(false);
 	expect_error(document, "ec-1", PG_OAUTH_ALGORITHM_ES256,
-		PG_OAUTH_JWKS_INVALID_KEY, "off-curve EC point was accepted");
+				 PG_OAUTH_JWKS_INVALID_KEY, "off-curve EC point was accepted");
 	free(document);
 
 	document = make_rsa_jwks(
-		"\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"key_ops\":[\"verify\"]",
-		256, 0x80);
+							 "\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"key_ops\":[\"verify\"]",
+							 256, 0x80);
 	if (pg_oauth_jwks_select(document, strlen(document), "rsa-1",
-			PG_OAUTH_ALGORITHM_RS256, &policy, &selected) != PG_OAUTH_JWKS_OK)
+							 PG_OAUTH_ALGORITHM_RS256, &policy, &selected) != PG_OAUTH_JWKS_OK)
 		fail("verify key operation was rejected");
 	pg_oauth_selected_jwk_clear(&selected);
 	free(document);
 
 	document = make_rsa_jwks(
-		"\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"sig\"", 128, 0x80);
+							 "\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"sig\"", 128, 0x80);
 	expect_error(document, "rsa-1", PG_OAUTH_ALGORITHM_RS256,
-		PG_OAUTH_JWKS_INVALID_KEY, "undersized RSA modulus was accepted");
+				 PG_OAUTH_JWKS_INVALID_KEY, "undersized RSA modulus was accepted");
 	free(document);
 
 	document = make_rsa_jwks(
-		"\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"enc\"", 256, 0x80);
+							 "\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"enc\"", 256, 0x80);
 	expect_error(document, "rsa-1", PG_OAUTH_ALGORITHM_RS256,
-		PG_OAUTH_JWKS_KEY_NOT_FOR_SIGNATURE, "encryption key was accepted");
+				 PG_OAUTH_JWKS_KEY_NOT_FOR_SIGNATURE, "encryption key was accepted");
 	free(document);
 
 	document = make_rsa_jwks(
-		"\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"key_ops\":[\"verify\",\"sign\"]",
-		256, 0x80);
+							 "\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"key_ops\":[\"verify\",\"sign\"]",
+							 256, 0x80);
 	expect_error(document, "rsa-1", PG_OAUTH_ALGORITHM_RS256,
-		PG_OAUTH_JWKS_KEY_NOT_FOR_SIGNATURE,
-		"mixed public-key operations were accepted");
+				 PG_OAUTH_JWKS_KEY_NOT_FOR_SIGNATURE,
+				 "mixed public-key operations were accepted");
 	free(document);
 
 	document = make_rsa_jwks(
-		"\"kid\":\"rsa-1\",\"alg\":\"RS256\"", 256, 0x80);
+							 "\"kid\":\"rsa-1\",\"alg\":\"RS256\"", 256, 0x80);
 	expect_error(document, "rsa-1", PG_OAUTH_ALGORITHM_RS256,
-		PG_OAUTH_JWKS_KEY_NOT_FOR_SIGNATURE,
-		"key without signature intent was accepted");
+				 PG_OAUTH_JWKS_KEY_NOT_FOR_SIGNATURE,
+				 "key without signature intent was accepted");
 	free(document);
 
 	document = make_rsa_jwks(
-		"\"kid\":\"rsa-1\",\"alg\":\"ES256\",\"use\":\"sig\"", 256, 0x80);
+							 "\"kid\":\"rsa-1\",\"alg\":\"ES256\",\"use\":\"sig\"", 256, 0x80);
 	expect_error(document, "rsa-1", PG_OAUTH_ALGORITHM_RS256,
-		PG_OAUTH_JWKS_ALGORITHM_MISMATCH, "key algorithm mismatch was accepted");
+				 PG_OAUTH_JWKS_ALGORITHM_MISMATCH, "key algorithm mismatch was accepted");
 	free(document);
 
 	document = make_rsa_jwks(
-		"\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"sig\",\"d\":\"AQ\"",
-		256, 0x80);
+							 "\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"sig\",\"d\":\"AQ\"",
+							 256, 0x80);
 	expect_error(document, "rsa-1", PG_OAUTH_ALGORITHM_RS256,
-		PG_OAUTH_JWKS_INVALID_KEY, "private key material was accepted");
+				 PG_OAUTH_JWKS_INVALID_KEY, "private key material was accepted");
 	free(document);
 
 	expect_error("{\"keys\":[]}", "missing", PG_OAUTH_ALGORITHM_RS256,
-		PG_OAUTH_JWKS_INVALID_KEYS, "empty key set was accepted");
+				 PG_OAUTH_JWKS_INVALID_KEYS, "empty key set was accepted");
 	expect_error("{\"keys\":[1]}", "missing", PG_OAUTH_ALGORITHM_RS256,
-		PG_OAUTH_JWKS_INVALID_KEYS, "non-object key was accepted");
+				 PG_OAUTH_JWKS_INVALID_KEYS, "non-object key was accepted");
 	expect_error("{\"keys\":[],\"keys\":[]}", "missing",
-		PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_INVALID_JSON,
-		"duplicate JWKS member was accepted");
+				 PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_INVALID_JSON,
+				 "duplicate JWKS member was accepted");
 	expect_error("{\"keys\":[{\"kid\":\"k\",\"kid\":\"k\"}]}", "k",
-		PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_INVALID_JSON,
-		"duplicate JWK member was accepted");
+				 PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_INVALID_JSON,
+				 "duplicate JWK member was accepted");
 	expect_error("{\"keys\":[{\"kid\":\"same\"},{\"kid\":\"same\"}]}", "same",
-		PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_DUPLICATE_KEY_ID,
-		"duplicate key identifier was accepted");
+				 PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_DUPLICATE_KEY_ID,
+				 "duplicate key identifier was accepted");
 	expect_error("{\"keys\":[{\"kid\":\"other\"}]}", "missing",
-		PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_KEY_NOT_FOUND,
-		"unknown key identifier was accepted");
+				 PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_KEY_NOT_FOUND,
+				 "unknown key identifier was accepted");
 	expect_error("{\"keys\":[{\"kid\":\"line\\nfeed\"}]}", "missing",
-		PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_INVALID_KEY_ID,
-		"control character in key identifier was accepted");
+				 PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_INVALID_KEY_ID,
+				 "control character in key identifier was accepted");
 
 	if (strstr(pg_oauth_jwks_error_code(PG_OAUTH_JWKS_INVALID_KEY), "rsa-1") !=
 		NULL)

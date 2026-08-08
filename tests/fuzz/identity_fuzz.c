@@ -18,8 +18,8 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 		return 0;
 	split = size / 2;
 	if (pg_oauth_identity_build((const char *) data, split,
-			(const char *) data + split, size - split, &policy,
-			&identity) == PG_OAUTH_IDENTITY_OK)
+								(const char *) data + split, size - split, &policy,
+								&identity) == PG_OAUTH_IDENTITY_OK)
 		pg_oauth_identity_clear(&identity);
 	return 0;
 }

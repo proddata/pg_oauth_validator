@@ -114,7 +114,7 @@ decode_parameter(const json_t *value, size_t maximum, uint8_t **decoded,
 	encoded_length = json_string_length(value);
 	if (!pg_oauth_base64url_valid(encoded, encoded_length) ||
 		!pg_oauth_base64url_decoded_size(encoded_length, maximum,
-									   decoded_length))
+										 decoded_length))
 		return false;
 	output = malloc(*decoded_length);
 	if (output == NULL)
@@ -164,11 +164,11 @@ valid_rsa_key(const json_t *key, const PgOAuthJwksPolicy *policy)
 
 	if (!json_string_equals(json_object_get(key, "kty"), "RSA") ||
 		!decode_parameter(json_object_get(key, "n"),
-					  policy->maximum_rsa_bits / 8 + 1, &modulus,
-					  &modulus_length) ||
+						  policy->maximum_rsa_bits / 8 + 1, &modulus,
+						  &modulus_length) ||
 		!decode_parameter(json_object_get(key, "e"),
-					  PG_OAUTH_JWK_MAX_EXPONENT_BYTES, &exponent,
-					  &exponent_length))
+						  PG_OAUTH_JWK_MAX_EXPONENT_BYTES, &exponent,
+						  &exponent_length))
 		goto done;
 	if (modulus[0] == 0 || exponent[0] == 0 ||
 		(modulus[modulus_length - 1] & 1) == 0)
@@ -215,7 +215,7 @@ valid_ec_key(const json_t *key)
 	if (group == NULL || point == NULL || x_coordinate == NULL ||
 		y_coordinate == NULL ||
 		EC_POINT_set_affine_coordinates(group, point, x_coordinate,
-									 y_coordinate, NULL) != 1 ||
+										y_coordinate, NULL) != 1 ||
 		EC_POINT_is_at_infinity(group, point) == 1 ||
 		EC_POINT_is_on_curve(group, point, NULL) != 1)
 		goto done;
@@ -280,7 +280,7 @@ pg_oauth_jwks_select(const char *document, size_t document_length,
 		return PG_OAUTH_JWKS_INVALID_JSON;
 
 	selected->jwks = json_loadb(document, document_length,
-							 JSON_REJECT_DUPLICATES, &json_error);
+								JSON_REJECT_DUPLICATES, &json_error);
 	if (selected->jwks == NULL || !json_is_object(selected->jwks))
 	{
 		pg_oauth_selected_jwk_clear(selected);
@@ -300,8 +300,8 @@ pg_oauth_jwks_select(const char *document, size_t document_length,
 
 	for (size_t i = 0; i < json_array_size(keys); i++)
 	{
-		json_t *key = json_array_get(keys, i);
-		json_t *candidate_id;
+		json_t	   *key = json_array_get(keys, i);
+		json_t	   *candidate_id;
 
 		if (!json_is_object(key))
 		{

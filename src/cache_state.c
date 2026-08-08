@@ -49,7 +49,7 @@ pg_oauth_cache_init(PgOAuthCache *cache, PgOAuthCacheEntry *entries,
 
 bool
 pg_oauth_cache_attach(PgOAuthCache *cache, PgOAuthCacheEntry *entries,
-				  size_t capacity, PgOAuthCacheControl *control)
+					  size_t capacity, PgOAuthCacheControl *control)
 {
 	if (cache == NULL || entries == NULL || capacity == 0 || control == NULL ||
 		control->next_refresh_serial == 0)
@@ -63,7 +63,7 @@ pg_oauth_cache_attach(PgOAuthCache *cache, PgOAuthCacheEntry *entries,
 
 PgOAuthCacheLookup
 pg_oauth_cache_lookup(PgOAuthCache *cache, const void *key, size_t key_length,
-				  int64_t now_ms, bool allow_stale, size_t *entry_index)
+					  int64_t now_ms, bool allow_stale, size_t *entry_index)
 {
 	if (entry_index != NULL)
 		*entry_index = SIZE_MAX;
@@ -103,9 +103,9 @@ static size_t
 find_refresh_slot(PgOAuthCache *cache, const void *key, size_t key_length,
 				  int64_t now_ms, bool *existing)
 {
-	size_t empty = SIZE_MAX;
-	size_t victim = SIZE_MAX;
-	int64_t victim_last_used = INT64_MAX;
+	size_t		empty = SIZE_MAX;
+	size_t		victim = SIZE_MAX;
+	int64_t		victim_last_used = INT64_MAX;
 
 	*existing = false;
 	for (size_t i = 0; i < cache->capacity; i++)
@@ -132,13 +132,13 @@ find_refresh_slot(PgOAuthCache *cache, const void *key, size_t key_length,
 
 PgOAuthCacheRefreshResult
 pg_oauth_cache_begin_refresh(PgOAuthCache *cache, const void *key,
-					 size_t key_length, int64_t now_ms, bool unknown_kid,
-					 int64_t unknown_kid_cooldown_ms,
-					 PgOAuthCacheRefresh *refresh)
+							 size_t key_length, int64_t now_ms, bool unknown_kid,
+							 int64_t unknown_kid_cooldown_ms,
+							 PgOAuthCacheRefresh *refresh)
 {
 	PgOAuthCacheEntry *entry;
-	size_t index;
-	bool existing;
+	size_t		index;
+	bool		existing;
 
 	if (refresh != NULL)
 	{
@@ -195,11 +195,11 @@ pg_oauth_cache_begin_refresh(PgOAuthCache *cache, const void *key,
 
 bool
 pg_oauth_cache_complete_refresh(PgOAuthCache *cache,
-					const PgOAuthCacheRefresh *refresh, int64_t now_ms,
-					bool success, bool cacheable,
-					bool revalidation_required, int64_t ttl_ms,
-					int64_t stale_grace_ms, const void *payload,
-					size_t payload_length)
+								const PgOAuthCacheRefresh *refresh, int64_t now_ms,
+								bool success, bool cacheable,
+								bool revalidation_required, int64_t ttl_ms,
+								int64_t stale_grace_ms, const void *payload,
+								size_t payload_length)
 {
 	PgOAuthCacheEntry *entry;
 
@@ -208,7 +208,7 @@ pg_oauth_cache_complete_refresh(PgOAuthCache *cache,
 		now_ms < 0 || ttl_ms < 0 || stale_grace_ms < 0)
 		return false;
 	if (success && cacheable && (payload == NULL || payload_length == 0 ||
-		payload_length > PG_OAUTH_CACHE_MAX_PAYLOAD_SIZE))
+								 payload_length > PG_OAUTH_CACHE_MAX_PAYLOAD_SIZE))
 		return false;
 	entry = &cache->entries[refresh->entry_index];
 	if (!entry->occupied || !entry->refreshing ||
@@ -236,14 +236,14 @@ pg_oauth_cache_complete_refresh(PgOAuthCache *cache,
 	entry->stale_until_ms = entry->fresh_until_ms;
 	if (!revalidation_required)
 		entry->stale_until_ms = bounded_add(entry->fresh_until_ms,
-										 stale_grace_ms);
+											stale_grace_ms);
 	return true;
 }
 
 PgOAuthCacheCopyResult
 pg_oauth_cache_copy_payload(const PgOAuthCache *cache, size_t entry_index,
-						void *output, size_t output_size,
-						size_t *payload_length)
+							void *output, size_t output_size,
+							size_t *payload_length)
 {
 	const PgOAuthCacheEntry *entry;
 

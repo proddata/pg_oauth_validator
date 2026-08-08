@@ -126,7 +126,7 @@ static bool
 validate_jwks_hosts(const char *value)
 {
 	const char *entry;
-	int count = 0;
+	int			count = 0;
 
 	if (value == NULL || value[0] == '\0')
 		return true;
@@ -135,7 +135,7 @@ validate_jwks_hosts(const char *value)
 	{
 		const char *end = strchr(entry, ',');
 		const char *trimmed_end = end != NULL ? end : entry + strlen(entry);
-		size_t length;
+		size_t		length;
 
 		while (*entry != '\0' && isspace((unsigned char) *entry))
 			entry++;

@@ -25,9 +25,9 @@
 #undef fprintf
 
 PGDLLEXPORT Port *MyProcPort;
-static int registered_gucs;
+static int	registered_gucs;
 static bool cache_gucs_have_expected_contract;
-static int cache_gucs_checked;
+static int	cache_gucs_checked;
 
 PGDLLEXPORT bool
 errstart(int elevel, const char *domain)
@@ -46,14 +46,14 @@ errfinish(const char *filename, int lineno, const char *funcname)
 }
 
 PGDLLEXPORT int
-errmsg_internal(const char *fmt,...)
+errmsg_internal(const char *fmt, ...)
 {
 	(void) fmt;
 	return 0;
 }
 
 PGDLLEXPORT int
-errdetail_internal(const char *fmt,...)
+errdetail_internal(const char *fmt, ...)
 {
 	(void) fmt;
 	return 0;
@@ -68,8 +68,8 @@ pfree(void *pointer)
 PGDLLEXPORT char *
 pstrdup(const char *value)
 {
-	size_t length = strlen(value);
-	char *copy = malloc(length + 1);
+	size_t		length = strlen(value);
+	char	   *copy = malloc(length + 1);
 
 	if (copy != NULL)
 		memcpy(copy, value, length + 1);
@@ -77,10 +77,10 @@ pstrdup(const char *value)
 }
 
 PGDLLEXPORT char *
-psprintf(const char *fmt,...)
+psprintf(const char *fmt, ...)
 {
-	va_list arguments;
-	char *result = NULL;
+	va_list		arguments;
+	char	   *result = NULL;
 
 	va_start(arguments, fmt);
 	if (vasprintf(&result, fmt, arguments) < 0)
@@ -205,31 +205,31 @@ DefineCustomIntVariable(const char *name, const char *short_desc,
 		context == PGC_SIGHUP && flags == GUC_UNIT_MS)
 		cache_gucs_checked++;
 	else if (strcmp(name, "pg_oauth_validator.cache_max_ttl") == 0 &&
-		boot_value == 3600000 && min_value == 1000 && max_value == 86400000 &&
-		context == PGC_SIGHUP && flags == GUC_UNIT_MS)
+			 boot_value == 3600000 && min_value == 1000 && max_value == 86400000 &&
+			 context == PGC_SIGHUP && flags == GUC_UNIT_MS)
 		cache_gucs_checked++;
 	else if (strcmp(name, "pg_oauth_validator.jwks_stale_grace") == 0 &&
-		boot_value == 0 && min_value == 0 && max_value == 3600000 &&
-		context == PGC_SIGHUP && flags == GUC_UNIT_MS)
+			 boot_value == 0 && min_value == 0 && max_value == 3600000 &&
+			 context == PGC_SIGHUP && flags == GUC_UNIT_MS)
 		cache_gucs_checked++;
 	else if (strcmp(name,
-			 "pg_oauth_validator.unknown_kid_refresh_cooldown") == 0 &&
-		boot_value == 30000 && min_value == 1000 && max_value == 300000 &&
-		context == PGC_SIGHUP && flags == GUC_UNIT_MS)
+					"pg_oauth_validator.unknown_kid_refresh_cooldown") == 0 &&
+			 boot_value == 30000 && min_value == 1000 && max_value == 300000 &&
+			 context == PGC_SIGHUP && flags == GUC_UNIT_MS)
 		cache_gucs_checked++;
 	else if (strcmp(name, "pg_oauth_validator.cache_max_entries") == 0 &&
-		boot_value == 32 && min_value == 8 && max_value == 256 &&
-		context == PGC_SIGHUP && flags == 0)
+			 boot_value == 32 && min_value == 8 && max_value == 256 &&
+			 context == PGC_SIGHUP && flags == 0)
 		cache_gucs_checked++;
 	cache_gucs_have_expected_contract = cache_gucs_checked == 6;
 }
 
 PGDLLEXPORT void
 DefineCustomBoolVariable(const char *name, const char *short_desc,
-					 const char *long_desc, bool *value_address,
-					 bool boot_value, GucContext context, int flags,
-					 GucBoolCheckHook check_hook,
-					 GucBoolAssignHook assign_hook, GucShowHook show_hook)
+						 const char *long_desc, bool *value_address,
+						 bool boot_value, GucContext context, int flags,
+						 GucBoolCheckHook check_hook,
+						 GucBoolAssignHook assign_hook, GucShowHook show_hook)
 {
 	(void) name;
 	(void) short_desc;
@@ -249,7 +249,7 @@ static bool policy_option_read;
 
 PGDLLEXPORT void
 RegisterOAuthHBAOptions(ValidatorModuleState *state, int num,
-						 const char *options[])
+						const char *options[])
 {
 	(void) state;
 
@@ -296,11 +296,11 @@ main(int argc, char **argv)
 		.error_detail = (char *) "unsafe-detail-sentinel",
 #endif
 	};
-	void *handle;
-	void *symbol;
-	bool processed;
-	HbaLine hba = {0};
-	Port port = {0};
+	void	   *handle;
+	void	   *symbol;
+	bool		processed;
+	HbaLine		hba = {0};
+	Port		port = {0};
 
 	if (argc != 2)
 		fail("expected the validator shared-library path");
@@ -311,6 +311,7 @@ main(int argc, char **argv)
 
 	dlerror();
 	symbol = dlsym(handle, "_PG_oauth_validator_module_init");
+
 	if (dlerror() != NULL || symbol == NULL)
 		fail("validator initialization symbol is unavailable");
 
@@ -320,6 +321,7 @@ main(int argc, char **argv)
 
 	dlerror();
 	symbol = dlsym(handle, "_PG_init");
+
 	if (dlerror() != NULL || symbol == NULL)
 		fail("PostgreSQL module initialization symbol is unavailable");
 	memcpy(&module_init, &symbol, sizeof(module_init));

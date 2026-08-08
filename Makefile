@@ -91,6 +91,7 @@ include $(PGXS)
 	check-signature \
 	check-claims check-http-transport check-identity check-issuer-key check-metadata \
 	check-validator \
+	format formatcheck \
 	check-source-tree \
 	check-pg-version check-policy check-static-link-dependencies \
 	check-libjwt-spike check-libjwt-version check-symbols clean-pg18 clean-pg19 \
@@ -109,6 +110,12 @@ all: check-pg-version check-static-link-dependencies
 
 check-source-tree:
 	"$(srcdir)/scripts/ci/check-source-tree.sh"
+
+format:
+	"$(srcdir)/scripts/format-c.sh"
+
+formatcheck:
+	"$(srcdir)/scripts/format-c.sh" --check
 
 sanitizercheck:
 	$(MAKE) dependency-spike check-http-transport check-issuer-key \

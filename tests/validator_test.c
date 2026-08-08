@@ -52,7 +52,7 @@ expect(const char *token, const char *metadata_url,
 	   const char *message, PgOAuthValidatorResult *result)
 {
 	if (pg_oauth_validate_access_token(token, strlen(token), metadata_url,
-			selected_policy, result) != expected)
+									   selected_policy, result) != expected)
 		fail(message);
 	if (expected != PG_OAUTH_VALIDATOR_OK && result->identity.value != NULL)
 		fail("rejected token retained an authenticated identity");
@@ -63,7 +63,7 @@ main(int argc, char **argv)
 {
 	PgOAuthValidatorPolicy selected_policy;
 	PgOAuthValidatorResult result;
-	int64_t current_time;
+	int64_t		current_time;
 
 	if (argc != 11)
 		fail("expected issuer, time, seven tokens, and expected identity");
@@ -71,39 +71,39 @@ main(int argc, char **argv)
 		fail("invalid test time");
 	selected_policy = policy(argv[1], current_time);
 	expect(argv[3], argv[1], &selected_policy, PG_OAUTH_VALIDATOR_OK,
-		"valid access token was rejected", &result);
+		   "valid access token was rejected", &result);
 	if (strcmp(result.identity.value, argv[10]) != 0 ||
 		result.expires_at != current_time + 300)
 		fail("validated identity or expiry was incorrect");
 	pg_oauth_validator_result_clear(&result);
 
 	expect(argv[4], argv[1], &selected_policy, PG_OAUTH_VALIDATOR_SIGNATURE,
-		"modified signed payload was accepted", &result);
+		   "modified signed payload was accepted", &result);
 	if (result.signature_error != PG_OAUTH_SIGNATURE_INVALID)
 		fail("signature failure lost its typed cause");
 	pg_oauth_validator_result_clear(&result);
 	expect(argv[5], argv[1], &selected_policy, PG_OAUTH_VALIDATOR_CLAIMS,
-		"wrong signed issuer was accepted", &result);
+		   "wrong signed issuer was accepted", &result);
 	if (result.claims_error != PG_OAUTH_CLAIMS_INVALID_ISSUER)
 		fail("issuer failure lost its typed cause");
 	pg_oauth_validator_result_clear(&result);
 	expect(argv[6], argv[1], &selected_policy, PG_OAUTH_VALIDATOR_CLAIMS,
-		"missing required scope was accepted", &result);
+		   "missing required scope was accepted", &result);
 	if (result.claims_error != PG_OAUTH_CLAIMS_INSUFFICIENT_SCOPE)
 		fail("scope failure lost its typed cause");
 	pg_oauth_validator_result_clear(&result);
 	expect(argv[7], argv[1], &selected_policy, PG_OAUTH_VALIDATOR_CLAIMS,
-		"expired token was accepted", &result);
+		   "expired token was accepted", &result);
 	if (result.claims_error != PG_OAUTH_CLAIMS_EXPIRED)
 		fail("expiry failure lost its typed cause");
 	pg_oauth_validator_result_clear(&result);
 	expect(argv[8], argv[1], &selected_policy, PG_OAUTH_VALIDATOR_ENVELOPE,
-		"ID-token type was accepted", &result);
+		   "ID-token type was accepted", &result);
 	if (result.envelope_error != PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE)
 		fail("token-type failure lost its typed cause");
 	pg_oauth_validator_result_clear(&result);
 	expect(argv[9], argv[1], &selected_policy, PG_OAUTH_VALIDATOR_ISSUER_KEY,
-		"unknown key identifier was accepted", &result);
+		   "unknown key identifier was accepted", &result);
 	if (result.jwks_error != PG_OAUTH_JWKS_KEY_NOT_FOUND)
 		fail("key-selection failure lost its typed cause");
 	pg_oauth_validator_result_clear(&result);

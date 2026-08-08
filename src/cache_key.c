@@ -47,7 +47,7 @@ append_u64(PgOAuthCacheKey *key, uint64_t value)
 static bool
 append_string(PgOAuthCacheKey *key, const char *value)
 {
-	size_t length = 0;
+	size_t		length = 0;
 
 	if (value == NULL)
 		return false;
@@ -61,7 +61,7 @@ append_string(PgOAuthCacheKey *key, const char *value)
 
 PgOAuthCacheKeyError
 pg_oauth_cache_key_build(const PgOAuthCacheKeyPolicy *policy,
-					 PgOAuthCacheKey *key)
+						 PgOAuthCacheKey *key)
 {
 	static const unsigned char magic[] = {'P', 'G', 'O', 'C'};
 
@@ -124,10 +124,12 @@ pg_oauth_cache_key_error_code(PgOAuthCacheKeyError error)
 {
 	switch (error)
 	{
-		case PG_OAUTH_CACHE_KEY_OK: return "cache_key_ok";
+		case PG_OAUTH_CACHE_KEY_OK:
+			return "cache_key_ok";
 		case PG_OAUTH_CACHE_KEY_INVALID_ARGUMENT:
 			return "cache_key_invalid_argument";
-		case PG_OAUTH_CACHE_KEY_TOO_LARGE: return "cache_key_too_large";
+		case PG_OAUTH_CACHE_KEY_TOO_LARGE:
+			return "cache_key_too_large";
 	}
 	return "cache_key_unknown_error";
 }

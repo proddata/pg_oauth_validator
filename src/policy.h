@@ -66,7 +66,7 @@ typedef enum PgOAuthPolicyError
 } PgOAuthPolicyError;
 
 extern PgOAuthPolicyError pg_oauth_policy_build(
-	const PgOAuthPolicyConfig *config, const PgOAuthHbaPolicy *hba,
-	PgOAuthValidationPolicy *policy);
+												const PgOAuthPolicyConfig *config, const PgOAuthHbaPolicy *hba,
+												PgOAuthValidationPolicy *policy);
 
-#endif /* PG_OAUTH_VALIDATOR_POLICY_H */
+#endif							/* PG_OAUTH_VALIDATOR_POLICY_H */

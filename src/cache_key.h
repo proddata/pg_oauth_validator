@@ -33,30 +33,30 @@ typedef struct PgOAuthCacheKeyPolicy
 	const char *authn_claim;
 	const char *allowed_jwks_hosts;
 	const char *ca_file;
-	uint32_t allowed_algorithms;
-	uint32_t clock_skew_ms;
-	uint32_t max_token_size;
-	uint32_t max_metadata_size;
-	uint32_t max_jwks_size;
-	uint32_t max_jwks_keys;
-	uint32_t minimum_rsa_bits;
-	uint32_t maximum_rsa_bits;
-	uint64_t jwks_stale_grace_ms;
-	uint64_t metadata_default_ttl_ms;
-	uint64_t jwks_default_ttl_ms;
-	uint64_t cache_max_ttl_ms;
-	uint64_t unknown_kid_refresh_cooldown_ms;
-	bool allow_insecure_http;
+	uint32_t	allowed_algorithms;
+	uint32_t	clock_skew_ms;
+	uint32_t	max_token_size;
+	uint32_t	max_metadata_size;
+	uint32_t	max_jwks_size;
+	uint32_t	max_jwks_keys;
+	uint32_t	minimum_rsa_bits;
+	uint32_t	maximum_rsa_bits;
+	uint64_t	jwks_stale_grace_ms;
+	uint64_t	metadata_default_ttl_ms;
+	uint64_t	jwks_default_ttl_ms;
+	uint64_t	cache_max_ttl_ms;
+	uint64_t	unknown_kid_refresh_cooldown_ms;
+	bool		allow_insecure_http;
 } PgOAuthCacheKeyPolicy;
 
 typedef struct PgOAuthCacheKey
 {
 	unsigned char data[PG_OAUTH_CACHE_MAX_KEY_SIZE];
-	size_t length;
+	size_t		length;
 } PgOAuthCacheKey;
 
 extern PgOAuthCacheKeyError pg_oauth_cache_key_build(
-	const PgOAuthCacheKeyPolicy *policy, PgOAuthCacheKey *key);
+													 const PgOAuthCacheKeyPolicy *policy, PgOAuthCacheKey *key);
 extern const char *pg_oauth_cache_key_error_code(PgOAuthCacheKeyError error);
 
 #endif

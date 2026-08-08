@@ -31,7 +31,7 @@ typedef struct PgOAuthValidatorPolicy
 typedef struct PgOAuthValidatorResult
 {
 	PgOAuthIdentity identity;
-	int64_t expires_at;
+	int64_t		expires_at;
 	PgOAuthJwtEnvelopeError envelope_error;
 	PgOAuthIssuerKeyError issuer_key_error;
 	PgOAuthHttpError http_error;
@@ -43,13 +43,13 @@ typedef struct PgOAuthValidatorResult
 } PgOAuthValidatorResult;
 
 extern PgOAuthValidatorError pg_oauth_validate_access_token(
-	const char *token, size_t token_length, const char *metadata_url,
-	const PgOAuthValidatorPolicy *policy, PgOAuthValidatorResult *result);
+															const char *token, size_t token_length, const char *metadata_url,
+															const PgOAuthValidatorPolicy *policy, PgOAuthValidatorResult *result);
 extern PgOAuthValidatorError pg_oauth_validate_access_token_cached(
-	const char *token, size_t token_length, const char *metadata_url,
-	const PgOAuthValidatorPolicy *policy,
-	const PgOAuthIssuerKeyCachePolicy *cache_policy, int64_t now_ms,
-	int64_t response_time_seconds, PgOAuthValidatorResult *result);
+																   const char *token, size_t token_length, const char *metadata_url,
+																   const PgOAuthValidatorPolicy *policy,
+																   const PgOAuthIssuerKeyCachePolicy *cache_policy, int64_t now_ms,
+																   int64_t response_time_seconds, PgOAuthValidatorResult *result);
 extern void pg_oauth_validator_result_clear(PgOAuthValidatorResult *result);
 extern const char *pg_oauth_validator_error_code(PgOAuthValidatorError error);
 

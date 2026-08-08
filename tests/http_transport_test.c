@@ -37,7 +37,7 @@ main(int argc, char **argv)
 		.allow_insecure_http = true,
 	};
 	PgOAuthHttpResponse response;
-	char url[4096];
+	char		url[4096];
 
 	if (argc != 4)
 		fail("expected HTTP base URL, HTTPS base URL, and CA file");
@@ -58,7 +58,7 @@ main(int argc, char **argv)
 	pg_oauth_http_response_clear(&response);
 	snprintf(url, sizeof(url), "%s/large-freshness-header", argv[1]);
 	expect(url, &policy, PG_OAUTH_HTTP_RESPONSE_TOO_LARGE,
-		"oversized freshness header was accepted");
+		   "oversized freshness header was accepted");
 	snprintf(url, sizeof(url), "%s/jwks", argv[1]);
 	if (pg_oauth_http_get_json(url, &policy, &response) != PG_OAUTH_HTTP_OK)
 		fail("standards JWKS media type was rejected");
@@ -66,18 +66,18 @@ main(int argc, char **argv)
 
 	policy.allow_insecure_http = false;
 	expect(url, &policy, PG_OAUTH_HTTP_INSECURE_URL,
-		"HTTP was accepted without development opt-in");
+		   "HTTP was accepted without development opt-in");
 	policy.allow_insecure_http = true;
 	snprintf(url, sizeof(url), "%s/redirect", argv[1]);
 	expect(url, &policy, PG_OAUTH_HTTP_STATUS, "redirect was followed");
 	snprintf(url, sizeof(url), "%s/large", argv[1]);
 	policy.max_response_size = 32;
 	expect(url, &policy, PG_OAUTH_HTTP_RESPONSE_TOO_LARGE,
-		"oversized response was accepted");
+		   "oversized response was accepted");
 	policy.max_response_size = 1024;
 	snprintf(url, sizeof(url), "%s/text", argv[1]);
 	expect(url, &policy, PG_OAUTH_HTTP_CONTENT_TYPE,
-		"non-JSON content type was accepted");
+		   "non-JSON content type was accepted");
 	snprintf(url, sizeof(url), "%s/error", argv[1]);
 	expect(url, &policy, PG_OAUTH_HTTP_STATUS, "HTTP error status was accepted");
 	snprintf(url, sizeof(url), "%s/slow", argv[1]);
@@ -90,23 +90,23 @@ main(int argc, char **argv)
 	snprintf(url, sizeof(url), "%s/ok", argv[1]);
 	policy.allowed_host = "example.invalid";
 	expect(url, &policy, PG_OAUTH_HTTP_HOST_NOT_ALLOWED,
-		"non-allowlisted host was requested");
+		   "non-allowlisted host was requested");
 	policy.allowed_host = "localhost";
 	policy.additional_allowed_hosts = "example.invalid, LOCALHOST";
 	expect(url, &policy, PG_OAUTH_HTTP_OK,
-		"exact additional allowlist host was rejected");
+		   "exact additional allowlist host was rejected");
 	policy.additional_allowed_hosts = NULL;
 	expect("http://localhost.attacker.invalid/jwks", &policy,
-		PG_OAUTH_HTTP_HOST_NOT_ALLOWED, "hostname suffix bypass was accepted");
+		   PG_OAUTH_HTTP_HOST_NOT_ALLOWED, "hostname suffix bypass was accepted");
 	expect("file:///etc/passwd", &policy, PG_OAUTH_HTTP_INVALID_URL,
-		"non-HTTP protocol was accepted");
+		   "non-HTTP protocol was accepted");
 	expect("https://user:secret@localhost/jwks", &policy,
-		PG_OAUTH_HTTP_INVALID_URL, "URL credentials were accepted");
+		   PG_OAUTH_HTTP_INVALID_URL, "URL credentials were accepted");
 
 	policy.allow_insecure_http = false;
 	snprintf(url, sizeof(url), "%s/ok", argv[2]);
 	expect(url, &policy, PG_OAUTH_HTTP_TLS_FAILURE,
-		"untrusted TLS certificate was accepted");
+		   "untrusted TLS certificate was accepted");
 	policy.ca_file = argv[3];
 	if (pg_oauth_http_get_json(url, &policy, &response) != PG_OAUTH_HTTP_OK)
 		fail("trusted TLS response failed");

@@ -72,8 +72,8 @@ main(void)
 	PgOAuthCacheKeyPolicy value = policy();
 	PgOAuthCacheKey original = build(&value);
 	PgOAuthCacheKey second = build(&value);
-	char oversized[PG_OAUTH_CACHE_MAX_KEY_SIZE + 1];
-	char unterminated[PG_OAUTH_CACHE_MAX_KEY_SIZE];
+	char		oversized[PG_OAUTH_CACHE_MAX_KEY_SIZE + 1];
+	char		unterminated[PG_OAUTH_CACHE_MAX_KEY_SIZE];
 
 	if (original.length == 0 || original.length > PG_OAUTH_CACHE_MAX_KEY_SIZE ||
 		original.length != second.length ||
@@ -149,7 +149,7 @@ main(void)
 		PG_OAUTH_CACHE_KEY_INVALID_ARGUMENT)
 		fail("incomplete trust policy was accepted");
 	if (strstr(pg_oauth_cache_key_error_code(PG_OAUTH_CACHE_KEY_TOO_LARGE),
-			"issuer") != NULL)
+			   "issuer") != NULL)
 		fail("stable cache-key error exposed policy contents");
 	return EXIT_SUCCESS;
 }

@@ -43,10 +43,10 @@ typedef struct PgOAuthSelectedJwk
 } PgOAuthSelectedJwk;
 
 extern PgOAuthJwksError pg_oauth_jwks_select(
-	const char *document, size_t document_length, const char *key_id,
-	uint32_t token_algorithm, const PgOAuthJwksPolicy *policy,
-	PgOAuthSelectedJwk *selected);
+											 const char *document, size_t document_length, const char *key_id,
+											 uint32_t token_algorithm, const PgOAuthJwksPolicy *policy,
+											 PgOAuthSelectedJwk *selected);
 extern void pg_oauth_selected_jwk_clear(PgOAuthSelectedJwk *selected);
 extern const char *pg_oauth_jwks_error_code(PgOAuthJwksError error);
 
-#endif /* PG_OAUTH_VALIDATOR_JWKS_H */
+#endif							/* PG_OAUTH_VALIDATOR_JWKS_H */

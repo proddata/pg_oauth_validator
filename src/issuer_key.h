@@ -43,19 +43,19 @@ typedef struct PgOAuthIssuerKeyCachePolicy
 	PgOAuthCacheKeyPolicy key_policy;
 	PgOAuthHttpFreshnessPolicy metadata_freshness;
 	PgOAuthHttpFreshnessPolicy jwks_freshness;
-	int64_t jwks_stale_grace_ms;
-	int64_t unknown_kid_refresh_cooldown_ms;
+	int64_t		jwks_stale_grace_ms;
+	int64_t		unknown_kid_refresh_cooldown_ms;
 } PgOAuthIssuerKeyCachePolicy;
 
 extern PgOAuthIssuerKeyError pg_oauth_issuer_key_fetch(
-	const char *metadata_url, const char *expected_issuer, const char *key_id,
-	uint32_t token_algorithm, const PgOAuthIssuerKeyPolicy *policy,
-	PgOAuthIssuerKeyResult *result);
+													   const char *metadata_url, const char *expected_issuer, const char *key_id,
+													   uint32_t token_algorithm, const PgOAuthIssuerKeyPolicy *policy,
+													   PgOAuthIssuerKeyResult *result);
 extern PgOAuthIssuerKeyError pg_oauth_issuer_key_fetch_cached(
-	const char *metadata_url, const char *expected_issuer, const char *key_id,
-	uint32_t token_algorithm, const PgOAuthIssuerKeyPolicy *policy,
-	const PgOAuthIssuerKeyCachePolicy *cache_policy, int64_t now_ms,
-	int64_t response_time_seconds, PgOAuthIssuerKeyResult *result);
+															  const char *metadata_url, const char *expected_issuer, const char *key_id,
+															  uint32_t token_algorithm, const PgOAuthIssuerKeyPolicy *policy,
+															  const PgOAuthIssuerKeyCachePolicy *cache_policy, int64_t now_ms,
+															  int64_t response_time_seconds, PgOAuthIssuerKeyResult *result);
 extern void pg_oauth_issuer_key_result_clear(PgOAuthIssuerKeyResult *result);
 extern const char *pg_oauth_issuer_key_error_code(PgOAuthIssuerKeyError error);
 

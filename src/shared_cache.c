@@ -14,23 +14,23 @@
 
 typedef struct PgOAuthSharedCacheState
 {
-	uint32 magic;
-	uint32 version;
-	uint32 capacity;
-	int		tranche_id;
-	LWLock	lock;
+	uint32		magic;
+	uint32		version;
+	uint32		capacity;
+	int			tranche_id;
+	LWLock		lock;
 	PgOAuthCacheControl control;
 	PgOAuthCacheEntry entries[FLEXIBLE_ARRAY_MEMBER];
 } PgOAuthSharedCacheState;
 
 static PgOAuthSharedCacheState *shared_state;
 static PgOAuthCache cache_view;
-static int configured_capacity = 32;
+static int	configured_capacity = 32;
 
 static bool
 shared_cache_size(int capacity, Size *size)
 {
-	Size header = offsetof(PgOAuthSharedCacheState, entries);
+	Size		header = offsetof(PgOAuthSharedCacheState, entries);
 
 	if (size == NULL || capacity < 8 || capacity > 256 ||
 		(Size) capacity > (SIZE_MAX - header) / sizeof(PgOAuthCacheEntry))
@@ -47,8 +47,8 @@ initialize_shared_cache(void *memory)
 #endif
 {
 	PgOAuthSharedCacheState *state = memory;
-	int capacity = configured_capacity;
-	Size segment_size;
+	int			capacity = configured_capacity;
+	Size		segment_size;
 
 #if PG_VERSION_NUM >= 190000
 	(void) argument;
@@ -71,7 +71,7 @@ initialize_shared_cache(void *memory)
 bool
 pg_oauth_shared_cache_configure_capacity(int capacity)
 {
-	Size ignored;
+	Size		ignored;
 
 	if (!shared_cache_size(capacity, &ignored))
 		return false;
@@ -82,8 +82,8 @@ pg_oauth_shared_cache_configure_capacity(int capacity)
 bool
 pg_oauth_shared_cache_attach(void)
 {
-	bool found;
-	Size segment_size;
+	bool		found;
+	Size		segment_size;
 
 	if (shared_state != NULL)
 		return shared_state->capacity == (uint32) configured_capacity;
@@ -91,12 +91,12 @@ pg_oauth_shared_cache_attach(void)
 		return false;
 #if PG_VERSION_NUM >= 190000
 	shared_state = GetNamedDSMSegment(PG_OAUTH_SHARED_CACHE_NAME,
-									 segment_size, initialize_shared_cache,
-									 &found, NULL);
+									  segment_size, initialize_shared_cache,
+									  &found, NULL);
 #else
 	shared_state = GetNamedDSMSegment(PG_OAUTH_SHARED_CACHE_NAME,
-									 segment_size, initialize_shared_cache,
-									 &found);
+									  segment_size, initialize_shared_cache,
+									  &found);
 #endif
 	if (shared_state == NULL || shared_state->magic != PG_OAUTH_SHARED_CACHE_MAGIC ||
 		shared_state->version != PG_OAUTH_SHARED_CACHE_VERSION ||
@@ -107,10 +107,10 @@ pg_oauth_shared_cache_attach(void)
 	}
 #if PG_VERSION_NUM < 190000
 	LWLockRegisterTranche(shared_state->tranche_id,
-					  PG_OAUTH_SHARED_CACHE_TRANCHE);
+						  PG_OAUTH_SHARED_CACHE_TRANCHE);
 #endif
 	if (!pg_oauth_cache_attach(&cache_view, shared_state->entries,
-			shared_state->capacity, &shared_state->control))
+							   shared_state->capacity, &shared_state->control))
 	{
 		shared_state = NULL;
 		return false;
@@ -121,32 +121,32 @@ pg_oauth_shared_cache_attach(void)
 
 PgOAuthSharedCacheLookup
 pg_oauth_shared_cache_lookup(const void *key, size_t key_length,
-					 int64_t now_ms, bool allow_stale, void *output,
-					 size_t output_size)
+							 int64_t now_ms, bool allow_stale, void *output,
+							 size_t output_size)
 {
 	PgOAuthSharedCacheLookup result = {
 		.freshness = PG_OAUTH_CACHE_MISS,
 		.copy_result = PG_OAUTH_CACHE_COPY_NOT_FOUND,
 	};
-	size_t entry_index;
+	size_t		entry_index;
 
 	if (!pg_oauth_shared_cache_attach())
 		return result;
 	LWLockAcquire(&shared_state->lock, LW_EXCLUSIVE);
 	result.freshness = pg_oauth_cache_lookup(&cache_view, key, key_length,
-			now_ms, allow_stale, &entry_index);
+											 now_ms, allow_stale, &entry_index);
 	if (result.freshness != PG_OAUTH_CACHE_MISS)
 		result.copy_result = pg_oauth_cache_copy_payload(&cache_view, entry_index,
-				output, output_size, &result.payload_length);
+														 output, output_size, &result.payload_length);
 	LWLockRelease(&shared_state->lock);
 	return result;
 }
 
 PgOAuthCacheRefreshResult
 pg_oauth_shared_cache_begin_refresh(const void *key, size_t key_length,
-							int64_t now_ms, bool unknown_kid,
-							int64_t unknown_kid_cooldown_ms,
-							PgOAuthCacheRefresh *refresh)
+									int64_t now_ms, bool unknown_kid,
+									int64_t unknown_kid_cooldown_ms,
+									PgOAuthCacheRefresh *refresh)
 {
 	PgOAuthCacheRefreshResult result;
 
@@ -154,26 +154,26 @@ pg_oauth_shared_cache_begin_refresh(const void *key, size_t key_length,
 		return PG_OAUTH_CACHE_REFRESH_INVALID_ARGUMENT;
 	LWLockAcquire(&shared_state->lock, LW_EXCLUSIVE);
 	result = pg_oauth_cache_begin_refresh(&cache_view, key, key_length, now_ms,
-			unknown_kid, unknown_kid_cooldown_ms, refresh);
+										  unknown_kid, unknown_kid_cooldown_ms, refresh);
 	LWLockRelease(&shared_state->lock);
 	return result;
 }
 
 bool
 pg_oauth_shared_cache_complete_refresh(const PgOAuthCacheRefresh *refresh,
-							   int64_t now_ms, bool success, bool cacheable,
-							   bool revalidation_required, int64_t ttl_ms,
-							   int64_t stale_grace_ms, const void *payload,
-							   size_t payload_length)
+									   int64_t now_ms, bool success, bool cacheable,
+									   bool revalidation_required, int64_t ttl_ms,
+									   int64_t stale_grace_ms, const void *payload,
+									   size_t payload_length)
 {
-	bool result;
+	bool		result;
 
 	if (!pg_oauth_shared_cache_attach())
 		return false;
 	LWLockAcquire(&shared_state->lock, LW_EXCLUSIVE);
 	result = pg_oauth_cache_complete_refresh(&cache_view, refresh, now_ms,
-			success, cacheable, revalidation_required, ttl_ms, stale_grace_ms,
-			payload, payload_length);
+											 success, cacheable, revalidation_required, ttl_ms, stale_grace_ms,
+											 payload, payload_length);
 	LWLockRelease(&shared_state->lock);
 	return result;
 }
@@ -191,14 +191,14 @@ pg_oauth_shared_cache_stats(PgOAuthCacheStats *stats)
 
 static PgOAuthCacheIoLookup
 shared_io_lookup(void *context, const void *key, size_t key_length,
-			 int64_t now_ms, bool allow_stale, void *output, size_t output_size)
+				 int64_t now_ms, bool allow_stale, void *output, size_t output_size)
 {
 	PgOAuthSharedCacheLookup value;
 	PgOAuthCacheIoLookup result;
 
 	(void) context;
 	value = pg_oauth_shared_cache_lookup(key, key_length, now_ms, allow_stale,
-		output, output_size);
+										 output, output_size);
 	result.freshness = value.freshness;
 	result.copy_result = value.copy_result;
 	result.payload_length = value.payload_length;
@@ -207,25 +207,25 @@ shared_io_lookup(void *context, const void *key, size_t key_length,
 
 static PgOAuthCacheRefreshResult
 shared_io_begin(void *context, const void *key, size_t key_length,
-			int64_t now_ms, bool unknown_kid,
-			int64_t unknown_kid_cooldown_ms, PgOAuthCacheRefresh *refresh)
+				int64_t now_ms, bool unknown_kid,
+				int64_t unknown_kid_cooldown_ms, PgOAuthCacheRefresh *refresh)
 {
 	(void) context;
 	return pg_oauth_shared_cache_begin_refresh(key, key_length, now_ms,
-		unknown_kid, unknown_kid_cooldown_ms, refresh);
+											   unknown_kid, unknown_kid_cooldown_ms, refresh);
 }
 
 static bool
 shared_io_complete(void *context, const PgOAuthCacheRefresh *refresh,
-			   int64_t now_ms, bool success, bool cacheable,
-			   bool revalidation_required, int64_t ttl_ms,
-			   int64_t stale_grace_ms, const void *payload,
-			   size_t payload_length)
+				   int64_t now_ms, bool success, bool cacheable,
+				   bool revalidation_required, int64_t ttl_ms,
+				   int64_t stale_grace_ms, const void *payload,
+				   size_t payload_length)
 {
 	(void) context;
 	return pg_oauth_shared_cache_complete_refresh(refresh, now_ms, success,
-		cacheable, revalidation_required, ttl_ms, stale_grace_ms, payload,
-		payload_length);
+												  cacheable, revalidation_required, ttl_ms, stale_grace_ms, payload,
+												  payload_length);
 }
 
 bool

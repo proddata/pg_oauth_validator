@@ -47,11 +47,13 @@ printf '%s\n' 'Acquire::Check-Valid-Until "false";' \
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
 	build-essential=12.9 \
+	bison=2:3.8.2+dfsg-1+b1 \
 	ca-certificates=20230311+deb12u1 \
 	clang=1:14.0-55.7~deb12u1 \
 	clang-tools=1:14.0-55.7~deb12u1 \
 	cmake=3.25.1-1 \
 	curl=7.88.1-10+deb12u15 \
+	flex=2.6.4-8.2 \
 	git=1:2.39.5-0+deb12u3 \
 	libclang-rt-dev=1:14.0-55.7~deb12u1 \
 	libcurl4-openssl-dev=7.88.1-10+deb12u15 \
@@ -80,6 +82,8 @@ check_version()
 check_version libcurl4-openssl-dev 7.88.1-10+deb12u15
 check_version libjansson-dev 2.14-2
 check_version libssl-dev 3.0.20-1~deb12u2
+check_version bison 2:3.8.2+dfsg-1+b1
+check_version flex 2.6.4-8.2
 check_version libpq-dev "$pg_dev_version"
 check_version postgresql-server-dev-$pg_major "$pg_dev_version"
 

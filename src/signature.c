@@ -21,7 +21,7 @@ pg_oauth_signature_verify(const char *token, size_t token_length,
 {
 	char	   *jwk_json = NULL;
 	char	   *token_copy = NULL;
-	jwk_set_t *key_set = NULL;
+	jwk_set_t  *key_set = NULL;
 	const jwk_item_t *key;
 	jwt_checker_t *checker = NULL;
 	jwt_alg_t	algorithm;

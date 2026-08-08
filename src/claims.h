@@ -47,8 +47,8 @@ typedef struct PgOAuthValidatedClaims
 
 /* The caller must invoke this only after authenticating the JWS signature. */
 extern PgOAuthClaimsError pg_oauth_claims_validate(
-	const json_t *verified_payload, const PgOAuthClaimsPolicy *policy,
-	PgOAuthValidatedClaims *claims);
+												   const json_t *verified_payload, const PgOAuthClaimsPolicy *policy,
+												   PgOAuthValidatedClaims *claims);
 extern const char *pg_oauth_claims_error_code(PgOAuthClaimsError error);
 
-#endif /* PG_OAUTH_VALIDATOR_CLAIMS_H */
+#endif							/* PG_OAUTH_VALIDATOR_CLAIMS_H */

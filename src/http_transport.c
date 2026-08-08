@@ -9,18 +9,18 @@
 
 typedef struct ResponseBuffer
 {
-	char *data;
-	size_t length;
-	size_t maximum;
-	bool too_large;
-	bool out_of_memory;
+	char	   *data;
+	size_t		length;
+	size_t		maximum;
+	bool		too_large;
+	bool		out_of_memory;
 } ResponseBuffer;
 
 typedef struct HeaderBuffer
 {
 	PgOAuthHttpResponse *response;
-	bool too_large;
-	bool out_of_memory;
+	bool		too_large;
+	bool		out_of_memory;
 } HeaderBuffer;
 
 #define PG_OAUTH_MAX_FRESHNESS_HEADER_SIZE 4096
@@ -29,8 +29,8 @@ static size_t
 append_response(char *contents, size_t size, size_t count, void *user_data)
 {
 	ResponseBuffer *buffer = user_data;
-	size_t bytes;
-	char *resized;
+	size_t		bytes;
+	char	   *resized;
 
 	if (size != 0 && count > SIZE_MAX / size)
 	{
@@ -59,9 +59,9 @@ append_response(char *contents, size_t size, size_t count, void *user_data)
 static bool
 append_header_value(char **target, const char *value, size_t length)
 {
-	size_t current = *target != NULL ? strlen(*target) : 0;
-	size_t separator = current > 0 ? 1 : 0;
-	char *resized;
+	size_t		current = *target != NULL ? strlen(*target) : 0;
+	size_t		separator = current > 0 ? 1 : 0;
+	char	   *resized;
 
 	if (length > PG_OAUTH_MAX_FRESHNESS_HEADER_SIZE - current - separator)
 		return false;
@@ -80,11 +80,11 @@ static size_t
 capture_header(char *contents, size_t size, size_t count, void *user_data)
 {
 	HeaderBuffer *headers = user_data;
-	size_t bytes;
+	size_t		bytes;
 	const char *colon;
 	const char *value;
 	const char *end;
-	char **target = NULL;
+	char	  **target = NULL;
 
 	if (size != 0 && count > SIZE_MAX / size)
 	{
@@ -134,13 +134,13 @@ static PgOAuthHttpError
 parse_url(const char *value, size_t max_url_size, bool allow_insecure_http,
 		  CURLU **validated_url, char **parsed_host)
 {
-	CURLU *url;
-	char *host = NULL;
-	char *part = NULL;
-	size_t length;
-	size_t scheme_length;
-	size_t authority_length;
-	bool https;
+	CURLU	   *url;
+	char	   *host = NULL;
+	char	   *part = NULL;
+	size_t		length;
+	size_t		scheme_length;
+	size_t		authority_length;
+	bool		https;
 	PgOAuthHttpError error = PG_OAUTH_HTTP_INVALID_URL;
 
 	if (value == NULL || validated_url == NULL || parsed_host == NULL)
@@ -162,7 +162,7 @@ parse_url(const char *value, size_t max_url_size, bool allow_insecure_http,
 	scheme_length = strlen("https://");
 	if (!https)
 	{
-		bool http = length > strlen("http://") &&
+		bool		http = length > strlen("http://") &&
 			memcmp(value, "http://", strlen("http://")) == 0;
 
 		if (!http)
@@ -210,7 +210,7 @@ static bool
 host_in_list(const char *host, const char *list)
 {
 	const char *entry = list;
-	size_t host_length = strlen(host);
+	size_t		host_length = strlen(host);
 
 	if (list == NULL || list[0] == '\0')
 		return false;
@@ -236,20 +236,20 @@ host_in_list(const char *host, const char *list)
 
 PgOAuthHttpError
 pg_oauth_http_url_host(const char *url, size_t max_url_size,
-				   bool allow_insecure_http, char **host)
+					   bool allow_insecure_http, char **host)
 {
-	CURLU *parsed_url = NULL;
-	char *curl_host = NULL;
+	CURLU	   *parsed_url = NULL;
+	char	   *curl_host = NULL;
 	PgOAuthHttpError error;
 
 	if (host == NULL)
 		return PG_OAUTH_HTTP_INVALID_ARGUMENT;
 	*host = NULL;
 	error = parse_url(url, max_url_size, allow_insecure_http, &parsed_url,
-				  &curl_host);
+					  &curl_host);
 	if (error == PG_OAUTH_HTTP_OK)
 	{
-		size_t host_length = strlen(curl_host);
+		size_t		host_length = strlen(curl_host);
 
 		*host = malloc(host_length + 1);
 		if (*host == NULL)
@@ -264,13 +264,13 @@ pg_oauth_http_url_host(const char *url, size_t max_url_size,
 
 static PgOAuthHttpError
 validate_request_url(const char *value, const PgOAuthHttpPolicy *policy,
-				 CURLU **validated_url)
+					 CURLU **validated_url)
 {
-	char *host = NULL;
+	char	   *host = NULL;
 	PgOAuthHttpError error;
 
 	error = parse_url(value, policy->max_url_size, policy->allow_insecure_http,
-				  validated_url, &host);
+					  validated_url, &host);
 	if (error != PG_OAUTH_HTTP_OK)
 		return error;
 	if (strcasecmp(host, policy->allowed_host) != 0 &&
@@ -291,7 +291,7 @@ json_content_type(const char *content_type)
 	static const char json[] = "application/json";
 	static const char jwks[] = "application/jwk-set+json";
 	const char *start;
-	size_t length;
+	size_t		length;
 
 	if (content_type == NULL)
 		return false;
@@ -321,21 +321,24 @@ pg_oauth_http_response_clear(PgOAuthHttpResponse *response)
 
 PgOAuthHttpError
 pg_oauth_http_get_json(const char *url, const PgOAuthHttpPolicy *policy,
-				   PgOAuthHttpResponse *response)
+					   PgOAuthHttpResponse *response)
 {
-	CURLU *validated_url = NULL;
-	CURL *handle = NULL;
+	CURLU	   *validated_url = NULL;
+	CURL	   *handle = NULL;
 	struct curl_slist *headers = NULL;
 	ResponseBuffer buffer = {0};
 	HeaderBuffer header_buffer;
-	CURLcode result;
-	char *content_type = NULL;
+	CURLcode	result;
+	char	   *content_type = NULL;
 	PgOAuthHttpError error;
 
 	if (response == NULL)
 		return PG_OAUTH_HTTP_INVALID_ARGUMENT;
 	memset(response, 0, sizeof(*response));
-	header_buffer = (HeaderBuffer) {.response = response};
+	header_buffer = (HeaderBuffer)
+	{
+		.response = response
+	};
 	if (url == NULL || policy == NULL || policy->max_url_size == 0 ||
 		policy->max_response_size == 0 || policy->allowed_host == NULL ||
 		policy->allowed_host[0] == '\0' || policy->connect_timeout_ms <= 0 ||
@@ -367,9 +370,9 @@ pg_oauth_http_get_json(const char *url, const PgOAuthHttpPolicy *policy,
 	SETOPT(CURLOPT_FOLLOWLOCATION, 0L);
 	SETOPT(CURLOPT_MAXREDIRS, 0L);
 	SETOPT(CURLOPT_PROTOCOLS_STR,
-		policy->allow_insecure_http ? "http,https" : "https");
+		   policy->allow_insecure_http ? "http,https" : "https");
 	SETOPT(CURLOPT_REDIR_PROTOCOLS_STR,
-		policy->allow_insecure_http ? "http,https" : "https");
+		   policy->allow_insecure_http ? "http,https" : "https");
 	SETOPT(CURLOPT_SSL_VERIFYPEER, 1L);
 	SETOPT(CURLOPT_SSL_VERIFYHOST, 2L);
 	SETOPT(CURLOPT_SSLVERSION, (long) CURL_SSLVERSION_TLSv1_2);
@@ -447,18 +450,30 @@ pg_oauth_http_error_code(PgOAuthHttpError error)
 {
 	switch (error)
 	{
-		case PG_OAUTH_HTTP_OK: return "http_ok";
-		case PG_OAUTH_HTTP_INVALID_ARGUMENT: return "http_invalid_argument";
-		case PG_OAUTH_HTTP_INVALID_URL: return "http_invalid_url";
-		case PG_OAUTH_HTTP_INSECURE_URL: return "http_insecure_url";
-		case PG_OAUTH_HTTP_HOST_NOT_ALLOWED: return "http_host_not_allowed";
-		case PG_OAUTH_HTTP_TIMEOUT: return "http_timeout";
-		case PG_OAUTH_HTTP_TLS_FAILURE: return "http_tls_failure";
-		case PG_OAUTH_HTTP_RESPONSE_TOO_LARGE: return "http_response_too_large";
-		case PG_OAUTH_HTTP_STATUS: return "http_status";
-		case PG_OAUTH_HTTP_CONTENT_TYPE: return "http_content_type";
-		case PG_OAUTH_HTTP_NETWORK_FAILURE: return "http_network_failure";
-		case PG_OAUTH_HTTP_OUT_OF_MEMORY: return "http_out_of_memory";
+		case PG_OAUTH_HTTP_OK:
+			return "http_ok";
+		case PG_OAUTH_HTTP_INVALID_ARGUMENT:
+			return "http_invalid_argument";
+		case PG_OAUTH_HTTP_INVALID_URL:
+			return "http_invalid_url";
+		case PG_OAUTH_HTTP_INSECURE_URL:
+			return "http_insecure_url";
+		case PG_OAUTH_HTTP_HOST_NOT_ALLOWED:
+			return "http_host_not_allowed";
+		case PG_OAUTH_HTTP_TIMEOUT:
+			return "http_timeout";
+		case PG_OAUTH_HTTP_TLS_FAILURE:
+			return "http_tls_failure";
+		case PG_OAUTH_HTTP_RESPONSE_TOO_LARGE:
+			return "http_response_too_large";
+		case PG_OAUTH_HTTP_STATUS:
+			return "http_status";
+		case PG_OAUTH_HTTP_CONTENT_TYPE:
+			return "http_content_type";
+		case PG_OAUTH_HTTP_NETWORK_FAILURE:
+			return "http_network_failure";
+		case PG_OAUTH_HTTP_OUT_OF_MEMORY:
+			return "http_out_of_memory";
 	}
 	return "http_unknown_error";
 }

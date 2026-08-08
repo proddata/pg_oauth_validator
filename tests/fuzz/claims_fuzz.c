@@ -26,7 +26,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 	if (size > 16384)
 		return 0;
 	payload = json_loadb((const char *) data, size, JSON_REJECT_DUPLICATES,
-					 &error);
+						 &error);
 	if (payload != NULL)
 	{
 		(void) pg_oauth_claims_validate(payload, &policy, &claims);

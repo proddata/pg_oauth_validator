@@ -11,8 +11,8 @@ int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
 	jwt_checker_t *checker;
-	jwk_set_t *set;
-	char *input;
+	jwk_set_t  *set;
+	char	   *input;
 
 	if (size > MAX_FUZZ_INPUT_SIZE)
 		return 0;

@@ -98,6 +98,12 @@ jobs:
       - name: Check source-tree hygiene
         run: make check-source-tree
 
+      - name: Install pinned pgindent
+        run: ./scripts/ci/install-pgindent.sh
+
+      - name: Check C formatting
+        run: make formatcheck
+
       - name: Install pinned libjwt dependency
         run: CC=clang ./scripts/ci/install-libjwt.sh
 

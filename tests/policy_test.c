@@ -141,25 +141,25 @@ main(void)
 		expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_CACHE_POLICY, \
 			(message)); } while (0)
 	EXPECT_CACHE_ERROR(metadata_default_ttl_ms, 999,
-		"undersized metadata fallback TTL was accepted");
+					   "undersized metadata fallback TTL was accepted");
 	EXPECT_CACHE_ERROR(metadata_default_ttl_ms, 3600001,
-		"oversized metadata fallback TTL was accepted");
+					   "oversized metadata fallback TTL was accepted");
 	EXPECT_CACHE_ERROR(jwks_default_ttl_ms, 999,
-		"undersized JWKS fallback TTL was accepted");
+					   "undersized JWKS fallback TTL was accepted");
 	EXPECT_CACHE_ERROR(jwks_default_ttl_ms, 3600001,
-		"oversized JWKS fallback TTL was accepted");
+					   "oversized JWKS fallback TTL was accepted");
 	EXPECT_CACHE_ERROR(cache_max_ttl_ms, 299999,
-		"maximum TTL shorter than a fallback was accepted");
+					   "maximum TTL shorter than a fallback was accepted");
 	EXPECT_CACHE_ERROR(cache_max_ttl_ms, 86400001,
-		"oversized cache maximum TTL was accepted");
+					   "oversized cache maximum TTL was accepted");
 	EXPECT_CACHE_ERROR(jwks_stale_grace_ms, -1,
-		"negative JWKS stale grace was accepted");
+					   "negative JWKS stale grace was accepted");
 	EXPECT_CACHE_ERROR(jwks_stale_grace_ms, 3600001,
-		"oversized JWKS stale grace was accepted");
+					   "oversized JWKS stale grace was accepted");
 	EXPECT_CACHE_ERROR(unknown_kid_refresh_cooldown_ms, 999,
-		"undersized unknown-kid cooldown was accepted");
+					   "undersized unknown-kid cooldown was accepted");
 	EXPECT_CACHE_ERROR(unknown_kid_refresh_cooldown_ms, 300001,
-		"oversized unknown-kid cooldown was accepted");
+					   "oversized unknown-kid cooldown was accepted");
 #undef EXPECT_CACHE_ERROR
 
 	config = valid_config();
@@ -190,8 +190,8 @@ main(void)
 	hba = valid_hba();
 	hba.delegate_ident_mapping = true;
 	expect_error(&config, &hba,
-		PG_OAUTH_POLICY_DELEGATED_MAPPING_UNSUPPORTED,
-		"delegated identity mapping was accepted");
+				 PG_OAUTH_POLICY_DELEGATED_MAPPING_UNSUPPORTED,
+				 "delegated identity mapping was accepted");
 
 	return EXIT_SUCCESS;
 }

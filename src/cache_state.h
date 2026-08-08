@@ -36,40 +36,40 @@ typedef struct PgOAuthCacheEntry
 {
 	unsigned char key[PG_OAUTH_CACHE_MAX_KEY_SIZE];
 	unsigned char payload[PG_OAUTH_CACHE_MAX_PAYLOAD_SIZE];
-	size_t key_length;
-	size_t payload_length;
-	uint64_t refresh_serial;
-	int64_t fresh_until_ms;
-	int64_t stale_until_ms;
-	int64_t last_used_ms;
-	int64_t last_unknown_kid_refresh_ms;
-	bool occupied;
-	bool has_value;
-	bool refreshing;
-	bool has_unknown_kid_refresh;
+	size_t		key_length;
+	size_t		payload_length;
+	uint64_t	refresh_serial;
+	int64_t		fresh_until_ms;
+	int64_t		stale_until_ms;
+	int64_t		last_used_ms;
+	int64_t		last_unknown_kid_refresh_ms;
+	bool		occupied;
+	bool		has_value;
+	bool		refreshing;
+	bool		has_unknown_kid_refresh;
 } PgOAuthCacheEntry;
 
 typedef struct PgOAuthCacheStats
 {
-	uint64_t fresh_hits;
-	uint64_t stale_hits;
-	uint64_t misses;
-	uint64_t refreshes;
-	uint64_t refresh_suppressions;
-	uint64_t evictions;
-	uint64_t failures;
+	uint64_t	fresh_hits;
+	uint64_t	stale_hits;
+	uint64_t	misses;
+	uint64_t	refreshes;
+	uint64_t	refresh_suppressions;
+	uint64_t	evictions;
+	uint64_t	failures;
 } PgOAuthCacheStats;
 
 typedef struct PgOAuthCacheControl
 {
-	uint64_t next_refresh_serial;
+	uint64_t	next_refresh_serial;
 	PgOAuthCacheStats stats;
 } PgOAuthCacheControl;
 
 typedef struct PgOAuthCache
 {
 	PgOAuthCacheEntry *entries;
-	size_t capacity;
+	size_t		capacity;
 	PgOAuthCacheControl *control;
 	PgOAuthCacheControl local_control;
 } PgOAuthCache;
@@ -82,27 +82,27 @@ typedef struct PgOAuthCache
 
 typedef struct PgOAuthCacheRefresh
 {
-	size_t entry_index;
-	uint64_t serial;
+	size_t		entry_index;
+	uint64_t	serial;
 } PgOAuthCacheRefresh;
 
 extern bool pg_oauth_cache_init(PgOAuthCache *cache,
-	PgOAuthCacheEntry *entries, size_t capacity);
+								PgOAuthCacheEntry *entries, size_t capacity);
 extern bool pg_oauth_cache_attach(PgOAuthCache *cache,
-	PgOAuthCacheEntry *entries, size_t capacity, PgOAuthCacheControl *control);
+								  PgOAuthCacheEntry *entries, size_t capacity, PgOAuthCacheControl *control);
 extern PgOAuthCacheLookup pg_oauth_cache_lookup(PgOAuthCache *cache,
-	const void *key, size_t key_length, int64_t now_ms, bool allow_stale,
-	size_t *entry_index);
+												const void *key, size_t key_length, int64_t now_ms, bool allow_stale,
+												size_t *entry_index);
 extern PgOAuthCacheRefreshResult pg_oauth_cache_begin_refresh(
-	PgOAuthCache *cache, const void *key, size_t key_length, int64_t now_ms,
-	bool unknown_kid, int64_t unknown_kid_cooldown_ms,
-	PgOAuthCacheRefresh *refresh);
+															  PgOAuthCache *cache, const void *key, size_t key_length, int64_t now_ms,
+															  bool unknown_kid, int64_t unknown_kid_cooldown_ms,
+															  PgOAuthCacheRefresh *refresh);
 extern bool pg_oauth_cache_complete_refresh(PgOAuthCache *cache,
-	const PgOAuthCacheRefresh *refresh, int64_t now_ms, bool success,
-	bool cacheable, bool revalidation_required, int64_t ttl_ms,
-	int64_t stale_grace_ms, const void *payload, size_t payload_length);
+											const PgOAuthCacheRefresh *refresh, int64_t now_ms, bool success,
+											bool cacheable, bool revalidation_required, int64_t ttl_ms,
+											int64_t stale_grace_ms, const void *payload, size_t payload_length);
 extern PgOAuthCacheCopyResult pg_oauth_cache_copy_payload(
-	const PgOAuthCache *cache, size_t entry_index, void *output,
-	size_t output_size, size_t *payload_length);
+														  const PgOAuthCache *cache, size_t entry_index, void *output,
+														  size_t output_size, size_t *payload_length);
 
 #endif

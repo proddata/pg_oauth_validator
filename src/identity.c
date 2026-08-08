@@ -16,7 +16,7 @@ valid_utf8(const char *value, size_t length)
 
 	while (index < length)
 	{
-		uint8_t first = (uint8_t) value[index];
+		uint8_t		first = (uint8_t) value[index];
 		size_t		continuations;
 		uint32_t	codepoint;
 
@@ -48,7 +48,7 @@ valid_utf8(const char *value, size_t length)
 			return false;
 		for (size_t i = 1; i <= continuations; i++)
 		{
-			uint8_t byte = (uint8_t) value[index + i];
+			uint8_t		byte = (uint8_t) value[index + i];
 
 			if ((byte & 0xc0) != 0x80)
 				return false;
@@ -101,9 +101,9 @@ pg_oauth_identity_build(const char *issuer, size_t issuer_length,
 		!valid_utf8(subject, subject_length))
 		return PG_OAUTH_IDENTITY_INVALID_SUBJECT;
 	if (!pg_oauth_base64url_encoded_size(issuer_length,
-		policy->max_authn_id_size, &issuer_encoded_length) ||
+										 policy->max_authn_id_size, &issuer_encoded_length) ||
 		!pg_oauth_base64url_encoded_size(subject_length,
-		policy->max_authn_id_size, &subject_encoded_length) ||
+										 policy->max_authn_id_size, &subject_encoded_length) ||
 		subject_encoded_length > SIZE_MAX - 4 ||
 		issuer_encoded_length > SIZE_MAX - subject_encoded_length - 4)
 		return PG_OAUTH_IDENTITY_TOO_LARGE;

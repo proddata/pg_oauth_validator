@@ -12,7 +12,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 		.max_header_size = 4096,
 		.max_payload_size = 12288,
 		.allowed_algorithms = PG_OAUTH_ALGORITHM_RS256 |
-			PG_OAUTH_ALGORITHM_ES256,
+		PG_OAUTH_ALGORITHM_ES256,
 		.required_token_type = "at+jwt",
 	};
 	PgOAuthJwtEnvelope envelope;
@@ -20,7 +20,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 	if (size > policy.max_token_size)
 		return 0;
 	if (pg_oauth_jwt_envelope_parse((const char *) data, size, &policy,
-								   &envelope) == PG_OAUTH_JWT_ENVELOPE_OK)
+									&envelope) == PG_OAUTH_JWT_ENVELOPE_OK)
 		pg_oauth_jwt_envelope_clear(&envelope);
 	return 0;
 }

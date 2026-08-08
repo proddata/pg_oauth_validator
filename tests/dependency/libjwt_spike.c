@@ -7,10 +7,10 @@
 
 typedef struct ParseObservation
 {
-	bool callback_called;
+	bool		callback_called;
 } ParseObservation;
 
-static int failures;
+static int	failures;
 
 static void
 expect_true(bool condition, const char *description)
@@ -54,7 +54,7 @@ static bool
 verifies_without_key(const char *token)
 {
 	jwt_checker_t *checker;
-	bool verified = false;
+	bool		verified = false;
 
 	checker = jwt_checker_new();
 	if (checker == NULL)
@@ -68,10 +68,10 @@ verifies_without_key(const char *token)
 static bool
 verifies_with_jwk(const char *token, const char *jwk, jwt_alg_t algorithm)
 {
-	jwk_set_t *set;
+	jwk_set_t  *set;
 	jwt_checker_t *checker;
 	const jwk_item_t *item;
-	bool verified = false;
+	bool		verified = false;
 
 	set = jwks_create(jwk);
 	if (set == NULL)
@@ -105,15 +105,15 @@ check_parser_behavior(void)
 
 	/* These observations document where a strict wrapper is required. */
 	expect_true(parser_reaches_callback(duplicate_alg),
-		"libjwt 3.3.3 accepts duplicate protected-header members");
+				"libjwt 3.3.3 accepts duplicate protected-header members");
 	expect_true(parser_reaches_callback(duplicate_claim),
-		"libjwt 3.3.3 accepts duplicate claim members");
+				"libjwt 3.3.3 accepts duplicate claim members");
 	expect_true(!parser_reaches_callback(malformed_base64),
-		"libjwt rejects an invalid Base64URL alphabet in the header");
+				"libjwt rejects an invalid Base64URL alphabet in the header");
 	expect_true(parser_reaches_callback(padded_header),
-		"libjwt accepts padded Base64URL and requires canonical pre-validation");
+				"libjwt accepts padded Base64URL and requires canonical pre-validation");
 	expect_true(parser_reaches_callback(four_segments),
-		"libjwt parser reaches the callback for a fourth compact segment");
+				"libjwt parser reaches the callback for a fourth compact segment");
 }
 
 static void
@@ -137,15 +137,15 @@ check_policy_behavior(void)
 		"InVua25vd24iOnRydWV9.e30.";
 
 	expect_true(verifies_without_key(none_token),
-		"libjwt supports unsecured tokens unless local policy rejects them");
+				"libjwt supports unsecured tokens unless local policy rejects them");
 	expect_true(verifies_without_key(wrong_type),
-		"libjwt does not enforce the OAuth access-token type by default");
+				"libjwt does not enforce the OAuth access-token type by default");
 	expect_true(verifies_without_key(token_jku),
-		"libjwt does not reject a token-provided jku header by default");
+				"libjwt does not reject a token-provided jku header by default");
 	expect_true(verifies_without_key(unknown_crit),
-		"libjwt does not reject an unsupported crit header by default");
+				"libjwt does not reject an unsupported crit header by default");
 	expect_true(verifies_with_jwk(hmac_token, hmac_jwk, JWT_ALG_HS256),
-		"libjwt supports valid HMAC tokens unless local policy rejects them");
+				"libjwt supports valid HMAC tokens unless local policy rejects them");
 }
 
 static void
@@ -155,7 +155,7 @@ check_jwks_behavior(void)
 		"{\"kty\":\"oct\","
 		"\"k\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\","
 		"\"kid\":\"first\",\"kid\":\"second\",\"alg\":\"HS256\"}";
-	jwk_set_t *set;
+	jwk_set_t  *set;
 	const jwk_item_t *item;
 
 	set = jwks_create(duplicate_kid);
@@ -164,12 +164,12 @@ check_jwks_behavior(void)
 		return;
 
 	expect_true(jwks_item_count(set) == 1,
-		"duplicate-member JWK produces one parsed key");
+				"duplicate-member JWK produces one parsed key");
 	item = jwks_item_get(set, 0);
 	expect_true(item != NULL, "duplicate-member JWK remains accessible");
 	if (item != NULL)
 		expect_true(strcmp(jwks_item_kid(item), "second") == 0,
-			"Jansson/libjwt retains the last duplicate JWK member");
+					"Jansson/libjwt retains the last duplicate JWK member");
 
 	jwks_free(set);
 }

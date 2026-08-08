@@ -5,7 +5,7 @@
 #include "jwt_envelope.h"
 
 static const char base64url_alphabet[] =
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 static void
 fail(const char *message)
@@ -82,7 +82,7 @@ valid_policy(void)
 		.max_header_size = 4096,
 		.max_payload_size = 12288,
 		.allowed_algorithms = PG_OAUTH_ALGORITHM_RS256 |
-			PG_OAUTH_ALGORITHM_ES256,
+		PG_OAUTH_ALGORITHM_ES256,
 		.required_token_type = "at+jwt",
 	};
 
@@ -97,7 +97,7 @@ expect_json_error(const char *header, const char *payload,
 	PgOAuthJwtEnvelope envelope;
 	char	   *token = make_token(header, payload);
 	PgOAuthJwtEnvelopeError actual = pg_oauth_jwt_envelope_parse(
-		token, strlen(token), &policy, &envelope);
+																 token, strlen(token), &policy, &envelope);
 
 	free(token);
 	if (actual != expected)
@@ -156,76 +156,76 @@ main(void)
 	free(token);
 
 	expect_json_error(
-		"{\"alg\":\"RS256\",\"alg\":\"ES256\",\"typ\":\"at+jwt\",\"kid\":\"k\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON,
-		"duplicate algorithm was accepted");
+					  "{\"alg\":\"RS256\",\"alg\":\"ES256\",\"typ\":\"at+jwt\",\"kid\":\"k\"}",
+					  "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON,
+					  "duplicate algorithm was accepted");
 	expect_json_error(valid_header, "{\"iss\":\"a\",\"iss\":\"b\"}",
-		PG_OAUTH_JWT_ENVELOPE_INVALID_PAYLOAD_JSON,
-		"duplicate claim was accepted");
+					  PG_OAUTH_JWT_ENVELOPE_INVALID_PAYLOAD_JSON,
+					  "duplicate claim was accepted");
 	expect_json_error(valid_header, "{\"outer\":{\"x\":1,\"x\":2}}",
-		PG_OAUTH_JWT_ENVELOPE_INVALID_PAYLOAD_JSON,
-		"nested duplicate member was accepted");
+					  PG_OAUTH_JWT_ENVELOPE_INVALID_PAYLOAD_JSON,
+					  "nested duplicate member was accepted");
 	expect_json_error("[]", "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON,
-		"non-object header was accepted");
+					  "non-object header was accepted");
 	expect_json_error(valid_header, "[]",
-		PG_OAUTH_JWT_ENVELOPE_INVALID_PAYLOAD_JSON,
-		"non-object payload was accepted");
+					  PG_OAUTH_JWT_ENVELOPE_INVALID_PAYLOAD_JSON,
+					  "non-object payload was accepted");
 	expect_json_error("{\"alg\":\"none\",\"typ\":\"at+jwt\",\"kid\":\"k\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_INVALID_ALGORITHM, "none was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_ALGORITHM, "none was accepted");
 	expect_json_error("{\"alg\":\"HS256\",\"typ\":\"at+jwt\",\"kid\":\"k\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_INVALID_ALGORITHM, "HMAC was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_ALGORITHM, "HMAC was accepted");
 	expect_json_error("{\"alg\":\"RS256\\u0000ignored\",\"typ\":\"at+jwt\",\"kid\":\"k\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON,
-		"algorithm with embedded NUL was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON,
+					  "algorithm with embedded NUL was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"JWT\",\"kid\":\"k\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE,
-		"ID-token-compatible type was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE,
+					  "ID-token-compatible type was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"kid\":\"k\"}", "{}",
-		PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE, "missing type was accepted");
+					  PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE, "missing type was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\\u0000JWT\",\"kid\":\"k\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON,
-		"token type with embedded NUL was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_HEADER_JSON,
+					  "token type with embedded NUL was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\"}", "{}",
-		PG_OAUTH_JWT_ENVELOPE_INVALID_KEY_ID, "missing key id was accepted");
+					  PG_OAUTH_JWT_ENVELOPE_INVALID_KEY_ID, "missing key id was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\",\"kid\":1}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_INVALID_KEY_ID,
-		"non-string key id was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_KEY_ID,
+					  "non-string key id was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\",\"kid\":\"key\\nlog\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_INVALID_KEY_ID,
-		"control character in key id was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_INVALID_KEY_ID,
+					  "control character in key id was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\",\"kid\":\"k\",\"jku\":\"https://attacker/\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
-		"token-provided key URL was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
+					  "token-provided key URL was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\",\"kid\":\"k\",\"crit\":[]}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
-		"critical extension was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
+					  "critical extension was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\",\"kid\":\"k\",\"zip\":\"DEF\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
-		"compression was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
+					  "compression was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\",\"kid\":\"k\",\"b64\":false}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
-		"unencoded payload was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
+					  "unencoded payload was accepted");
 	expect_json_error("{\"alg\":\"RS256\",\"typ\":\"at+jwt\",\"kid\":\"k\",\"cty\":\"JWT\"}",
-		"{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
-		"nested token was accepted");
+					  "{}", PG_OAUTH_JWT_ENVELOPE_UNSUPPORTED_HEADER,
+					  "nested token was accepted");
 
 	expect_raw_error("", 0, PG_OAUTH_JWT_ENVELOPE_EMPTY,
-		"empty token was accepted");
+					 "empty token was accepted");
 	expect_raw_error("a.b", 3, PG_OAUTH_JWT_ENVELOPE_INVALID_COMPACT_JWS,
-		"two-part token was accepted");
+					 "two-part token was accepted");
 	expect_raw_error("a.b.c.d", 7, PG_OAUTH_JWT_ENVELOPE_INVALID_COMPACT_JWS,
-		"four-part token was accepted");
+					 "four-part token was accepted");
 	expect_raw_error(".e30.AA", 7, PG_OAUTH_JWT_ENVELOPE_INVALID_COMPACT_JWS,
-		"empty header was accepted");
+					 "empty header was accepted");
 	expect_raw_error("e30.e30.", 8, PG_OAUTH_JWT_ENVELOPE_INVALID_COMPACT_JWS,
-		"empty signature was accepted");
+					 "empty signature was accepted");
 	expect_raw_error("e30=.e30.AA", strlen("e30=.e30.AA"),
-		PG_OAUTH_JWT_ENVELOPE_INVALID_BASE64URL,
-		"padded Base64URL was accepted");
+					 PG_OAUTH_JWT_ENVELOPE_INVALID_BASE64URL,
+					 "padded Base64URL was accepted");
 	expect_raw_error("e31.e30.AA", 10, PG_OAUTH_JWT_ENVELOPE_INVALID_BASE64URL,
-		"non-canonical trailing bits were accepted");
+					 "non-canonical trailing bits were accepted");
 	expect_raw_error("e30.e3!.AA", 10, PG_OAUTH_JWT_ENVELOPE_INVALID_BASE64URL,
-		"invalid Base64URL alphabet was accepted");
+					 "invalid Base64URL alphabet was accepted");
 
 	policy = valid_policy();
 	policy.max_token_size = 4;
@@ -234,7 +234,7 @@ main(void)
 		fail("oversized token was accepted");
 
 	if (strstr(pg_oauth_jwt_envelope_error_code(
-			PG_OAUTH_JWT_ENVELOPE_INVALID_ALGORITHM), "RS256") != NULL)
+												PG_OAUTH_JWT_ENVELOPE_INVALID_ALGORITHM), "RS256") != NULL)
 		fail("stable error code exposed token material");
 	return EXIT_SUCCESS;
 }

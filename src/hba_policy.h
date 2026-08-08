@@ -14,7 +14,7 @@ typedef struct PgOAuthHbaPolicy
 	const char *issuer;
 	const char *required_scopes;
 	const char *policy_name;
-	bool delegate_ident_mapping;
+	bool		delegate_ident_mapping;
 } PgOAuthHbaPolicy;
 
 extern bool pg_oauth_hba_policy_read(const ValidatorModuleState *state,
@@ -24,4 +24,4 @@ extern bool pg_oauth_hba_policy_read(const ValidatorModuleState *state,
 extern void pg_oauth_hba_policy_register_options(ValidatorModuleState *state);
 #endif
 
-#endif /* PG_OAUTH_VALIDATOR_HBA_POLICY_H */
+#endif							/* PG_OAUTH_VALIDATOR_HBA_POLICY_H */

@@ -1,7 +1,7 @@
 #include "base64url.h"
 
 static const char base64url_alphabet[] =
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 static int
 base64url_value(unsigned char byte)
@@ -22,7 +22,7 @@ base64url_value(unsigned char byte)
 bool
 pg_oauth_base64url_valid(const char *data, size_t length)
 {
-	int		last_value;
+	int			last_value;
 
 	if (data == NULL || length == 0 || length % 4 == 1)
 		return false;
@@ -41,7 +41,7 @@ pg_oauth_base64url_valid(const char *data, size_t length)
 
 bool
 pg_oauth_base64url_decoded_size(size_t encoded_length, size_t maximum,
-							 size_t *decoded_length)
+								size_t *decoded_length)
 {
 	size_t		length;
 
@@ -72,7 +72,7 @@ pg_oauth_base64url_decode(const char *data, size_t length, uint8_t *decoded,
 		return false;
 	while (input + 4 <= length)
 	{
-		uint32_t bits = ((uint32_t) base64url_value(data[input]) << 18) |
+		uint32_t	bits = ((uint32_t) base64url_value(data[input]) << 18) |
 			((uint32_t) base64url_value(data[input + 1]) << 12) |
 			((uint32_t) base64url_value(data[input + 2]) << 6) |
 			(uint32_t) base64url_value(data[input + 3]);
@@ -84,14 +84,14 @@ pg_oauth_base64url_decode(const char *data, size_t length, uint8_t *decoded,
 	}
 	if (length - input == 2)
 	{
-		uint32_t bits = ((uint32_t) base64url_value(data[input]) << 6) |
+		uint32_t	bits = ((uint32_t) base64url_value(data[input]) << 6) |
 			(uint32_t) base64url_value(data[input + 1]);
 
 		decoded[output] = (uint8_t) (bits >> 4);
 	}
 	else if (length - input == 3)
 	{
-		uint32_t bits = ((uint32_t) base64url_value(data[input]) << 12) |
+		uint32_t	bits = ((uint32_t) base64url_value(data[input]) << 12) |
 			((uint32_t) base64url_value(data[input + 1]) << 6) |
 			(uint32_t) base64url_value(data[input + 2]);
 
@@ -103,7 +103,7 @@ pg_oauth_base64url_decode(const char *data, size_t length, uint8_t *decoded,
 
 bool
 pg_oauth_base64url_encoded_size(size_t input_length, size_t maximum,
-							 size_t *encoded_length)
+								size_t *encoded_length)
 {
 	size_t		full_blocks;
 	size_t		length;
@@ -140,7 +140,7 @@ pg_oauth_base64url_encode(const uint8_t *data, size_t length, char *encoded,
 		return false;
 	while (input + 3 <= length)
 	{
-		uint32_t bits = ((uint32_t) data[input] << 16) |
+		uint32_t	bits = ((uint32_t) data[input] << 16) |
 			((uint32_t) data[input + 1] << 8) | data[input + 2];
 
 		encoded[output++] = base64url_alphabet[(bits >> 18) & 63];
@@ -151,14 +151,14 @@ pg_oauth_base64url_encode(const uint8_t *data, size_t length, char *encoded,
 	}
 	if (length - input == 1)
 	{
-		uint32_t bits = (uint32_t) data[input] << 4;
+		uint32_t	bits = (uint32_t) data[input] << 4;
 
 		encoded[output++] = base64url_alphabet[(bits >> 6) & 63];
 		encoded[output] = base64url_alphabet[bits & 63];
 	}
 	else if (length - input == 2)
 	{
-		uint32_t bits = ((uint32_t) data[input] << 10) |
+		uint32_t	bits = ((uint32_t) data[input] << 10) |
 			((uint32_t) data[input + 1] << 2);
 
 		encoded[output++] = base64url_alphabet[(bits >> 12) & 63];

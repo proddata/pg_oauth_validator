@@ -44,12 +44,12 @@ typedef struct PgOAuthHttpResponse
 } PgOAuthHttpResponse;
 
 extern PgOAuthHttpError pg_oauth_http_get_json(
-	const char *url, const PgOAuthHttpPolicy *policy,
-	PgOAuthHttpResponse *response);
+											   const char *url, const PgOAuthHttpPolicy *policy,
+											   PgOAuthHttpResponse *response);
 extern void pg_oauth_http_response_clear(PgOAuthHttpResponse *response);
 extern const char *pg_oauth_http_error_code(PgOAuthHttpError error);
 extern PgOAuthHttpError pg_oauth_http_url_host(
-	const char *url, size_t max_url_size, bool allow_insecure_http,
-	char **host);
+											   const char *url, size_t max_url_size, bool allow_insecure_http,
+											   char **host);
 
 #endif

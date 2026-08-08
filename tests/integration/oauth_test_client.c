@@ -27,9 +27,9 @@ clear_token(void)
 static char *
 read_token_file(const char *path)
 {
-	char   *buffer;
-	FILE   *file;
-	size_t	length;
+	char	   *buffer;
+	FILE	   *file;
+	size_t		length;
 
 	file = fopen(path, "rb");
 	if (file == NULL)
@@ -87,8 +87,8 @@ provide_token(PGauthData type, PGconn *connection, void *data)
 int
 main(int argc, char **argv)
 {
-	PGconn *connection;
-	int		result;
+	PGconn	   *connection;
+	int			result;
 
 	if (argc != 3)
 	{

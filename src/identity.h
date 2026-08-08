@@ -27,10 +27,10 @@ typedef struct PgOAuthIdentity
 } PgOAuthIdentity;
 
 extern PgOAuthIdentityError pg_oauth_identity_build(
-	const char *issuer, size_t issuer_length, const char *subject,
-	size_t subject_length, const PgOAuthIdentityPolicy *policy,
-	PgOAuthIdentity *identity);
+													const char *issuer, size_t issuer_length, const char *subject,
+													size_t subject_length, const PgOAuthIdentityPolicy *policy,
+													PgOAuthIdentity *identity);
 extern void pg_oauth_identity_clear(PgOAuthIdentity *identity);
 extern const char *pg_oauth_identity_error_code(PgOAuthIdentityError error);
 
-#endif /* PG_OAUTH_VALIDATOR_IDENTITY_H */
+#endif							/* PG_OAUTH_VALIDATOR_IDENTITY_H */

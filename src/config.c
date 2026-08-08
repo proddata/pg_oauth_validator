@@ -46,7 +46,7 @@ _PG_init(void)
 	DefineCustomStringVariable("pg_oauth_validator.authn_claim",
 							   "Stable token claim used for authenticated identity.", NULL,
 							   &oauth_authn_claim, "sub", PGC_SIGHUP, 0,
-								   NULL, NULL, NULL);
+							   NULL, NULL, NULL);
 	DefineCustomStringVariable("pg_oauth_validator.allowed_jwks_hosts",
 							   "Additional exact hostnames permitted for JWKS retrieval.",
 							   "The discovery endpoint host is always permitted; leave empty unless discovery advertises another host.",

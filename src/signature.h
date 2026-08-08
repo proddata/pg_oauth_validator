@@ -16,8 +16,8 @@ typedef enum PgOAuthSignatureError
 } PgOAuthSignatureError;
 
 extern PgOAuthSignatureError pg_oauth_signature_verify(
-	const char *token, size_t token_length,
-	const PgOAuthSelectedJwk *selected_key);
+													   const char *token, size_t token_length,
+													   const PgOAuthSelectedJwk *selected_key);
 extern const char *pg_oauth_signature_error_code(PgOAuthSignatureError error);
 
-#endif /* PG_OAUTH_VALIDATOR_SIGNATURE_H */
+#endif							/* PG_OAUTH_VALIDATOR_SIGNATURE_H */

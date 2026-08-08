@@ -49,10 +49,10 @@ typedef struct PgOAuthJwtEnvelope
 } PgOAuthJwtEnvelope;
 
 extern PgOAuthJwtEnvelopeError pg_oauth_jwt_envelope_parse(
-	const char *token, size_t token_length,
-	const PgOAuthJwtEnvelopePolicy *policy, PgOAuthJwtEnvelope *envelope);
+														   const char *token, size_t token_length,
+														   const PgOAuthJwtEnvelopePolicy *policy, PgOAuthJwtEnvelope *envelope);
 extern void pg_oauth_jwt_envelope_clear(PgOAuthJwtEnvelope *envelope);
 extern const char *pg_oauth_jwt_envelope_error_code(
-	PgOAuthJwtEnvelopeError error);
+													PgOAuthJwtEnvelopeError error);
 
-#endif /* PG_OAUTH_VALIDATOR_JWT_ENVELOPE_H */
+#endif							/* PG_OAUTH_VALIDATOR_JWT_ENVELOPE_H */

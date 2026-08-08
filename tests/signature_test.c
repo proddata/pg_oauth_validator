@@ -13,7 +13,7 @@
 #include "signature.h"
 
 static const char alphabet[] =
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 static void
 fail(const char *message)
@@ -212,11 +212,11 @@ signed_token(EVP_PKEY *key, const char *algorithm, const char *key_id)
 			 algorithm, key_id);
 	encoded_header = encode_bytes((const unsigned char *) header, strlen(header));
 	encoded_payload = encode_bytes((const unsigned char *)
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"principal\",\"scope\":\"connect:postgres\"}",
-		strlen("{\"iss\":\"https://issuer.example/\","
-			   "\"aud\":\"postgres://primary\",\"exp\":1100,"
-			   "\"sub\":\"principal\",\"scope\":\"connect:postgres\"}"));
+								   "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+								   "\"exp\":1100,\"sub\":\"principal\",\"scope\":\"connect:postgres\"}",
+								   strlen("{\"iss\":\"https://issuer.example/\","
+										  "\"aud\":\"postgres://primary\",\"exp\":1100,"
+										  "\"sub\":\"principal\",\"scope\":\"connect:postgres\"}"));
 	capacity = strlen(encoded_header) + strlen(encoded_payload) + 2;
 	signing_input = malloc(capacity);
 	if (signing_input == NULL)
@@ -289,29 +289,29 @@ check_algorithm(const char *algorithm, uint32_t algorithm_flag,
 	char	   *signature_segment;
 
 	if (pg_oauth_jwt_envelope_parse(token, strlen(token), &envelope_policy,
-								   &envelope) != PG_OAUTH_JWT_ENVELOPE_OK)
+									&envelope) != PG_OAUTH_JWT_ENVELOPE_OK)
 		fail("generated token failed strict envelope validation");
 	if (pg_oauth_jwks_select(jwks, strlen(jwks), envelope.key_id,
-			envelope.algorithm, &jwks_policy, &selected) != PG_OAUTH_JWKS_OK)
+							 envelope.algorithm, &jwks_policy, &selected) != PG_OAUTH_JWKS_OK)
 		fail("generated public key failed strict selection");
 	if (pg_oauth_signature_verify(token, strlen(token), &selected) !=
 		PG_OAUTH_SIGNATURE_OK)
 		fail("valid generated signature was rejected");
 	if (pg_oauth_claims_validate(envelope.untrusted_payload, &claims_policy,
-								&claims) != PG_OAUTH_CLAIMS_OK ||
+								 &claims) != PG_OAUTH_CLAIMS_OK ||
 		claims.identity_length != strlen("principal") ||
 		memcmp(claims.identity, "principal", claims.identity_length) != 0)
 		fail("verified token claims were rejected");
 	if (pg_oauth_identity_build(claims_policy.issuer,
-			strlen(claims_policy.issuer), claims.identity, claims.identity_length,
-			&identity_policy, &identity) != PG_OAUTH_IDENTITY_OK ||
+								strlen(claims_policy.issuer), claims.identity, claims.identity_length,
+								&identity_policy, &identity) != PG_OAUTH_IDENTITY_OK ||
 		strncmp(identity.value, "v1.", 3) != 0)
 		fail("validated claims identity could not be encoded");
 	pg_oauth_identity_clear(&identity);
 	wrong_key = generate_key(algorithm);
 	wrong_jwks = public_jwks(wrong_key, algorithm, key_id);
 	if (pg_oauth_jwks_select(wrong_jwks, strlen(wrong_jwks), envelope.key_id,
-			envelope.algorithm, &jwks_policy, &wrong_selected) != PG_OAUTH_JWKS_OK)
+							 envelope.algorithm, &jwks_policy, &wrong_selected) != PG_OAUTH_JWKS_OK)
 		fail("second generated public key failed strict selection");
 	if (pg_oauth_signature_verify(token, strlen(token), &wrong_selected) !=
 		PG_OAUTH_SIGNATURE_INVALID)

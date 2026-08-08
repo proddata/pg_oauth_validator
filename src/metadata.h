@@ -30,9 +30,9 @@ typedef struct PgOAuthMetadata
 } PgOAuthMetadata;
 
 extern PgOAuthMetadataError pg_oauth_metadata_parse(
-	const char *document, size_t document_length, const char *expected_issuer,
-	const PgOAuthMetadataPolicy *policy, PgOAuthMetadata *metadata);
+													const char *document, size_t document_length, const char *expected_issuer,
+													const PgOAuthMetadataPolicy *policy, PgOAuthMetadata *metadata);
 extern void pg_oauth_metadata_clear(PgOAuthMetadata *metadata);
 extern const char *pg_oauth_metadata_error_code(PgOAuthMetadataError error);
 
-#endif /* PG_OAUTH_VALIDATOR_METADATA_H */
+#endif							/* PG_OAUTH_VALIDATOR_METADATA_H */

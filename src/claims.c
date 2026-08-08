@@ -31,7 +31,7 @@ valid_policy(const PgOAuthClaimsPolicy *policy)
 
 static bool
 configured_audience_matches(const char *configured, const char *token,
-							 size_t token_length, size_t maximum)
+							size_t token_length, size_t maximum)
 {
 	const char *entry = configured;
 	size_t		count = 0;
@@ -65,21 +65,21 @@ audience_matches(const json_t *audience, const PgOAuthClaimsPolicy *policy)
 	{
 		return json_string_length(audience) > 0 &&
 			configured_audience_matches(policy->audiences,
-				json_string_value(audience), json_string_length(audience),
-				policy->max_audiences);
+										json_string_value(audience), json_string_length(audience),
+										policy->max_audiences);
 	}
 	if (!json_is_array(audience) || json_array_size(audience) == 0 ||
 		json_array_size(audience) > policy->max_audiences)
 		return false;
 	for (size_t i = 0; i < json_array_size(audience); i++)
 	{
-		json_t *entry = json_array_get(audience, i);
+		json_t	   *entry = json_array_get(audience, i);
 
 		if (!json_is_string(entry) || json_string_length(entry) == 0)
 			return false;
 		for (size_t j = 0; j < i; j++)
 		{
-			json_t *previous = json_array_get(audience, j);
+			json_t	   *previous = json_array_get(audience, j);
 
 			if (json_string_length(previous) == json_string_length(entry) &&
 				memcmp(json_string_value(previous), json_string_value(entry),
@@ -89,11 +89,11 @@ audience_matches(const json_t *audience, const PgOAuthClaimsPolicy *policy)
 	}
 	for (size_t i = 0; i < json_array_size(audience); i++)
 	{
-		json_t *entry = json_array_get(audience, i);
+		json_t	   *entry = json_array_get(audience, i);
 
 		if (configured_audience_matches(policy->audiences,
-				json_string_value(entry), json_string_length(entry),
-				policy->max_audiences))
+										json_string_value(entry), json_string_length(entry),
+										policy->max_audiences))
 			return true;
 	}
 	return false;
@@ -167,7 +167,7 @@ scope_array_contains(const json_t *scopes, const char *required,
 		return false;
 	for (size_t i = 0; i < json_array_size(scopes); i++)
 	{
-		json_t *entry = json_array_get(scopes, i);
+		json_t	   *entry = json_array_get(scopes, i);
 
 		if (!json_is_string(entry) ||
 			!valid_scope_token(json_string_value(entry),
@@ -175,7 +175,7 @@ scope_array_contains(const json_t *scopes, const char *required,
 			return false;
 		for (size_t j = 0; j < i; j++)
 		{
-			json_t *previous = json_array_get(scopes, j);
+			json_t	   *previous = json_array_get(scopes, j);
 
 			if (json_string_length(previous) == json_string_length(entry) &&
 				memcmp(json_string_value(previous), json_string_value(entry),
@@ -203,8 +203,8 @@ validate_scopes(const json_t *payload, const PgOAuthClaimsPolicy *policy)
 		return PG_OAUTH_CLAIMS_INVALID_SCOPE;
 	for (size_t i = 0; i <= required_length; i++)
 	{
-		bool valid;
-		bool found;
+		bool		valid;
+		bool		found;
 
 		if (i != required_length && required[i] != ' ')
 			continue;
@@ -213,11 +213,11 @@ validate_scopes(const json_t *payload, const PgOAuthClaimsPolicy *policy)
 			return PG_OAUTH_CLAIMS_INVALID_ARGUMENT;
 		if (json_is_string(token_scopes))
 			found = scope_string_contains(json_string_value(token_scopes),
-				json_string_length(token_scopes), required + start, i - start,
-				policy->max_scopes, &valid);
+										  json_string_length(token_scopes), required + start, i - start,
+										  policy->max_scopes, &valid);
 		else
 			found = scope_array_contains(token_scopes, required + start,
-				i - start, policy->max_scopes, &valid);
+										 i - start, policy->max_scopes, &valid);
 		if (!valid)
 			return PG_OAUTH_CLAIMS_INVALID_SCOPE;
 		if (!found)
@@ -233,7 +233,7 @@ pg_oauth_claims_validate(const json_t *verified_payload,
 						 PgOAuthValidatedClaims *claims)
 {
 	json_t	   *value;
-	json_int_t numeric_date;
+	json_int_t	numeric_date;
 	PgOAuthClaimsError scope_error;
 
 	if (claims == NULL)

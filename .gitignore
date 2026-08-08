@@ -12,6 +12,7 @@
 /.claims-fuzz-corpus/
 /.identity-fuzz-corpus/
 /.metadata-fuzz-corpus/
+/.tools/
 /build/
 /dist/
 /pg_oauth_validator.so

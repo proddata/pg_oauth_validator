@@ -40,7 +40,7 @@ validate_url(const char *value, size_t length, size_t maximum,
 	scheme_length = strlen("https://");
 	if (!https)
 	{
-		bool http = length > strlen("http://") &&
+		bool		http = length > strlen("http://") &&
 			memcmp(value, "http://", strlen("http://")) == 0;
 
 		if (!http)
@@ -100,9 +100,9 @@ pg_oauth_metadata_clear(PgOAuthMetadata *metadata)
 
 PgOAuthMetadataError
 pg_oauth_metadata_parse(const char *document, size_t document_length,
-					const char *expected_issuer,
-					const PgOAuthMetadataPolicy *policy,
-					PgOAuthMetadata *metadata)
+						const char *expected_issuer,
+						const PgOAuthMetadataPolicy *policy,
+						PgOAuthMetadata *metadata)
 {
 	json_error_t json_error;
 	json_t	   *root = NULL;
@@ -127,12 +127,12 @@ pg_oauth_metadata_parse(const char *document, size_t document_length,
 		return PG_OAUTH_METADATA_TOO_LARGE;
 	expected_length = strlen(expected_issuer);
 	error = validate_url(expected_issuer, expected_length,
-					 policy->max_url_size, policy->allow_insecure_http, true);
+						 policy->max_url_size, policy->allow_insecure_http, true);
 	if (error != PG_OAUTH_METADATA_OK)
 		return PG_OAUTH_METADATA_INVALID_ISSUER;
 
 	root = json_loadb(document, document_length, JSON_REJECT_DUPLICATES,
-				  &json_error);
+					  &json_error);
 	if (root == NULL || !json_is_object(root))
 	{
 		error = PG_OAUTH_METADATA_INVALID_JSON;
@@ -162,7 +162,7 @@ pg_oauth_metadata_parse(const char *document, size_t document_length,
 	jwks_uri_value = json_string_value(jwks_uri);
 	jwks_uri_length = json_string_length(jwks_uri);
 	error = validate_url(jwks_uri_value, jwks_uri_length,
-					 policy->max_url_size, policy->allow_insecure_http, false);
+						 policy->max_url_size, policy->allow_insecure_http, false);
 	if (error != PG_OAUTH_METADATA_OK)
 		goto done;
 	metadata->jwks_uri = malloc(jwks_uri_length + 1);

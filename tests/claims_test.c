@@ -76,187 +76,187 @@ main(void)
 	json_decref(payload);
 
 	payload = parse_payload(
-		"{\"iss\":\"https://issuer.example/\","
-		"\"aud\":[\"unrelated\",\"postgres://secondary\"],\"exp\":1100,"
-		"\"sub\":\"p\",\"scope\":[\"read:metadata\",\"connect:postgres\"]}");
+							"{\"iss\":\"https://issuer.example/\","
+							"\"aud\":[\"unrelated\",\"postgres://secondary\"],\"exp\":1100,"
+							"\"sub\":\"p\",\"scope\":[\"read:metadata\",\"connect:postgres\"]}");
 	if (pg_oauth_claims_validate(payload, &policy, &claims) !=
 		PG_OAUTH_CLAIMS_OK)
 		fail("valid audience and scope arrays were rejected");
 	json_decref(payload);
 
 	expect_error(
-		"{\"aud\":\"postgres://primary\",\"exp\":1100,"
-		"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_ISSUER,
-		"missing issuer was accepted");
+				 "{\"aud\":\"postgres://primary\",\"exp\":1100,"
+				 "\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ISSUER,
+				 "missing issuer was accepted");
 	expect_error(
-		"{\"iss\":1,\"aud\":\"postgres://primary\",\"exp\":1100,"
-		"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_ISSUER,
-		"non-string issuer was accepted");
+				 "{\"iss\":1,\"aud\":\"postgres://primary\",\"exp\":1100,"
+				 "\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ISSUER,
+				 "non-string issuer was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_ISSUER,
-		"issuer URL normalization was applied");
+				 "{\"iss\":\"https://issuer.example\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ISSUER,
+				 "issuer URL normalization was applied");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary/extra\","
-		"\"exp\":1100,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
-		"audience substring was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary/extra\","
+				 "\"exp\":1100,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
+				 "audience substring was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"exp\":1100,"
-		"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
-		"missing audience was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"exp\":1100,"
+				 "\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
+				 "missing audience was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":[],\"exp\":1100,"
-		"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
-		"empty audience array was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":[],\"exp\":1100,"
+				 "\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
+				 "empty audience array was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\","
-		"\"aud\":[\"postgres://primary\",\"postgres://primary\"],\"exp\":1100,"
-		"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
-		"duplicate audience was accepted");
+				 "{\"iss\":\"https://issuer.example/\","
+				 "\"aud\":[\"postgres://primary\",\"postgres://primary\"],\"exp\":1100,"
+				 "\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
+				 "duplicate audience was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":1,\"exp\":1100,"
-		"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
-		"non-string audience was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":1,\"exp\":1100,"
+				 "\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_AUDIENCE,
+				 "non-string audience was accepted");
 
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_MISSING_EXPIRY, "missing expiry was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_MISSING_EXPIRY, "missing expiry was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100.0,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_EXPIRY,
-		"floating-point expiry was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100.0,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_EXPIRY,
+				 "floating-point expiry was accepted");
 
 	policy = valid_policy();
 	policy.current_time = 1060;
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1000,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_EXPIRED,
-		"token at expiry-skew boundary was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1000,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_EXPIRED,
+				 "token at expiry-skew boundary was accepted");
 	policy.current_time = 1059;
 	payload = parse_payload(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1000,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}");
+							"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+							"\"exp\":1000,\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\"}");
 	if (pg_oauth_claims_validate(payload, &policy, &claims) != PG_OAUTH_CLAIMS_OK)
 		fail("token inside expiry skew was rejected");
 	json_decref(payload);
 
 	policy = valid_policy();
 	payload = parse_payload(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"nbf\":1060,\"iat\":1060,\"sub\":\"p\","
-		"\"scope\":\"connect:postgres read:metadata\"}");
+							"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+							"\"exp\":1100,\"nbf\":1060,\"iat\":1060,\"sub\":\"p\","
+							"\"scope\":\"connect:postgres read:metadata\"}");
 	if (pg_oauth_claims_validate(payload, &policy, &claims) != PG_OAUTH_CLAIMS_OK)
 		fail("temporal claims at the future-skew boundary were rejected");
 	json_decref(payload);
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"nbf\":\"1060\",\"sub\":\"p\","
-		"\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_NOT_BEFORE,
-		"non-integer not-before was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"nbf\":\"1060\",\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_NOT_BEFORE,
+				 "non-integer not-before was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"iat\":false,\"sub\":\"p\","
-		"\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_ISSUED_AT,
-		"non-integer issued-at was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"iat\":false,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ISSUED_AT,
+				 "non-integer issued-at was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"nbf\":1061,\"sub\":\"p\","
-		"\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_NOT_YET_VALID,
-		"not-before beyond skew was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"nbf\":1061,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_NOT_YET_VALID,
+				 "not-before beyond skew was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"iat\":1061,\"sub\":\"p\","
-		"\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_ISSUED_IN_FUTURE,
-		"issued-at beyond skew was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"iat\":1061,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_ISSUED_IN_FUTURE,
+				 "issued-at beyond skew was accepted");
 
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
-		"missing configured identity was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 "missing configured identity was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":1,\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
-		"non-string identity was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":1,\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 "non-string identity was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"line\\nfeed\","
-		"\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
-		"control character in identity was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"line\\nfeed\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 "control character in identity was accepted");
 
 	policy = valid_policy();
 	policy.identity_claim = "uid";
 	policy.max_identity_size = 1;
 	payload = parse_payload(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"uid\":\"u\","
-		"\"scope\":\"connect:postgres read:metadata\"}");
+							"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+							"\"exp\":1100,\"uid\":\"u\","
+							"\"scope\":\"connect:postgres read:metadata\"}");
 	if (pg_oauth_claims_validate(payload, &policy, &claims) != PG_OAUTH_CLAIMS_OK)
 		fail("configured identity at the size boundary was rejected");
 	json_decref(payload);
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"u\","
-		"\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
-		"missing custom identity claim was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"u\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 "missing custom identity claim was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"uid\":[\"u\"],"
-		"\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
-		"wrong-type custom identity claim was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"uid\":[\"u\"],"
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 "wrong-type custom identity claim was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"uid\":\"uu\","
-		"\"scope\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
-		"identity beyond the size boundary was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"uid\":\"uu\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 "identity beyond the size boundary was accepted");
 	policy = valid_policy();
 
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"p\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_SCOPE, "missing scope was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SCOPE, "missing scope was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"p\",\"scope\":\"connect:postgres\"}",
-		&policy, PG_OAUTH_CLAIMS_INSUFFICIENT_SCOPE,
-		"missing required scope was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\",\"scope\":\"connect:postgres\"}",
+				 &policy, PG_OAUTH_CLAIMS_INSUFFICIENT_SCOPE,
+				 "missing required scope was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"p\","
-		"\"scope\":\"connect:postgres  read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_SCOPE,
-		"empty scope token was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres  read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SCOPE,
+				 "empty scope token was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"p\","
-		"\"scope\":\"connect:postgres read:metadata connect:postgres\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_SCOPE,
-		"duplicate scope token was accepted");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata connect:postgres\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SCOPE,
+				 "duplicate scope token was accepted");
 	expect_error(
-		"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-		"\"exp\":1100,\"sub\":\"p\",\"scp\":\"connect:postgres read:metadata\"}",
-		&policy, PG_OAUTH_CLAIMS_INVALID_SCOPE,
-		"provider-specific scp claim was accepted implicitly");
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\",\"scp\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SCOPE,
+				 "provider-specific scp claim was accepted implicitly");
 
 	if (strstr(pg_oauth_claims_error_code(PG_OAUTH_CLAIMS_INVALID_IDENTITY),
 			   "principal") != NULL)
