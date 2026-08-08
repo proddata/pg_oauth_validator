@@ -31,6 +31,13 @@ Until libjwt 3.3.3 is commonly packaged, reproduce the reviewed dependency:
 ./scripts/ci/install-libjwt.sh
 ```
 
+CI and release-candidate containers install their Debian dependencies through
+`scripts/ci/install-debian-dependencies.sh`. The script selects the dated
+Debian snapshot recorded by the pinned base images and enforces reviewed exact
+versions for every direct dependency and the PostgreSQL development package.
+Update the snapshot, package versions, and container digests together; do not
+replace the script with an unversioned `apt-get install` step.
+
 If a supported `pg_config` is on `PATH`:
 
 ```sh

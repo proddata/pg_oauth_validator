@@ -121,6 +121,21 @@ make -C "$build_dir" -f "$source_dir/Makefile" VPATH="$source_dir" \
 "$source_dir/scripts/ci/check-staged-install.sh" "$stage_dir" "$pg_config"
 
 mv "$stage_dir" "$package_root"
+license_dir=$package_root/THIRD-PARTY-LICENSES
+mkdir -p "$license_dir"
+install -m 0644 "$source_dir/THIRD-PARTY-NOTICES.md" \
+	"$package_root/THIRD-PARTY-NOTICES.md"
+install -m 0644 /usr/local/share/doc/libjwt/LICENSE \
+	"$license_dir/LIBJWT-MPL-2.0"
+jansson_copyright=/usr/share/doc/libjansson-dev/copyright
+if test ! -f "$jansson_copyright"; then
+	jansson_copyright=/usr/share/doc/libjansson4/copyright
+fi
+test -f "$jansson_copyright" || {
+	echo "error: Jansson copyright file is unavailable" >&2
+	exit 1
+}
+install -m 0644 "$jansson_copyright" "$license_dir/JANSSON"
 find "$package_root" -type d -exec chmod 0755 {} +
 find "$package_root" -type f -exec chmod 0644 {} +
 chmod 0755 "$package_root$($pg_config --pkglibdir)/pg_oauth_validator.so"
@@ -140,6 +155,19 @@ manifest=$package_root/BUILD-MANIFEST
 	echo "jansson-version: $(dependency_version jansson)"
 	echo "libcurl-version: $(dependency_version libcurl)"
 	echo "openssl-version: $(dependency_version openssl)"
+	if test -f /etc/pg-oauth-build-inputs; then
+		sed 's/^/build-input-/' /etc/pg-oauth-build-inputs
+	else
+		echo "build-input-debian-snapshot: unavailable"
+	fi
+	echo "debian-packages:"
+	for package in libcurl4 libcurl4-openssl-dev libjansson-dev libpq-dev libssl3 libssl-dev; do
+		if dpkg-query -W -f='${Package} ${Version}\n' "$package" 2>/dev/null; then
+			:
+		else
+			echo "  $package unavailable"
+		fi
+	done | LC_ALL=C sort | sed 's/^/  /'
 	echo "files:"
 	find "$package_root" -type f ! -name BUILD-MANIFEST -print | LC_ALL=C sort |
 	while IFS= read -r file; do

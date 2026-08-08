@@ -1,5 +1,5 @@
 MODULE_big = pg_oauth_validator
-DOCS = README.md docs/operations.md PROVIDER-COMPATIBILITY.md
+DOCS = README.md docs/operations.md PROVIDER-COMPATIBILITY.md THIRD-PARTY-NOTICES.md
 OBJS = src/pg_oauth_validator.o src/config.o src/hba_policy.o src/policy.o \
 	src/cache_state.o src/cache_key.o src/shared_cache.o src/http_freshness.o \
 	src/http_transport.o src/metadata.o src/jwks.o src/base64url.o \

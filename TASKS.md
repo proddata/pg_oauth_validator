@@ -159,6 +159,11 @@ parallel subject to their file boundaries.
   in `docs/releases/0.1.0-rc.1-dependency-review.md` and is blocked pending
   third-party notices, immutable OS dependency inputs, exact runtime inventory,
   and completion of advisory and GitHub security review.
+- **2026-08-08 remediation:** release builds now use a dated Debian snapshot,
+  enforce exact direct and PostgreSQL development package versions, record the
+  security-relevant package inventory, and bundle libjwt/Jansson notices. Fresh
+  PG18 and PG19 beta 2 package smoke builds passed. Advisory disposition and
+  GitHub security/approval evidence remain open before candidate promotion.
 
 ## Security-review follow-ups
 

@@ -40,22 +40,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Install build and test dependencies
-        run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
-            build-essential \
-            ca-certificates \
-            cmake \
-            curl \
-            git \
-            libkrb5-dev \
-            libjansson-dev \
-            libcurl4-openssl-dev \
-            libssl-dev \
-            openssl \
-            pkg-config \
-            python3-pytest \
-            postgresql-server-dev-${{ matrix.package }}
+        run: ./scripts/ci/install-debian-dependencies.sh ${{ matrix.package }}
 
       - name: Install pinned libjwt dependency
         run: ./scripts/ci/install-libjwt.sh

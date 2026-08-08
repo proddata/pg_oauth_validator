@@ -39,6 +39,14 @@ The tree must contain no uncommitted or untracked release inputs. CI artifacts
 are evidence only when they were built from the tagged commit with the same
 pinned inputs.
 
+The canonical Debian/PGDG dependency installation is
+`scripts/ci/install-debian-dependencies.sh`. Its Debian snapshot timestamp,
+exact direct-package versions, PostgreSQL development-package version, and
+pinned container digest form one reviewed input set and must be updated
+together. A missing version must fail installation; do not fall back to a
+newer repository candidate. The generated manifest must contain the snapshot,
+PGDG development version, and exact security-relevant runtime packages.
+
 ## PostgreSQL-specific artifacts
 
 PostgreSQL does not provide cross-major server-module ABI compatibility. Build,
@@ -97,6 +105,9 @@ procedure and does **not** assert that a current review has been completed.
    libcurl, and all packaged transitive components. Review license texts and
    notice/source-offer obligations with the packaging owner. An unknown,
    incompatible, or missing license blocks publication.
+   Confirm that `THIRD-PARTY-NOTICES.md`, `THIRD-PARTY-LICENSES/JANSSON`, and
+   `THIRD-PARTY-LICENSES/LIBJWT-MPL-2.0` are present in each archive and listed
+   in its manifest.
 4. Query the operating-system vendor security tracker and the official
    upstream advisories for every dependency/version, recording query date,
    identifiers, applicability, and disposition. A scanner result is supporting

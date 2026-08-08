@@ -41,6 +41,9 @@ cmake -S "$source_dir" -B "$build_dir" \
 	-DWITH_TESTS=OFF
 cmake --build "$build_dir" --parallel 2
 cmake --install "$build_dir"
+install -d "$INSTALL_PREFIX/share/doc/libjwt"
+install -m 0644 "$source_dir/LICENSE" \
+	"$INSTALL_PREFIX/share/doc/libjwt/LICENSE"
 
 if command -v ldconfig >/dev/null 2>&1 && test "$INSTALL_PREFIX" = /usr/local; then
 	ldconfig
