@@ -101,6 +101,7 @@ checksum=$archive.sha256
 sidecar_manifest=$archive.manifest
 build_cc=${CC:-cc}
 reproducible_cflags="-ffile-prefix-map=$work_dir=/build -fdebug-prefix-map=$work_dir=/build"
+reproducible_bitcode_cflags="-O2 $reproducible_cflags"
 
 # Build the exact revision recorded in the manifest. Besides making the
 # provenance claim enforceable, this prevents generated files in a developer's
@@ -128,10 +129,12 @@ dependency_version()
 mkdir -p "$build_dir/src" "$build_dir/tests/integration" "$stage_dir" "$output_dir"
 make -C "$build_dir" -f "$snapshot_dir/Makefile" VPATH="$snapshot_dir" \
 	PG_CONFIG="$pg_config" EXPECTED_PG_MAJOR="$pg_major" CC="$build_cc" \
-	PG_CFLAGS="$reproducible_cflags" all
+	PG_CFLAGS="$reproducible_cflags" \
+	BITCODE_CFLAGS="$reproducible_bitcode_cflags" all
 make -C "$build_dir" -f "$snapshot_dir/Makefile" VPATH="$snapshot_dir" \
 	PG_CONFIG="$pg_config" EXPECTED_PG_MAJOR="$pg_major" \
 	CC="$build_cc" PG_CFLAGS="$reproducible_cflags" \
+	BITCODE_CFLAGS="$reproducible_bitcode_cflags" \
 	install DESTDIR="$stage_dir"
 "$snapshot_dir/scripts/ci/check-staged-install.sh" "$stage_dir" "$pg_config"
 
