@@ -91,6 +91,7 @@ elif ! printf '%s\n' "$source_revision" |
 fi
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT INT TERM
+snapshot_dir=$work_dir/source
 build_dir=$work_dir/build
 stage_dir=$work_dir/stage
 package_name=pg_oauth_validator-$release_version-pg$pg_release
@@ -100,6 +101,20 @@ checksum=$archive.sha256
 sidecar_manifest=$archive.manifest
 build_cc=${CC:-cc}
 reproducible_cflags="-ffile-prefix-map=$work_dir=/build -fdebug-prefix-map=$work_dir=/build"
+
+# Build the exact revision recorded in the manifest. Besides making the
+# provenance claim enforceable, this prevents generated files in a developer's
+# source tree from satisfying VPATH prerequisites in the clean build tree.
+test "$source_revision" != unavailable || {
+	echo "error: release packages require a Git source revision" >&2
+	exit 1
+}
+git -C "$source_dir" cat-file -e "$source_revision^{commit}" 2>/dev/null || {
+	echo "error: SOURCE_REVISION is not a local Git commit" >&2
+	exit 1
+}
+mkdir -p "$snapshot_dir"
+git -C "$source_dir" archive "$source_revision" | tar -x -C "$snapshot_dir"
 
 dependency_version()
 {
@@ -111,19 +126,19 @@ dependency_version()
 }
 
 mkdir -p "$build_dir/src" "$build_dir/tests/integration" "$stage_dir" "$output_dir"
-make -C "$build_dir" -f "$source_dir/Makefile" VPATH="$source_dir" \
+make -C "$build_dir" -f "$snapshot_dir/Makefile" VPATH="$snapshot_dir" \
 	PG_CONFIG="$pg_config" EXPECTED_PG_MAJOR="$pg_major" CC="$build_cc" \
 	PG_CFLAGS="$reproducible_cflags" all
-make -C "$build_dir" -f "$source_dir/Makefile" VPATH="$source_dir" \
+make -C "$build_dir" -f "$snapshot_dir/Makefile" VPATH="$snapshot_dir" \
 	PG_CONFIG="$pg_config" EXPECTED_PG_MAJOR="$pg_major" \
 	CC="$build_cc" PG_CFLAGS="$reproducible_cflags" \
 	install DESTDIR="$stage_dir"
-"$source_dir/scripts/ci/check-staged-install.sh" "$stage_dir" "$pg_config"
+"$snapshot_dir/scripts/ci/check-staged-install.sh" "$stage_dir" "$pg_config"
 
 mv "$stage_dir" "$package_root"
 license_dir=$package_root/THIRD-PARTY-LICENSES
 mkdir -p "$license_dir"
-install -m 0644 "$source_dir/THIRD-PARTY-NOTICES.md" \
+install -m 0644 "$snapshot_dir/THIRD-PARTY-NOTICES.md" \
 	"$package_root/THIRD-PARTY-NOTICES.md"
 install -m 0644 /usr/local/share/doc/libjwt/LICENSE \
 	"$license_dir/LIBJWT-MPL-2.0"

@@ -19,8 +19,8 @@ VALIDATOR_TEST_BIN = tests/validator_test
 CACHE_STATE_TEST_BIN = tests/cache_state_test
 CACHE_KEY_TEST_BIN = tests/cache_key_test
 HTTP_FRESHNESS_TEST_BIN = tests/http_freshness_test
-OAUTH_TEST_CLIENT = tests/integration/oauth_test_client
-CACHE_PROBE = tests/integration/cache_probe$(DLSUFFIX)
+OAUTH_TEST_CLIENT = $(CURDIR)/tests/integration/oauth_test_client
+CACHE_PROBE = $(CURDIR)/tests/integration/cache_probe$(DLSUFFIX)
 VALIDATOR_LIBRARY ?= $(CURDIR)/$(MODULE_big)$(DLSUFFIX)
 LIBJWT_SPIKE_BIN = tests/dependency/libjwt_spike
 LIBJWT_FUZZ_BIN = tests/fuzz/libjwt_inputs_fuzz
@@ -379,8 +379,8 @@ $(CACHE_PROBE): tests/integration/cache_probe.c src/shared_cache.c \
 integrationcheck: all $(OAUTH_TEST_CLIENT) $(CACHE_PROBE)
 	PG_CONFIG="$(PG_CONFIG)" \
 	VALIDATOR_LIBRARY="$(VALIDATOR_LIBRARY)" \
-	OAUTH_TEST_CLIENT="$(CURDIR)/$(OAUTH_TEST_CLIENT)" \
-	CACHE_PROBE="$(CURDIR)/$(CACHE_PROBE)" \
+	OAUTH_TEST_CLIENT="$(OAUTH_TEST_CLIENT)" \
+	CACHE_PROBE="$(CACHE_PROBE)" \
 	PYTHONPYCACHEPREFIX="$(CURDIR)/.pycache" \
 	python3 -m pytest -q -o cache_dir="$(CURDIR)/.pytest_cache" \
 		"$(srcdir)/tests/integration"
