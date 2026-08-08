@@ -28,10 +28,12 @@ jobs:
             package: "18"
             target: test-pg18
             image: postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+            wrong_package: "19"
           - pg: "19 beta 2"
             package: "19"
             target: test-pg19
             image: postgres:19beta2-bookworm@sha256:9222211d932c983331df86f01a6224eba868d61000a334e4a3e613626cf884f0
+            wrong_package: "18"
     container:
       image: ${{ matrix.image }}
 
@@ -59,7 +61,7 @@ jobs:
       - name: Build release-candidate package
         env:
           RELEASE_VERSION: ${{ inputs.version }}
-          RELEASE_OUTPUT: dist/pg${{ matrix.package }}
+          RELEASE_OUTPUT: dist/first/pg${{ matrix.package }}
           PG_CONFIG: /usr/lib/postgresql/${{ matrix.package }}/bin/pg_config
           SOURCE_REVISION: ${{ github.sha }}
         run: |
@@ -70,27 +72,51 @@ jobs:
             PG_CONFIG="$PG_CONFIG" \
             RELEASE_OUTPUT="$RELEASE_OUTPUT"
 
-      - name: Verify checksum and extract build manifest
+      - name: Rebuild package in a fresh build tree
         env:
-          RELEASE_OUTPUT: dist/pg${{ matrix.package }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_OUTPUT: dist/second/pg${{ matrix.package }}
+          PG_CONFIG: /usr/lib/postgresql/${{ matrix.package }}/bin/pg_config
+          SOURCE_REVISION: ${{ github.sha }}
         run: |
-          archive=$(find "$RELEASE_OUTPUT" -maxdepth 1 -type f -name '*.tar.gz')
-          test -n "$archive"
-          test "$(printf '%s\n' "$archive" | wc -l)" -eq 1
-          (cd "$RELEASE_OUTPUT" && sha256sum --check "$(basename "$archive").sha256")
-          test -s "$archive.manifest"
-          extracted_manifest=$(mktemp)
-          trap 'rm -f "$extracted_manifest"' EXIT INT TERM
-          tar -xOf "$archive" --wildcards '*/BUILD-MANIFEST' > "$extracted_manifest"
-          cmp "$archive.manifest" "$extracted_manifest"
+          make release-package \
+            RELEASE_VERSION="$RELEASE_VERSION" \
+            SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
+            SOURCE_REVISION="$SOURCE_REVISION" \
+            PG_CONFIG="$PG_CONFIG" \
+            RELEASE_OUTPUT="$RELEASE_OUTPUT"
+
+      - name: Verify reproducibility and package identity
+        env:
+          FIRST_OUTPUT: dist/first/pg${{ matrix.package }}
+          SECOND_OUTPUT: dist/second/pg${{ matrix.package }}
+        run: |
+          ./scripts/ci/check-release-artifacts.sh \
+            "$FIRST_OUTPUT" "$SECOND_OUTPUT" "${{ matrix.package }}"
+          if ./scripts/ci/check-release-artifacts.sh \
+            "$FIRST_OUTPUT" "$SECOND_OUTPUT" "${{ matrix.wrong_package }}"; then
+            echo "error: package accepted for the wrong PostgreSQL major" >&2
+            exit 1
+          fi
+
+      - name: Record release evidence
+        env:
+          RELEASE_OUTPUT: dist/first/pg${{ matrix.package }}
+          PG_CONFIG: /usr/lib/postgresql/${{ matrix.package }}/bin/pg_config
+          BUILD_IMAGE: ${{ matrix.image }}
+        run: |
+          ./scripts/ci/write-release-evidence.sh \
+            "$RELEASE_OUTPUT/RELEASE-EVIDENCE.md" \
+            "$RELEASE_OUTPUT" "$BUILD_IMAGE" "$PG_CONFIG"
 
       - name: Upload package, checksum, and build manifest
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: pg-oauth-validator-${{ inputs.version }}-pg${{ matrix.package }}
           path: |
-            dist/pg${{ matrix.package }}/*.tar.gz
-            dist/pg${{ matrix.package }}/*.tar.gz.sha256
-            dist/pg${{ matrix.package }}/*.tar.gz.manifest
+            dist/first/pg${{ matrix.package }}/*.tar.gz
+            dist/first/pg${{ matrix.package }}/*.tar.gz.sha256
+            dist/first/pg${{ matrix.package }}/*.tar.gz.manifest
+            dist/first/pg${{ matrix.package }}/RELEASE-EVIDENCE.md
           if-no-files-found: error
           retention-days: 14

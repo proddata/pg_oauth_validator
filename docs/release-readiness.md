@@ -86,6 +86,11 @@ compare both the archive digest and unpacked `BUILD-MANIFEST`. A mismatch blocks
 release until explained and either eliminated or explicitly incorporated into
 the reproducible input record. Sign the final archive and checksum file using
 the release signing process; checksum generation alone is not provenance.
+The release-candidate workflow provides an initial same-environment
+reproducibility gate with
+`scripts/ci/check-release-artifacts.sh` and records the immutable build inputs
+in `RELEASE-EVIDENCE.md`. The separate fresh-environment rehearsal remains a
+release-approval requirement.
 
 ## Dependency, license, and vulnerability review
 

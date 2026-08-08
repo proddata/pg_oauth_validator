@@ -93,6 +93,7 @@ include $(PGXS)
 	check-signature \
 	check-claims check-http-transport check-identity check-issuer-key check-metadata \
 	check-validator \
+	check-release-artifacts \
 	format formatcheck \
 	check-source-tree \
 	check-pg-version check-policy check-static-link-dependencies \
@@ -118,6 +119,9 @@ format:
 
 formatcheck:
 	"$(srcdir)/scripts/format-c.sh" --check
+
+check-release-artifacts:
+	"$(srcdir)/tests/ci/test_release_artifacts.sh"
 
 sanitizercheck:
 	$(MAKE) dependency-spike check-http-transport check-issuer-key \
@@ -416,7 +420,7 @@ installedcheck: packagecheck
 interop-keycloak:
 	"$(srcdir)/scripts/interop/keycloak.sh"
 
-verify: check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
+verify: check-release-artifacts check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
 	check-jwks check-signature check-claims check-identity check-metadata \
 	check-http-transport check-issuer-key check-validator
 
