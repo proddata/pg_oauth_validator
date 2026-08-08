@@ -155,6 +155,10 @@ parallel subject to their file boundaries.
   complete and date the dependency/license/vulnerability review, choose the
   signing/approval identities, run the workflow from that revision, and
   rehearse install/upgrade/rollback with the retained candidate artifacts.
+- **2026-08-08 review:** the proposed `0.1.0-rc.1` dependency review is recorded
+  in `docs/releases/0.1.0-rc.1-dependency-review.md` and is blocked pending
+  third-party notices, immutable OS dependency inputs, exact runtime inventory,
+  and completion of advisory and GitHub security review.
 
 ## Security-review follow-ups
 
