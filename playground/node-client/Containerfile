@@ -1,0 +1,31 @@
+FROM node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS build
+
+ARG NODE_POSTGRES_COMMIT=68d58096e99296776a08d9c4333f5d742a8d2675
+ARG NODE_POSTGRES_SHA256=23c52a5664a6cea7dbe878fd4b439433978cf865bfab507469bfc50142392340
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates curl \
+    && curl --fail --show-error --location \
+         "https://github.com/proddata/node-postgres/archive/${NODE_POSTGRES_COMMIT}.tar.gz" \
+         --output /tmp/node-postgres.tar.gz \
+    && echo "${NODE_POSTGRES_SHA256}  /tmp/node-postgres.tar.gz" | sha256sum --check --strict \
+    && mkdir -p /opt/node-postgres \
+    && tar -xzf /tmp/node-postgres.tar.gz --strip-components=1 -C /opt/node-postgres \
+    && cd /opt/node-postgres \
+    && corepack enable \
+    && yarn install --frozen-lockfile --non-interactive --ignore-scripts \
+    && yarn build \
+    && rm -rf node_modules \
+    && yarn install --frozen-lockfile --non-interactive --ignore-scripts --production \
+    && rm -rf /tmp/node-postgres.tar.gz /var/lib/apt/lists/*
+
+FROM node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
+
+COPY --from=build /opt/node-postgres/packages /opt/node-postgres/packages
+COPY --from=build /opt/node-postgres/node_modules /opt/node-postgres/node_modules
+
+WORKDIR /playground/node-client
+COPY playground/node-client/client.js ./client.js
+
+USER node
+ENTRYPOINT ["node", "/playground/node-client/client.js"]

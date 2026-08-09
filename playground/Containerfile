@@ -1,0 +1,22 @@
+ARG POSTGRES_IMAGE=postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+FROM ${POSTGRES_IMAGE}
+
+ARG PG_MAJOR
+WORKDIR /workspace
+COPY . .
+
+RUN ./scripts/ci/install-debian-dependencies.sh "$PG_MAJOR" \
+    && case "$PG_MAJOR" in \
+         18) oauth_package_version=18.4-1.pgdg12+1 ;; \
+         19) oauth_package_version=19~beta2-1.pgdg12+1 ;; \
+       esac \
+    && apt-get install --yes --no-install-recommends \
+         "libpq-oauth=$oauth_package_version" \
+    && ./scripts/ci/install-libjwt.sh \
+    && make PG_CONFIG="/usr/lib/postgresql/$PG_MAJOR/bin/pg_config" all \
+    && make PG_CONFIG="/usr/lib/postgresql/$PG_MAJOR/bin/pg_config" install \
+    && make PG_CONFIG="/usr/lib/postgresql/$PG_MAJOR/bin/pg_config" clean \
+    && chmod 0755 /workspace/playground/postgres/entrypoint.sh \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /

@@ -1,0 +1,3 @@
+local   all         all                    trust
+hostssl playground  @DATABASE_ROLES@  0.0.0.0/0  oauth issuer=@OAUTH_ISSUER@ scope="@OAUTH_SCOPE@" validator=pg_oauth_validator validator.policy=default
+hostssl playground  @DATABASE_ROLES@  ::/0        oauth issuer=@OAUTH_ISSUER@ scope="@OAUTH_SCOPE@" validator=pg_oauth_validator validator.policy=default

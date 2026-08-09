@@ -12,11 +12,11 @@ if git rev-parse --verify HEAD >/dev/null 2>&1; then
     git log -1 --check --pretty=format:
 fi
 
-find scripts -type f -name '*.sh' -exec sh -n {} +
+find scripts playground -type f -name '*.sh' -exec sh -n {} +
 
 python_cache=$(mktemp -d "${TMPDIR:-/tmp}/pg-oauth-python.XXXXXX")
 trap 'rm -rf "$python_cache"' EXIT HUP INT TERM
-PYTHONPYCACHEPREFIX="$python_cache" python3 -m compileall -q tests
+PYTHONPYCACHEPREFIX="$python_cache" python3 -m compileall -q tests playground
 
 if find . -type f \( -name '*.orig' -o -name '*.rej' -o -name '*~' \) \
     -not -path './.git/*' | grep -q .; then

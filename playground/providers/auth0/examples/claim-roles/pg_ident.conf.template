@@ -1,0 +1,1 @@
+# Delegated claim-role authorization does not use a PostgreSQL usermap.

@@ -38,3 +38,12 @@ The module dynamically links the deployment environment's libcurl, OpenSSL,
 and system libraries. Their versions are recorded from the build environment
 in `BUILD-MANIFEST`; operators must use supported, security-maintained runtime
 packages.
+
+## Playground-only node-postgres snapshot
+
+The optional `playground` Node interoperability-client image downloads and
+builds the pure-JavaScript client from node-postgres pull request 3694 at commit
+`68d58096e99296776a08d9c4333f5d742a8d2675`, licensed under the MIT license.
+It is not linked into or distributed with the validator module. The image build
+pins the source archive SHA-256 and installs the dependency graph locked by that
+source revision.

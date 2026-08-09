@@ -1,0 +1,2 @@
+# The rendered identity is v1.<base64url issuer>.<base64url subject>.
+@IDENT_MAP_ROWS@

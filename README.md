@@ -25,6 +25,8 @@ deployments. Other PostgreSQL major versions are rejected by the build.
   release candidates, dependency review, provenance, and promotion gates;
 - [`docs/architecture.md`](docs/architecture.md) — the implemented validation
   pipeline, trust boundaries, cache, and PostgreSQL integration;
+- [`playground/README.md`](playground/README.md) — disposable Docker/Podman
+  Compose environment with an OAuth-capable `psql` example;
 - [`FEATURES.md`](FEATURES.md) — supported and planned product behavior;
 - [`PROVIDER-COMPATIBILITY.md`](PROVIDER-COMPATIBILITY.md) — provider-specific
   compatibility status and requirements;

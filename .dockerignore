@@ -1,0 +1,12 @@
+.git
+.tools
+build
+dist
+playground/.state
+**/__pycache__
+*.bc
+*.o
+*.so
+tests/*_test
+tests/integration/oauth_test_client
+tests/integration/cache_probe.so

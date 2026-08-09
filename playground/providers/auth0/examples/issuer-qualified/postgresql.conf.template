@@ -1,0 +1,21 @@
+listen_addresses = '*'
+port = 5432
+hba_file = '/playground/generated/pg_hba.conf'
+ident_file = '/playground/generated/pg_ident.conf'
+
+ssl = on
+ssl_cert_file = '/playground-state/postgres.crt'
+ssl_key_file = '/playground-state/postgres.key'
+
+oauth_validator_libraries = 'pg_oauth_validator'
+pg_oauth_validator.audiences = '@OAUTH_AUDIENCE@'
+pg_oauth_validator.allowed_algorithms = 'RS256'
+pg_oauth_validator.required_token_type = 'at+jwt'
+
+pg_oauth_validator.identity_claim = 'sub'
+pg_oauth_validator.identity_format = 'issuer_qualified'
+pg_oauth_validator.authorization_mode = 'identity'
+
+log_connections = on
+log_disconnections = on
+log_min_messages = info

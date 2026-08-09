@@ -1,0 +1,19 @@
+services:
+  postgres:
+    build:
+      args:
+        POSTGRES_IMAGE: postgres:19beta2-bookworm@sha256:9222211d932c983331df86f01a6224eba868d61000a334e4a3e613626cf884f0
+        PG_MAJOR: "19"
+    image: pg-oauth-validator-playground:pg19beta2
+    command:
+      - postgres
+      - -c
+      - config_file=/playground/generated/postgresql.conf
+      - -c
+      - hba_file=/playground/generated/pg_hba.pg19.conf
+
+  psql:
+    image: pg-oauth-validator-playground:pg19beta2
+
+volumes:
+  postgres-data:

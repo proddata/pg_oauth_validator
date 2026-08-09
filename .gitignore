@@ -15,6 +15,9 @@
 /.tools/
 /build/
 /dist/
+/playground/.state/
+/playground/.generated/
+/playground/providers/*/.env
 /pg_oauth_validator.so
 /tests/fail_closed_test
 /tests/policy_test

@@ -1,0 +1,67 @@
+name: pg-oauth-validator-external
+
+services:
+  postgres:
+    build:
+      context: ..
+      dockerfile: playground/Containerfile
+      args:
+        POSTGRES_IMAGE: postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+        PG_MAJOR: "18"
+    image: pg-oauth-validator-playground:pg18
+    entrypoint: ["/workspace/playground/postgres/entrypoint.sh"]
+    command: ["postgres", "-c", "config_file=/playground/generated/postgresql.conf"]
+    environment:
+      POSTGRES_DB: playground
+      POSTGRES_PASSWORD: playground-bootstrap-only
+    ports:
+      - "127.0.0.1:${PLAYGROUND_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ${PLAYGROUND_STATE_DIR:-./.state}:/playground-state
+      - ${PLAYGROUND_GENERATED_DIR:?use auth0-playground.py to select a profile}/init.sql:/docker-entrypoint-initdb.d/10-playground.sql:ro
+      - ${PLAYGROUND_GENERATED_DIR:?use auth0-playground.py to select a profile}:/playground/generated:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -d playground -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  psql:
+    image: pg-oauth-validator-playground:pg18
+    profiles: ["tools"]
+    entrypoint: ["psql"]
+    command: ["-X", "-v", "ON_ERROR_STOP=1", "-c", "select current_user, current_database();"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${PLAYGROUND_DATABASE:-playground}
+      PGUSER: ${PLAYGROUND_ROLE:-app_reader}
+      PGSERVICE: playground
+      PGSERVICEFILE: /playground/generated/pg_service.conf
+    volumes:
+      - ${PLAYGROUND_GENERATED_DIR:?use auth0-playground.py to select a profile}:/playground/generated:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  oauth-node:
+    build:
+      context: ..
+      dockerfile: playground/node-client/Containerfile
+    image: pg-oauth-validator-playground:oauth-node
+    profiles: ["tools"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${PLAYGROUND_DATABASE:-playground}
+      PGUSER: ${PLAYGROUND_ROLE:-app_reader}
+    volumes:
+      - ${PLAYGROUND_GENERATED_DIR:?use auth0-playground.py to select a profile}:/playground/generated:ro
+      - ./node-client/client.js:/playground/node-client/client.js:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
