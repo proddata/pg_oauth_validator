@@ -2,6 +2,7 @@
 #define PG_OAUTH_VALIDATOR_CLAIMS_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <jansson.h>
@@ -21,7 +22,9 @@ typedef enum PgOAuthClaimsError
 	PG_OAUTH_CLAIMS_ISSUED_IN_FUTURE,
 	PG_OAUTH_CLAIMS_INVALID_IDENTITY,
 	PG_OAUTH_CLAIMS_INVALID_SCOPE,
-	PG_OAUTH_CLAIMS_INSUFFICIENT_SCOPE
+	PG_OAUTH_CLAIMS_INSUFFICIENT_SCOPE,
+	PG_OAUTH_CLAIMS_INVALID_ROLES,
+	PG_OAUTH_CLAIMS_UNAUTHORIZED_ROLE
 } PgOAuthClaimsError;
 
 typedef struct PgOAuthClaimsPolicy
@@ -30,11 +33,16 @@ typedef struct PgOAuthClaimsPolicy
 	const char *audiences;
 	const char *required_scopes;
 	const char *identity_claim;
+	const char *roles_claim;
+	const char *requested_role;
 	int64_t		current_time;
 	uint32_t	clock_skew_seconds;
 	size_t		max_identity_size;
 	size_t		max_audiences;
 	size_t		max_scopes;
+	size_t		max_roles;
+	size_t		max_role_size;
+	bool		require_requested_role;
 } PgOAuthClaimsPolicy;
 
 typedef struct PgOAuthValidatedClaims

@@ -82,12 +82,24 @@ expect_round_trip(const char *issuer, const char *subject)
 int
 main(void)
 {
+	PgOAuthIdentity direct;
+	PgOAuthIdentityPolicy direct_policy = {2048, 63, 63};
 	PgOAuthIdentityPolicy policy = valid_policy();
 	PgOAuthIdentity first;
 	PgOAuthIdentity second;
 	static const char invalid_utf8[] = {(char) 0xc0, (char) 0xaf};
 	static const char c1_control[] = {(char) 0xc2, (char) 0x85};
 
+	if (pg_oauth_identity_build_direct("google-oauth2|123",
+									   strlen("google-oauth2|123"), &direct_policy,
+									   &direct) != PG_OAUTH_IDENTITY_OK ||
+		strcmp(direct.value, "google-oauth2|123") != 0)
+		fail("valid direct identity was rejected");
+	pg_oauth_identity_clear(&direct);
+	if (pg_oauth_identity_build_direct("line\nfeed", strlen("line\nfeed"),
+									   &direct_policy, &direct) !=
+		PG_OAUTH_IDENTITY_INVALID_SUBJECT)
+		fail("direct identity containing a control byte was accepted");
 	expect_round_trip("https://issuer.example/realm|one", "subject.with|delimiters");
 	expect_round_trip("https://issuer.example/", "müller-東京");
 	if (pg_oauth_identity_build("https://idp.example/realms/acme",

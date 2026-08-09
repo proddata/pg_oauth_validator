@@ -101,7 +101,7 @@ parse_algorithms(const char *value, uint32 *algorithms)
 }
 
 static bool
-validate_authn_claim(const char *claim)
+validate_claim_name(const char *claim)
 {
 	size_t		length;
 
@@ -178,8 +178,6 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 		return PG_OAUTH_POLICY_MISSING_ISSUER;
 	if (!is_nonempty(hba->required_scopes))
 		return PG_OAUTH_POLICY_MISSING_SCOPES;
-	if (hba->delegate_ident_mapping)
-		return PG_OAUTH_POLICY_DELEGATED_MAPPING_UNSUPPORTED;
 	if (hba->policy_name != NULL && hba->policy_name[0] != '\0' &&
 		strcmp(hba->policy_name, "default") != 0)
 		return PG_OAUTH_POLICY_UNKNOWN_POLICY;
@@ -193,8 +191,29 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 		(strcmp(config->required_token_type, "at+jwt") != 0 &&
 		 strcmp(config->required_token_type, "application/at+jwt") != 0))
 		return PG_OAUTH_POLICY_INVALID_TOKEN_TYPE;
-	if (!validate_authn_claim(config->authn_claim))
+	if (!validate_claim_name(config->identity_claim))
 		return PG_OAUTH_POLICY_INVALID_AUTHN_CLAIM;
+	if (config->identity_format == NULL)
+		return PG_OAUTH_POLICY_INVALID_IDENTITY_FORMAT;
+	if (strcmp(config->identity_format, "direct") == 0)
+		policy->identity_format = PG_OAUTH_IDENTITY_FORMAT_DIRECT;
+	else if (strcmp(config->identity_format, "issuer_qualified") == 0)
+		policy->identity_format = PG_OAUTH_IDENTITY_FORMAT_ISSUER_QUALIFIED;
+	else
+		return PG_OAUTH_POLICY_INVALID_IDENTITY_FORMAT;
+	if (config->authorization_mode == NULL)
+		return PG_OAUTH_POLICY_INVALID_AUTHORIZATION_MODE;
+	if (strcmp(config->authorization_mode, "identity") == 0)
+		policy->authorization_mode = PG_OAUTH_AUTHORIZATION_IDENTITY;
+	else if (strcmp(config->authorization_mode, "claim_roles") == 0)
+		policy->authorization_mode = PG_OAUTH_AUTHORIZATION_CLAIM_ROLES;
+	else
+		return PG_OAUTH_POLICY_INVALID_AUTHORIZATION_MODE;
+	if (!validate_claim_name(config->roles_claim))
+		return PG_OAUTH_POLICY_INVALID_ROLES_CLAIM;
+	if (hba->delegate_ident_mapping !=
+		(policy->authorization_mode == PG_OAUTH_AUTHORIZATION_CLAIM_ROLES))
+		return PG_OAUTH_POLICY_DELEGATION_MISMATCH;
 	if (!validate_jwks_hosts(config->allowed_jwks_hosts))
 		return PG_OAUTH_POLICY_INVALID_JWKS_HOSTS;
 	if (config->ca_file == NULL || strlen(config->ca_file) > 2048)
@@ -228,7 +247,8 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 	policy->required_scopes = hba->required_scopes;
 	policy->audiences = config->audiences;
 	policy->required_token_type = config->required_token_type;
-	policy->authn_claim = config->authn_claim;
+	policy->identity_claim = config->identity_claim;
+	policy->roles_claim = config->roles_claim;
 	policy->allowed_jwks_hosts = config->allowed_jwks_hosts;
 	policy->ca_file = config->ca_file;
 	policy->allowed_algorithms = algorithms;

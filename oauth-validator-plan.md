@@ -14,7 +14,10 @@ The validator must keep three decisions separate:
 2. **Authentication:** Which stable external principal does the token identify?
 3. **Authorization:** May that principal connect as the PostgreSQL role requested by the client?
 
-The default authorization mode should return an authenticated identity to PostgreSQL and let `pg_ident.conf` perform identity-to-role mapping. Validator-managed role authorization (`delegate_ident_mapping`) should be a separate, opt-in mode with stricter configuration requirements.
+The default authorization mode should return an authenticated identity to
+PostgreSQL for exact-name or `pg_ident.conf` mapping. Validator-managed role
+authorization (`delegate_ident_mapping`) is a separate, opt-in mode with
+stricter configuration requirements on PostgreSQL 18 and 19.
 
 ## 2. Non-goals
 
@@ -88,7 +91,7 @@ For PostgreSQL 19 and later, register the custom `validator.policy` HBA option t
 
 Fail closed if the backend port, matched HBA rule, issuer, or scope is unavailable. Never modify or retain PostgreSQL-owned HBA strings beyond the callback lifetime.
 
-### 5.2 Normal usermap mode — required
+### 5.2 Normal identity mode — required
 
 In the default mode:
 
@@ -98,8 +101,10 @@ In the default mode:
 4. Set `authorized` only after resource-level token authorization succeeds.
 5. Let PostgreSQL apply `map=`/`pg_ident.conf` to determine whether the identity may assume the requested role.
 
-The identity representation is a versioned, issuer-qualified pair. Both UTF-8
-components are encoded independently as canonical unpadded Base64URL:
+The identity claim is configurable and defaults to `sub`. Direct format returns
+the validated claim unchanged, allowing PostgreSQL's normal exact-name check
+without a usermap. Issuer-qualified format encodes both UTF-8 components as
+canonical unpadded Base64URL:
 
 ```text
 v1.<base64url(issuer)>.<base64url(stable-claim)>
@@ -114,11 +119,11 @@ v1.aHR0cHM6Ly9pZHAuZXhhbXBsZS9yZWFsbXMvYWNtZQ.MjQ4Mjg5NzYxMDAx
 
 The final value is limited to 1024 ASCII bytes. This avoids issuer collisions
 and delimiter ambiguity while remaining reversible and safe to place literally
-in `pg_ident.conf`. A provider profile may select another immutable claim, but
-it does not change this outer encoding. Mutable usernames and email addresses
-must not be defaults.
+in `pg_ident.conf`. A provider profile may recommend another claim. Direct
+claims used as role names must be provider-controlled; mutable or user-editable
+claims require an explicit operator decision.
 
-### 5.3 Delegated identity mapping — optional, later milestone
+### 5.3 Delegated exact role-claim mapping — opt-in
 
 When `delegate_ident_mapping` is enabled, PostgreSQL deliberately does not compare `authn_id` with `pg_ident.conf`. The validator must therefore use the callback's requested `role` argument and prove that the token holder may assume that exact role.
 
@@ -128,19 +133,28 @@ Delegation must require all of the following:
 - an explicit claim-to-role policy;
 - exact role matching or a configured transformation/mapping;
 - rejection of missing, malformed, or ambiguous role claims;
-- a denylist or separate policy for administrative roles such as superusers;
 - issuer-specific namespaces for groups, roles, and entitlements;
 - audit logging of subject, requested role, policy used, and decision;
 - tests proving that a user authorized for one role cannot request another.
 
-Possible policies include:
+The initial supported policy is:
 
-- token claim contains exact PostgreSQL role names;
-- provider group to PostgreSQL role mappings configured locally;
-- entitlement strings mapped locally to roles;
-- an external policy decision point.
+- a configurable, bounded token claim contains an array of exact PostgreSQL
+  role names;
+- the requested role must be an exact, case-sensitive array member;
+- the HBA `USER` field provides an independent local allowlist of roles matched
+  by the delegated rule.
 
-Raw provider groups must never be treated as PostgreSQL roles without an explicit policy. Until this feature exists, documentation must say that `delegate_ident_mapping` is unsupported and unsafe with the validator.
+Current administrative-role decision: do not add a validator-owned denylist,
+second allowlist, or catalog privilege classifier. If HBA permits a requested
+role and the validated token contains its exact name, delegated mode may
+authorize that role, including a superuser. Operators must enumerate HBA roles
+and treat issuer claim mapping as database authorization policy. Another local
+policy layer is deferred until operational evidence justifies its complexity.
+
+Provider group transformations, regular expressions, and external policy
+decision points remain deferred. Raw provider groups must never become
+PostgreSQL roles implicitly.
 
 ## 6. Validation pipeline
 
@@ -284,7 +298,7 @@ Configuration should be explicit and safe by default. Candidate settings:
 pg_oauth_validator.profile = 'rfc9068'
 pg_oauth_validator.audiences = 'https://postgres.example.internal/'
 pg_oauth_validator.allowed_algorithms = 'RS256 ES256'
-pg_oauth_validator.authn_claim = 'sub'
+pg_oauth_validator.identity_claim = 'sub'
 pg_oauth_validator.qualify_subject_with_issuer = on
 pg_oauth_validator.required_token_type = 'at+jwt'
 pg_oauth_validator.clock_skew = '60s'
@@ -303,7 +317,7 @@ pg_oauth_validator.allow_insecure_http = off
 pg_oauth_validator.delegated_authorization = off
 ```
 
-Initial implementation decision: issuer and required scopes come from the matched HBA rule. `audiences` is mandatory and has no default. `allowed_algorithms`, `required_token_type`, `authn_claim`, `clock_skew`, and `max_token_size` use the restrictive defaults shown above. PostgreSQL 19's optional `validator.policy` currently resolves only to `default`; unknown names fail closed until a reviewed named-policy store exists.
+Initial implementation decision: issuer and required scopes come from the matched HBA rule. `audiences` is mandatory and has no default. `allowed_algorithms`, `required_token_type`, `identity_claim`, `clock_skew`, and `max_token_size` use the restrictive defaults shown above. PostgreSQL 19's optional `validator.policy` currently resolves only to `default`; unknown names fail closed until a reviewed named-policy store exists.
 
 Initial JWKS host decision: permit the exact trusted discovery-endpoint host
 automatically. Cross-host `jwks_uri` values fail closed unless their hostname is

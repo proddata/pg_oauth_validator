@@ -326,7 +326,7 @@ main(int argc, char **argv)
 		fail("PostgreSQL module initialization symbol is unavailable");
 	memcpy(&module_init, &symbol, sizeof(module_init));
 	module_init();
-	if (registered_gucs != 15)
+	if (registered_gucs != 18)
 		fail("module did not register all configuration variables");
 	if (!cache_gucs_have_expected_contract)
 		fail("cache GUC defaults, bounds, or reload contexts changed");

@@ -77,9 +77,14 @@ pg_oauth_validate_access_token_cached(const char *token, size_t token_length,
 		error = PG_OAUTH_VALIDATOR_CLAIMS;
 		goto done;
 	}
-	result->identity_error = pg_oauth_identity_build(
-													 policy->claims.issuer, strlen(policy->claims.issuer), claims.identity,
-													 claims.identity_length, &policy->identity, &result->identity);
+	if (policy->issuer_qualified_identity)
+		result->identity_error = pg_oauth_identity_build(
+														 policy->claims.issuer, strlen(policy->claims.issuer), claims.identity,
+														 claims.identity_length, &policy->identity, &result->identity);
+	else
+		result->identity_error = pg_oauth_identity_build_direct(
+																claims.identity, claims.identity_length,
+																&policy->identity, &result->identity);
 	if (result->identity_error != PG_OAUTH_IDENTITY_OK)
 	{
 		error = PG_OAUTH_VALIDATOR_IDENTITY;

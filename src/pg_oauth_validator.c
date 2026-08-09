@@ -89,8 +89,6 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 	time_t		wall_time;
 	PgOAuthValidatorError validation_error;
 
-	(void) role;
-
 	/* Initialize every output explicitly before any validation work. */
 	result->authorized = false;
 	result->authn_id = NULL;
@@ -158,15 +156,20 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 	validator_policy.claims = (PgOAuthClaimsPolicy)
 	{
 		policy.issuer, policy.audiences, policy.required_scopes,
-			policy.authn_claim, (int64) wall_time,
-			(uint32) (policy.clock_skew_ms / 1000), PG_OAUTH_MAX_IDENTITY_SIZE,
-			16, 64
+			policy.identity_claim, policy.roles_claim, role, (int64) wall_time,
+			(uint32) (policy.clock_skew_ms / 1000),
+			policy.identity_format == PG_OAUTH_IDENTITY_FORMAT_DIRECT ?
+			NAMEDATALEN - 1 : PG_OAUTH_MAX_IDENTITY_SIZE,
+			16, 64, 64, NAMEDATALEN - 1,
+			policy.authorization_mode == PG_OAUTH_AUTHORIZATION_CLAIM_ROLES
 	};
 	validator_policy.identity = (PgOAuthIdentityPolicy)
 	{
 		PG_OAUTH_MAX_URL_SIZE, PG_OAUTH_MAX_IDENTITY_SIZE,
 			PG_OAUTH_MAX_IDENTITY_SIZE
 	};
+	validator_policy.issuer_qualified_identity =
+		policy.identity_format == PG_OAUTH_IDENTITY_FORMAT_ISSUER_QUALIFIED;
 	memset(&cache_policy, 0, sizeof(cache_policy));
 	cache_policy.io = &cache_io;
 	cache_policy.key_policy = (PgOAuthCacheKeyPolicy)
@@ -175,7 +178,12 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 			.required_scopes = policy.required_scopes,
 			.audiences = policy.audiences,
 			.required_token_type = policy.required_token_type,
-			.authn_claim = policy.authn_claim,
+			.identity_claim = policy.identity_claim,
+			.identity_format = policy.identity_format ==
+			PG_OAUTH_IDENTITY_FORMAT_DIRECT ? "direct" : "issuer_qualified",
+			.authorization_mode = policy.authorization_mode ==
+			PG_OAUTH_AUTHORIZATION_IDENTITY ? "identity" : "claim_roles",
+			.roles_claim = policy.roles_claim,
 			.allowed_jwks_hosts = policy.allowed_jwks_hosts,
 			.ca_file = policy.ca_file,
 			.allowed_algorithms = policy.allowed_algorithms,

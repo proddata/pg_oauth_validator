@@ -16,7 +16,9 @@ The validator keeps three decisions separate:
 2. **Authentication:** Which stable external principal does the token identify?
 3. **Authorization:** May the validated principal connect to PostgreSQL under the configured access policy?
 
-In normal mode, the validator returns a stable authenticated identity and PostgreSQL uses `map=` and `pg_ident.conf` to decide whether that identity may assume the requested database role.
+The validator supports PostgreSQL-owned identity matching and explicitly
+delegated, claim-based role authorization. Both modes require complete token
+validation and an authenticated identity.
 
 ## Implementation baseline
 
@@ -47,8 +49,10 @@ Milestone 1 provides strict offline validation of signed JWT access tokens:
 - Bounded clock skew and resource limits.
 - Required connection-scope validation using the strict `scope` claim and all
   scopes configured by the matched HBA rule.
-- Issuer-qualified stable subject as the preferred `authn_id` representation.
-- Normal PostgreSQL usermap authorization only.
+- Configurable authenticated-identity claim, defaulting to `sub`.
+- Direct or issuer-qualified authenticated-identity representation.
+- Normal PostgreSQL exact-name/usermap authorization and opt-in delegated exact
+  role-claim authorization.
 - Controlled single JWKS refresh for legitimate signing-key rotation.
 - Negative unit and integration test coverage for the threat model.
 - Sanitized, stable diagnostic codes without token or secret disclosure.
@@ -76,9 +80,10 @@ Callback outputs must begin denied. Success at an earlier stage never compensate
 - `iss`, `aud`, `exp`, and the configured stable identity claim are mandatory and correctly typed.
 - Audience matching is exact and requires at least one configured PostgreSQL resource identifier.
 - Issuer matching is exact; no substring detection or silent trailing-slash normalization is allowed.
-- The default identity is
-  `v1.<base64url(issuer)>.<base64url(configured-stable-claim)>`, limited to
-  1024 ASCII bytes.
+- Direct identity returns the configured string claim unchanged. Issuer-qualified
+  identity returns `v1.<base64url(issuer)>.<base64url(configured-claim)>`.
+- Delegated authorization requires the exact requested PostgreSQL role in a
+  bounded configured string-array claim.
 - `openid` alone is not sufficient authorization to connect to PostgreSQL.
 - Signing algorithms come from a local allowlist. `none`, algorithm confusion, and remote HMAC keys are rejected by default.
 - Key selection uses trusted JWKS data. Missing or ambiguous key identifiers are rejected.
@@ -88,16 +93,38 @@ Callback outputs must begin denied. Success at an earlier stage never compensate
 - Detailed diagnostics remain in protected server logs; client-facing errors are generic.
 - Network or internal failures cannot produce authorization success.
 
-## Normal identity mapping
+## Identity and role mapping
 
-Normal mapping is the only supported authorization mode in Milestone 1:
+In normal identity mode:
 
 ```text
 authorized = valid token for PostgreSQL AND required connection privileges
 authn_id   = stable external identity
 ```
 
-PostgreSQL then applies the matched HBA rule and `pg_ident.conf` mapping to the requested role. A valid token must not allow the principal to assume a role without the required PostgreSQL usermap entry.
+Without `map=`, PostgreSQL requires `authn_id` to exactly equal the requested
+role. With `map=`, PostgreSQL applies the selected `pg_ident.conf` usermap.
+
+In delegated roles mode:
+
+```text
+authorized = valid token for PostgreSQL AND required connection privileges
+             AND requested role is an exact member of the configured roles claim
+authn_id   = configured external identity for auditing
+```
+
+Delegated mode requires `delegate_ident_mapping=1` in the matched HBA rule and
+an explicitly selected validator authorization mode. The HBA `USER` field
+should independently allowlist reachable roles. It must not be combined with
+`map=`.
+
+The validator applies no special denylist, allowlist, or privilege
+classification to delegated role names. A privileged role, including a
+superuser, may be authorized when the HBA `USER` field permits that requested
+role and the validated token contains its exact name. This is deliberate: the
+HBA rule and issuer-side claim policy are the administrator-controlled
+authorization boundaries. Deployments should enumerate delegated roles rather
+than use `all` or a broad `+group` unless that wider authority is intentional.
 
 ## Metadata, JWKS, and network behavior
 
@@ -144,11 +171,10 @@ The following are outside Milestone 1:
 - accepting opaque tokens or using token introspection;
 - revocation-aware online validation;
 - implicit provider compatibility;
-- provider groups or claims automatically becoming PostgreSQL roles;
+- implicit provider-group transformations into PostgreSQL roles;
 - anonymous or identity-less access;
-- delegated identity mapping or validator-managed requested-role authorization.
-
-`delegate_ident_mapping` is unsupported and unsafe until an explicit requested-role policy, administrative-role safeguards, audit behavior, and privilege-escalation tests are implemented.
+- automatic acceptance of arbitrary provider roles without explicit delegated
+  configuration and an HBA role boundary.
 
 ## Acceptance criteria for initial security review
 
@@ -160,8 +186,12 @@ The implementation is ready for an initial security review only when:
 - wrong-type and malformed security-sensitive claims are rejected;
 - only administrator-allowed asymmetric algorithms and valid keys are accepted;
 - rotated signing keys can be adopted without attacker-driven refresh storms;
-- a valid principal cannot assume a PostgreSQL role without a matching usermap entry;
-- delegated mapping is rejected as unsupported;
+- a valid principal cannot assume a role that fails normal exact-name/usermap
+  authorization or delegated exact role-claim authorization;
+- delegated mapping fails unless both HBA delegation and validator delegated
+  policy are explicitly enabled;
+- malformed, duplicate, oversized, missing, and insufficient delegated role
+  claims are rejected;
 - no token or secret appears in normal, debug, or error logs;
 - network failures and cache behavior are deterministic and documented;
 - negative tests cover the documented threat model and run in CI;

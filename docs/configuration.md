@@ -18,7 +18,10 @@ The remaining settings have restrictive defaults:
 ```conf
 pg_oauth_validator.allowed_algorithms = 'RS256,ES256'
 pg_oauth_validator.required_token_type = 'at+jwt'
-pg_oauth_validator.authn_claim = 'sub'
+pg_oauth_validator.identity_claim = 'sub'
+pg_oauth_validator.identity_format = 'direct'
+pg_oauth_validator.authorization_mode = 'identity'
+pg_oauth_validator.roles_claim = 'roles'
 pg_oauth_validator.allowed_jwks_hosts = ''
 pg_oauth_validator.ca_file = ''
 pg_oauth_validator.clock_skew = '60s'
@@ -33,7 +36,8 @@ pg_oauth_validator.cache_max_entries = 32
 ```
 
 An empty audience, empty HBA scope, unsupported or duplicate algorithm, token
-type other than `at+jwt` or `application/at+jwt`, unsafe identity-claim name,
+type other than `at+jwt` or `application/at+jwt`, unsafe identity/roles claim
+name, unknown identity format or authorization mode, mismatched HBA delegation,
 invalid additional JWKS hostname, excessive clock skew, or invalid token-size
 bound causes validation to fail closed. `cache_max_ttl` must not be shorter
 than either fallback TTL; an inconsistent cache policy also fails closed. Only
@@ -76,7 +80,15 @@ hostssl all all 0.0.0.0/0 oauth \
 PostgreSQL 18 uses the `default` policy implicitly because it does not expose
 the PostgreSQL 19 named-policy selector.
 
-After complete token validation, the callback returns this external identity:
+By default, the callback returns the configured claim unchanged. Without
+`map=`, PostgreSQL requires it to exactly match the requested role:
+
+```conf
+pg_oauth_validator.identity_claim = 'postgres_role'
+pg_oauth_validator.identity_format = 'direct'
+```
+
+Set `identity_format = 'issuer_qualified'` to return:
 
 ```text
 v1.<base64url(issuer)>.<base64url(configured-stable-claim)>
@@ -92,8 +104,191 @@ oauthmap  v1.aHR0cHM6Ly9pZHAuZXhhbXBsZS9yZWFsbXMvYWNtZQ.MjQ4Mjg5NzYxMDAx  app_us
 ```
 
 PostgreSQL applies the HBA `map=` and `pg_ident.conf` entry to the requested
-role. The callback does not authorize requested roles itself and never enables
-delegated identity mapping.
+role.
+
+Delegated roles mode accepts a bounded string array only when both PostgreSQL
+and the validator explicitly enable it:
+
+```conf
+# postgresql.conf
+pg_oauth_validator.authorization_mode = 'claim_roles'
+pg_oauth_validator.roles_claim = 'roles'
+
+# pg_hba.conf
+hostssl all app_reader,reporting 0.0.0.0/0 oauth \
+    issuer=https://idp.example.com/ scope="connect:postgres" \
+    validator=pg_oauth_validator delegate_ident_mapping=1
+```
+
+The requested role must be an exact, case-sensitive member of the validated
+array. The HBA `USER` field should independently allowlist reachable roles.
+Do not combine delegated mapping with `map=`.
+
+There is intentionally no validator-owned privileged-role denylist or second
+role allowlist. If the HBA `USER` field permits a role and the validated token
+contains that exact role, delegated mode may authorize it even when it is a
+superuser or otherwise highly privileged. Use an explicit HBA role list and
+configure the issuer's claim mapping as a database-authorization policy. Avoid
+`all` and broad `+group` matches unless every reachable role is intentionally
+delegated. A future release may add another local policy layer if operational
+experience demonstrates a need for one.
+
+## Complete mapping examples
+
+All examples assume the common validation settings below. PostgreSQL roles must
+already exist with `LOGIN`; the validator never creates roles or grants
+memberships.
+
+```conf
+# postgresql.conf
+oauth_validator_libraries = 'pg_oauth_validator'
+pg_oauth_validator.audiences = 'https://postgres.example.internal/'
+pg_oauth_validator.allowed_algorithms = 'RS256'
+pg_oauth_validator.required_token_type = 'at+jwt'
+```
+
+PostgreSQL 19 HBA examples may additionally include
+`validator.policy=default`. PostgreSQL 18 must omit that option. The identity
+and delegated-role behavior is otherwise the same on both versions.
+
+### Direct `sub` to an identically named role
+
+Use this when provider subjects are acceptable PostgreSQL role names:
+
+```conf
+# postgresql.conf
+pg_oauth_validator.identity_claim = 'sub'
+pg_oauth_validator.identity_format = 'direct'
+pg_oauth_validator.authorization_mode = 'identity'
+```
+
+```conf
+# pg_hba.conf -- deliberately no map=
+hostssl appdb all 10.0.0.0/8 oauth \
+    issuer="https://idp.example/" scope="connect:postgres" \
+    validator=pg_oauth_validator
+```
+
+For `sub = "google-oauth2|108329268577383920408"`:
+
+```sql
+CREATE ROLE "google-oauth2|108329268577383920408" LOGIN;
+```
+
+The client must request that exact role.
+
+### Direct custom username claim
+
+Use this when the IdP emits a dedicated PostgreSQL username:
+
+```json
+{ "postgres_role": "app_reader" }
+```
+
+```conf
+# postgresql.conf
+pg_oauth_validator.identity_claim = 'postgres_role'
+pg_oauth_validator.identity_format = 'direct'
+pg_oauth_validator.authorization_mode = 'identity'
+```
+
+```conf
+# pg_hba.conf -- deliberately no map=
+hostssl appdb app_reader 10.0.0.0/8 oauth \
+    issuer="https://idp.example/" scope="connect:postgres" \
+    validator=pg_oauth_validator
+```
+
+```sql
+CREATE ROLE app_reader LOGIN;
+```
+
+For Auth0, use a collision-resistant namespaced claim instead:
+
+```json
+{ "https://company.example/postgres_role": "app_reader" }
+```
+
+```conf
+pg_oauth_validator.identity_claim = 'https://company.example/postgres_role'
+```
+
+### Issuer-qualified identity with `pg_ident.conf`
+
+Use this when PostgreSQL administrators want explicit local user-to-role
+authorization:
+
+```conf
+# postgresql.conf
+pg_oauth_validator.identity_claim = 'sub'
+pg_oauth_validator.identity_format = 'issuer_qualified'
+pg_oauth_validator.authorization_mode = 'identity'
+```
+
+```conf
+# pg_hba.conf
+hostssl appdb app_reader 10.0.0.0/8 oauth \
+    issuer="https://idp.example/" scope="connect:postgres" \
+    validator=pg_oauth_validator map=oauthmap
+```
+
+```conf
+# pg_ident.conf
+oauthmap  v1.<base64url-issuer>.<base64url-sub>  app_reader
+```
+
+### Delegated array of PostgreSQL roles
+
+Use this when the IdP authorizes one identity to assume several roles:
+
+```json
+{
+  "sub": "principal-123",
+  "roles": ["app_reader", "reporting"]
+}
+```
+
+```conf
+# postgresql.conf
+pg_oauth_validator.identity_claim = 'sub'
+pg_oauth_validator.identity_format = 'issuer_qualified'
+pg_oauth_validator.authorization_mode = 'claim_roles'
+pg_oauth_validator.roles_claim = 'roles'
+```
+
+```conf
+# pg_hba.conf -- no map= is allowed with delegation
+hostssl appdb app_reader,reporting 10.0.0.0/8 oauth \
+    issuer="https://idp.example/" scope="connect:postgres" \
+    validator=pg_oauth_validator delegate_ident_mapping=1
+```
+
+The client may request `app_reader` or `reporting`, but not another role. The
+HBA `USER` field and the validated token array must both permit the requested
+role.
+
+Adding `postgres` to both the HBA `USER` field and the token array would permit
+the token holder to connect as `postgres`. The validator does not infer role
+privileges or override that explicit two-sided authorization decision.
+
+An Auth0 deployment can configure a namespaced array claim:
+
+```conf
+pg_oauth_validator.roles_claim = 'https://company.example/postgres_roles'
+```
+
+### Direct email claim
+
+This is technically possible:
+
+```conf
+pg_oauth_validator.identity_claim = 'email'
+pg_oauth_validator.identity_format = 'direct'
+```
+
+It should be used only when the provider guarantees that the email is verified,
+unique, protected from user-controlled changes, and not reassigned. A dedicated
+`postgres_role` claim is preferable for authorization.
 
 ## JWKS locations and TLS
 
@@ -144,8 +339,9 @@ versioned path and reload, or restart PostgreSQL, when rotating that bundle.
 - Audience and required HBA scopes are mandatory.
 - HTTPS and certificate verification are required in production.
 - `openid` alone is not a sufficient PostgreSQL connection scope.
-- A valid token does not permit an identity to assume a role without a matching
-  PostgreSQL usermap entry.
+- A valid token does not permit an identity to assume a role unless normal
+  exact-name/usermap authorization or delegated exact role-claim authorization
+  succeeds.
 - Provider exceptions require a reviewed, explicitly selected profile; they are
   not inferred from issuer hostnames.
 

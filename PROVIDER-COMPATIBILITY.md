@@ -47,6 +47,8 @@ The policy builder currently enforces:
 - `pg_oauth_validator.required_token_type = 'at+jwt'` only;
 - `RS256` and/or `ES256` only;
 - `sub` as the default authenticated identity claim;
+- direct identity matching by default, with optional issuer-qualified usermaps;
+- opt-in exact string-array role authorization when HBA delegation is enabled;
 - a nonempty required scope on every matching OAuth HBA rule;
 - only the unnamed/default policy (named provider profiles do not exist yet).
 
@@ -69,7 +71,8 @@ literally.
 pg_oauth_validator.audiences = 'https://postgres.example.internal/'
 pg_oauth_validator.allowed_algorithms = 'RS256'
 pg_oauth_validator.required_token_type = 'at+jwt'
-pg_oauth_validator.authn_claim = 'sub'
+pg_oauth_validator.identity_claim = 'sub'
+pg_oauth_validator.identity_format = 'issuer_qualified'
 pg_oauth_validator.clock_skew = '60s'
 pg_oauth_validator.max_token_size = '16kB'
 ```
@@ -89,10 +92,9 @@ hostssl appdb +oauth_login 10.0.0.0/8 oauth \
 oauth  "<encoded-authenticated-identity>"  app_user
 ```
 
-Production rules should use `hostssl`, restrict database and role targets, and
-keep normal PostgreSQL usermap authorization enabled. Provider groups, roles,
-and entitlements are informative only in Milestone 1 and must not automatically
-become PostgreSQL roles.
+Production rules should use `hostssl` and restrict database and role targets.
+Delegated mode accepts only an explicitly configured string-array claim with
+exact matching; provider group transformations remain unsupported.
 
 ## Compatibility summary
 

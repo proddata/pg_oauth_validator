@@ -12,7 +12,10 @@
 static char *oauth_audiences;
 static char *oauth_allowed_algorithms;
 static char *oauth_required_token_type;
-static char *oauth_authn_claim;
+static char *oauth_identity_claim;
+static char *oauth_identity_format;
+static char *oauth_authorization_mode;
+static char *oauth_roles_claim;
 static char *oauth_allowed_jwks_hosts;
 static char *oauth_ca_file;
 static int	oauth_clock_skew_ms;
@@ -43,9 +46,23 @@ _PG_init(void)
 							   "Required JWT typ header.", NULL,
 							   &oauth_required_token_type, "at+jwt", PGC_SIGHUP, 0,
 							   NULL, NULL, NULL);
-	DefineCustomStringVariable("pg_oauth_validator.authn_claim",
+	DefineCustomStringVariable("pg_oauth_validator.identity_claim",
 							   "Stable token claim used for authenticated identity.", NULL,
-							   &oauth_authn_claim, "sub", PGC_SIGHUP, 0,
+							   &oauth_identity_claim, "sub", PGC_SIGHUP, 0,
+							   NULL, NULL, NULL);
+	DefineCustomStringVariable("pg_oauth_validator.identity_format",
+							   "Representation returned as the authenticated identity.",
+							   "Accepted values are direct and issuer_qualified.",
+							   &oauth_identity_format, "direct", PGC_SIGHUP, 0,
+							   NULL, NULL, NULL);
+	DefineCustomStringVariable("pg_oauth_validator.authorization_mode",
+							   "Policy used to authorize the requested PostgreSQL role.",
+							   "Accepted values are identity and claim_roles.",
+							   &oauth_authorization_mode, "identity", PGC_SIGHUP, 0,
+							   NULL, NULL, NULL);
+	DefineCustomStringVariable("pg_oauth_validator.roles_claim",
+							   "String-array token claim used by claim_roles authorization.",
+							   NULL, &oauth_roles_claim, "roles", PGC_SIGHUP, 0,
 							   NULL, NULL, NULL);
 	DefineCustomStringVariable("pg_oauth_validator.allowed_jwks_hosts",
 							   "Additional exact hostnames permitted for JWKS retrieval.",
@@ -104,7 +121,10 @@ pg_oauth_config_snapshot(PgOAuthPolicyConfig *config)
 	config->audiences = oauth_audiences;
 	config->allowed_algorithms = oauth_allowed_algorithms;
 	config->required_token_type = oauth_required_token_type;
-	config->authn_claim = oauth_authn_claim;
+	config->identity_claim = oauth_identity_claim;
+	config->identity_format = oauth_identity_format;
+	config->authorization_mode = oauth_authorization_mode;
+	config->roles_claim = oauth_roles_claim;
 	config->allowed_jwks_hosts = oauth_allowed_jwks_hosts;
 	config->ca_file = oauth_ca_file;
 	config->clock_skew_ms = oauth_clock_skew_ms;

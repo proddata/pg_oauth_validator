@@ -261,5 +261,103 @@ main(void)
 	if (strstr(pg_oauth_claims_error_code(PG_OAUTH_CLAIMS_INVALID_IDENTITY),
 			   "principal") != NULL)
 		fail("claims error code exposed claim material");
+
+	policy = valid_policy();
+	policy.roles_claim = "roles";
+	policy.requested_role = "reporting";
+	policy.max_roles = 4;
+	policy.max_role_size = 63;
+	policy.require_requested_role = true;
+	payload = parse_payload(
+							"{\"iss\":\"https://issuer.example/\","
+							"\"aud\":\"postgres://primary\",\"exp\":1100,"
+							"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\","
+							"\"roles\":[\"app_reader\",\"reporting\"]}");
+	if (pg_oauth_claims_validate(payload, &policy, &claims) != PG_OAUTH_CLAIMS_OK)
+		fail("authorized requested role was rejected");
+	json_decref(payload);
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\","
+				 "\"roles\":[\"app_reader\"]}",
+				 &policy, PG_OAUTH_CLAIMS_UNAUTHORIZED_ROLE,
+				 "role absent from delegated claim was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\",\"roles\":\"reporting\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "scalar delegated roles claim was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\","
+				 "\"roles\":[\"reporting\",\"reporting\"]}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "duplicate delegated role was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "missing delegated roles claim was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\",\"roles\":[]}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "empty delegated roles array was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\",\"roles\":[\"\"]}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "empty delegated role was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\","
+				 "\"roles\":[\"reporting\",7]}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "non-string delegated role was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\","
+				 "\"roles\":[\"reporting\\nadmin\"]}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "control character in delegated role was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\","
+				 "\"roles\":[\"one\",\"two\",\"three\",\"four\",\"reporting\"]}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "oversized delegated roles array was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\","
+				 "\"roles\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "oversized delegated role was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\","
+				 "\"roles\":[\"Reporting\"]}",
+				 &policy, PG_OAUTH_CLAIMS_UNAUTHORIZED_ROLE,
+				 "delegated role comparison was not case-sensitive");
+
+	policy.roles_claim = "https://company.example/postgres_roles";
+	payload = parse_payload(
+							"{\"iss\":\"https://issuer.example/\","
+							"\"aud\":\"postgres://primary\",\"exp\":1100,"
+							"\"sub\":\"p\",\"scope\":\"connect:postgres read:metadata\","
+							"\"https://company.example/postgres_roles\":[\"reporting\"]}");
+	if (pg_oauth_claims_validate(payload, &policy, &claims) != PG_OAUTH_CLAIMS_OK)
+		fail("custom delegated roles claim was rejected");
+	json_decref(payload);
 	return EXIT_SUCCESS;
 }

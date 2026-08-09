@@ -38,7 +38,10 @@ def unused_port():
 class TemporaryPostgres:
     def __init__(self, pg_config, validator_library, policy=None, audience=AUDIENCE,
                  issuer=ISSUER, identity_map=None, allow_insecure_http=False,
-                 ca_file="", server_certificate=None, server_key=None):
+                 ca_file="", server_certificate=None, server_key=None,
+                 identity_claim="sub", identity_format="issuer_qualified",
+                 authorization_mode="identity", roles_claim="roles",
+                 delegate_ident_mapping=False, hba_users="all"):
         self.pg_config = pathlib.Path(pg_config)
         self.bindir = pathlib.Path(
             command(self.pg_config, "--bindir").stdout.strip()
@@ -57,6 +60,12 @@ class TemporaryPostgres:
         self.ca_file = ca_file
         self.server_certificate = server_certificate
         self.server_key = server_key
+        self.identity_claim = identity_claim
+        self.identity_format = identity_format
+        self.authorization_mode = authorization_mode
+        self.roles_claim = roles_claim
+        self.delegate_ident_mapping = delegate_ident_mapping
+        self.hba_users = hba_users
         self.port = unused_port()
         self.root = pathlib.Path(tempfile.mkdtemp(prefix="pg-oauth-validator-"))
         self.data = self.root / "data"
@@ -111,6 +120,10 @@ class TemporaryPostgres:
                 f"dynamic_library_path = '{library_dir}'\n"
                 "oauth_validator_libraries = 'pg_oauth_validator'\n"
                 f"pg_oauth_validator.audiences = '{audience}'\n"
+                f"pg_oauth_validator.identity_claim = '{self.identity_claim}'\n"
+                f"pg_oauth_validator.identity_format = '{self.identity_format}'\n"
+                f"pg_oauth_validator.authorization_mode = '{self.authorization_mode}'\n"
+                f"pg_oauth_validator.roles_claim = '{self.roles_claim}'\n"
                 f"pg_oauth_validator.allow_insecure_http = "
                 f"{'on' if self.allow_insecure_http else 'off'}\n"
                 f"pg_oauth_validator.ca_file = '{ca_file}'\n"
@@ -125,11 +138,13 @@ class TemporaryPostgres:
         )
         if self.identity_map is not None:
             options += " map=oauthmap"
+        if self.delegate_ident_mapping:
+            options += " delegate_ident_mapping=1"
         if self.policy is not None:
             options += f" validator.policy={self.policy}"
         (self.data / "pg_hba.conf").write_text(
             "local all all trust\n"
-            f"{hba_type} all all 127.0.0.1/32 oauth {options}\n",
+            f"{hba_type} all {self.hba_users} 127.0.0.1/32 oauth {options}\n",
             encoding="utf-8",
         )
         if self.identity_map is not None:

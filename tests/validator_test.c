@@ -41,6 +41,7 @@ policy(const char *issuer, int64_t current_time)
 			.max_scopes = 64,
 		},
 		.identity = {2048, 1024, 1024},
+		.issuer_qualified_identity = true,
 	};
 
 	return value;

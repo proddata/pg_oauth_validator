@@ -2,6 +2,7 @@
 #define PG_OAUTH_VALIDATOR_VALIDATOR_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "claims.h"
 #include "identity.h"
@@ -26,6 +27,7 @@ typedef struct PgOAuthValidatorPolicy
 	PgOAuthIssuerKeyPolicy issuer_key;
 	PgOAuthClaimsPolicy claims;
 	PgOAuthIdentityPolicy identity;
+	bool		issuer_qualified_identity;
 } PgOAuthValidatorPolicy;
 
 typedef struct PgOAuthValidatorResult

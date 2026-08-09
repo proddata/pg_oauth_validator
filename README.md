@@ -4,8 +4,9 @@
 for PostgreSQL 18 and 19.
 
 The validator currently supports strict signed JWT access-token validation,
-shared metadata/JWKS caching, stable external identity construction, and normal
-PostgreSQL `pg_ident.conf` role mapping. It remains under active security review
+shared metadata/JWKS caching, configurable external identity construction,
+normal PostgreSQL identity mapping, and opt-in exact role-claim authorization.
+It remains under active security review
 and is not yet a tagged stable release.
 
 PostgreSQL 18 is the stable production target. PostgreSQL 19 support is preview
@@ -72,8 +73,9 @@ pg_oauth_validator.audiences = 'https://postgres.example.internal/'
 ```
 
 Production OAuth HBA rules should use `hostssl`, specify a non-empty connection
-scope, select the validator, and use normal PostgreSQL user mapping. For example,
-on PostgreSQL 19:
+scope, and select the validator. Direct identity mode is the default and
+requires the configured identity claim to exactly equal the requested role.
+For issuer-qualified usermap mode on PostgreSQL 19:
 
 ```conf
 hostssl all all 0.0.0.0/0 oauth \
@@ -84,15 +86,16 @@ hostssl all all 0.0.0.0/0 oauth \
     map=oauth
 ```
 
-The validator returns an issuer-qualified external identity:
+Configure `identity_format = 'issuer_qualified'`; the validator then returns:
 
 ```text
 v1.<base64url(issuer)>.<base64url(configured-stable-claim)>
 ```
 
 PostgreSQL then applies the selected `pg_ident.conf` map to decide whether that
-identity may assume the requested database role. The validator does not enable
-delegated identity mapping.
+identity may assume the requested database role. Alternatively, explicitly
+configured `claim_roles` mode can authorize the exact requested role from a
+bounded token array when the HBA rule uses `delegate_ident_mapping=1`.
 
 Read the complete [configuration contract](docs/configuration.md) before a
 deployment. In particular, production use requires TLS, an exact trusted

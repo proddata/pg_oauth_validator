@@ -3,6 +3,22 @@
   "enabled": true,
   "sslRequired": "external",
   "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      {
+        "name": "app_reader"
+      },
+      {
+        "name": "reporting"
+      }
+    ]
+  },
+  "scopeMappings": [
+    {
+      "client": "postgres-test",
+      "roles": ["app_reader", "reporting"]
+    }
+  ],
   "clients": [
     {
       "clientId": "postgres-test",
@@ -43,6 +59,37 @@
             "access.token.claim": "true",
             "id.token.claim": "true",
             "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "postgres-role",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "postgres_role",
+            "claim.value": "appuser",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "postgres-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "postgres_roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "usermodel.realmRoleMapping.rolePrefix": "",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
             "introspection.token.claim": "true"
           }
         }
@@ -100,6 +147,7 @@
       "email": "alice@example.invalid",
       "enabled": true,
       "emailVerified": true,
+      "realmRoles": ["app_reader", "reporting"],
       "credentials": [
         {
           "type": "password",

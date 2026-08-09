@@ -178,6 +178,119 @@ def test_valid_token_uses_normal_pg_ident_mapping(integration_environment):
                 os.environ["SSL_CERT_FILE"] = previous_ca
 
 
+def test_direct_identity_and_delegated_roles(integration_environment):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-roles-") as directory:
+        idp = LocalIdp(pathlib.Path(directory))
+        direct_cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            identity_format="direct", ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        delegated_cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            identity_format="issuer_qualified",
+            authorization_mode="claim_roles", delegate_ident_mapping=True,
+            hba_users="app_reader,reporting,postgres", ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        policy_only_cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            authorization_mode="claim_roles", delegate_ident_mapping=False,
+            hba_users="reporting", ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        hba_only_cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            authorization_mode="identity", delegate_ident_mapping=True,
+            hba_users="reporting", ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        direct_token = idp.sign(subject="provider-subject")
+        delegated_token = idp.sign(
+            extra_claims={"roles": ["app_reader", "reporting"]},
+        )
+        insufficient_roles = idp.sign(
+            extra_claims={"roles": ["app_reader"]},
+        )
+        privileged_token = idp.sign(
+            extra_claims={"roles": ["postgres"]},
+        )
+        duplicate_roles = idp.sign(
+            extra_claims={"roles": ["reporting", "reporting"]},
+        )
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+        try:
+            direct_cluster.start()
+            psql(direct_cluster, 'CREATE ROLE "provider-subject" LOGIN')
+            accepted_direct = attempt_oauth(
+                direct_cluster, client, token=direct_token,
+                user="provider-subject", issuer=idp.issuer, sslmode="require",
+            )
+            assert accepted_direct.returncode == 0, (
+                accepted_direct.stderr + "\n" + direct_cluster.logs()
+            )
+            assert attempt_oauth(
+                direct_cluster, client, token=direct_token,
+                user="postgres", issuer=idp.issuer, sslmode="require",
+            ).returncode != 0
+
+            delegated_cluster.start()
+            psql(delegated_cluster, "CREATE ROLE app_reader LOGIN")
+            psql(delegated_cluster, "CREATE ROLE reporting LOGIN")
+            accepted_delegated = attempt_oauth(
+                delegated_cluster, client, token=delegated_token,
+                user="reporting", issuer=idp.issuer, sslmode="require",
+            )
+            assert accepted_delegated.returncode == 0, (
+                accepted_delegated.stderr + "\n" + delegated_cluster.logs()
+            )
+            assert attempt_oauth(
+                delegated_cluster, client, token=delegated_token,
+                user="postgres", issuer=idp.issuer, sslmode="require",
+            ).returncode != 0
+            accepted_privileged = attempt_oauth(
+                delegated_cluster, client, token=privileged_token,
+                user="postgres", issuer=idp.issuer, sslmode="require",
+            )
+            assert accepted_privileged.returncode == 0, (
+                accepted_privileged.stderr + "\n" + delegated_cluster.logs()
+            )
+            assert attempt_oauth(
+                delegated_cluster, client, token=insufficient_roles,
+                user="reporting", issuer=idp.issuer, sslmode="require",
+            ).returncode != 0
+            assert attempt_oauth(
+                delegated_cluster, client, token=duplicate_roles,
+                user="reporting", issuer=idp.issuer, sslmode="require",
+            ).returncode != 0
+
+            policy_only_cluster.start()
+            psql(policy_only_cluster, "CREATE ROLE reporting LOGIN")
+            assert attempt_oauth(
+                policy_only_cluster, client, token=delegated_token,
+                user="reporting", issuer=idp.issuer, sslmode="require",
+            ).returncode != 0
+
+            hba_only_cluster.start()
+            psql(hba_only_cluster, "CREATE ROLE reporting LOGIN")
+            assert attempt_oauth(
+                hba_only_cluster, client, token=delegated_token,
+                user="reporting", issuer=idp.issuer, sslmode="require",
+            ).returncode != 0
+        finally:
+            direct_cluster.stop()
+            delegated_cluster.stop()
+            policy_only_cluster.stop()
+            hba_only_cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
 def test_reload_separates_trust_policy_cache_entries(integration_environment):
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-reload-") as directory:
@@ -236,7 +349,7 @@ def test_reload_separates_trust_policy_cache_entries(integration_environment):
                 f"oauthmap {uid_identity} uiduser\n",
                 encoding="utf-8",
             )
-            reload_setting(cluster, "pg_oauth_validator.authn_claim", "uid")
+            reload_setting(cluster, "pg_oauth_validator.identity_claim", "uid")
             psql(cluster, "SELECT pg_reload_conf()")
             before_identity_reload = idp.request_counts()
             assert connect(alternate_type_token).returncode != 0
@@ -324,6 +437,8 @@ def test_reload_separates_trust_policy_cache_entries(integration_environment):
                 os.environ["SSL_CERT_FILE"] = previous_ca
 
 
+@pytest.mark.slow
+@pytest.mark.xdist_group(name="timing")
 def test_local_idp_rotation_outage_and_recovery(integration_environment):
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-lifecycle-") as directory:
@@ -390,6 +505,8 @@ def test_local_idp_rotation_outage_and_recovery(integration_environment):
                 os.environ["SSL_CERT_FILE"] = previous_ca
 
 
+@pytest.mark.slow
+@pytest.mark.xdist_group(name="timing")
 def test_local_idp_transport_failures_deny_and_recover(integration_environment):
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-transport-") as directory:
@@ -473,6 +590,8 @@ def test_local_idp_transport_failures_deny_and_recover(integration_environment):
                 os.environ["SSL_CERT_FILE"] = previous_ca
 
 
+@pytest.mark.slow
+@pytest.mark.xdist_group(name="timing")
 def test_unknown_kid_refresh_is_suppressed_across_backends(
         integration_environment):
     pg_config, validator_library, client = integration_environment
@@ -533,6 +652,7 @@ def test_unknown_kid_refresh_is_suppressed_across_backends(
                 os.environ["SSL_CERT_FILE"] = previous_ca
 
 
+@pytest.mark.xdist_group(name="timing")
 def test_shared_cache_cross_backend_refresh_suppression(integration_environment):
     pg_config, validator_library, _client = integration_environment
     cache_probe = pathlib.Path(os.environ["CACHE_PROBE"]).resolve()

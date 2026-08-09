@@ -3,7 +3,7 @@
 #include <limits.h>
 #include <string.h>
 
-#define PG_OAUTH_CACHE_KEY_VERSION 2
+#define PG_OAUTH_CACHE_KEY_VERSION 3
 
 static bool
 append_bytes(PgOAuthCacheKey *key, const void *value, size_t length)
@@ -77,7 +77,9 @@ pg_oauth_cache_key_build(const PgOAuthCacheKeyPolicy *policy,
 		 (policy->jwks_url == NULL || policy->jwks_url[0] == '\0')) ||
 		policy->policy_name == NULL || policy->required_scopes == NULL ||
 		policy->audiences == NULL || policy->required_token_type == NULL ||
-		policy->authn_claim == NULL || policy->allowed_jwks_hosts == NULL ||
+		policy->identity_claim == NULL || policy->identity_format == NULL ||
+		policy->authorization_mode == NULL || policy->roles_claim == NULL ||
+		policy->allowed_jwks_hosts == NULL ||
 		policy->ca_file == NULL ||
 		policy->allowed_algorithms == 0 || policy->max_token_size == 0 ||
 		policy->max_metadata_size == 0 || policy->max_jwks_size == 0 ||
@@ -95,7 +97,10 @@ pg_oauth_cache_key_build(const PgOAuthCacheKeyPolicy *policy,
 		!append_string(key, policy->required_scopes) ||
 		!append_string(key, policy->audiences) ||
 		!append_string(key, policy->required_token_type) ||
-		!append_string(key, policy->authn_claim) ||
+		!append_string(key, policy->identity_claim) ||
+		!append_string(key, policy->identity_format) ||
+		!append_string(key, policy->authorization_mode) ||
+		!append_string(key, policy->roles_claim) ||
 		!append_string(key, policy->allowed_jwks_hosts) ||
 		!append_string(key, policy->ca_file) ||
 		!append_u32(key, policy->allowed_algorithms) ||

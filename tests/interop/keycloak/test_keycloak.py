@@ -8,7 +8,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from test_oauth import AUDIENCE, SCOPE, TemporaryPostgres, attempt_oauth, b64, psql
+from integration_support import (
+    AUDIENCE,
+    SCOPE,
+    TemporaryPostgres,
+    attempt_oauth,
+    b64,
+    psql,
+)
 
 
 ISSUER = "https://keycloak:8443/realms/pg-oauth"
@@ -134,14 +141,14 @@ def rotate_signing_key(ca_file, admin_token, old_kid):
 def wait_realm_available(ca_file):
     context = ssl.create_default_context(cafile=str(ca_file))
     url = ISSUER + "/.well-known/openid-configuration"
-    for _attempt in range(50):
+    for _attempt in range(150):
         try:
             with urllib.request.urlopen(url, context=context, timeout=2) as response:
                 if response.status == 200:
                     return
         except (OSError, urllib.error.URLError):
             pass
-        time.sleep(0.1)
+        time.sleep(0.2)
     raise AssertionError("Keycloak realm did not become available")
 
 
@@ -192,6 +199,8 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
     assert has_audience(access_claims, AUDIENCE)
     assert SCOPE in access_claims["scope"].split()
     assert access_claims["sub"]
+    assert access_claims["postgres_role"] == "appuser"
+    assert set(access_claims["postgres_roles"]) >= {"app_reader", "reporting"}
     assert id_header["typ"] == "JWT"
     assert id_claims["iss"] == ISSUER
     assert id_claims["aud"] == CLIENT_ID
@@ -212,10 +221,56 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
         server_certificate=ca_file,
         server_key=tls_key,
     )
+    direct_cluster = TemporaryPostgres(
+        pg_config,
+        validator_library,
+        issuer=ISSUER,
+        identity_claim="postgres_role",
+        identity_format="direct",
+        ca_file=ca_file,
+        server_certificate=ca_file,
+        server_key=tls_key,
+    )
+    delegated_cluster = TemporaryPostgres(
+        pg_config,
+        validator_library,
+        issuer=ISSUER,
+        identity_format="issuer_qualified",
+        authorization_mode="claim_roles",
+        roles_claim="postgres_roles",
+        delegate_ident_mapping=True,
+        hba_users="app_reader,reporting,postgres",
+        ca_file=ca_file,
+        server_certificate=ca_file,
+        server_key=tls_key,
+    )
     admin_token = None
     try:
         cluster.start()
         psql(cluster, "CREATE ROLE appuser LOGIN")
+
+        direct_cluster.start()
+        psql(direct_cluster, "CREATE ROLE appuser LOGIN")
+        direct_result = attempt_oauth(
+            direct_cluster, client, token=access_token, user="appuser",
+            issuer=ISSUER, sslmode="require",
+        )
+        direct_wrong_role_result = attempt_oauth(
+            direct_cluster, client, token=access_token, user="postgres",
+            issuer=ISSUER, sslmode="require",
+        )
+
+        delegated_cluster.start()
+        psql(delegated_cluster, "CREATE ROLE app_reader LOGIN")
+        psql(delegated_cluster, "CREATE ROLE reporting LOGIN")
+        delegated_result = attempt_oauth(
+            delegated_cluster, client, token=access_token, user="reporting",
+            issuer=ISSUER, sslmode="require",
+        )
+        delegated_absent_role_result = attempt_oauth(
+            delegated_cluster, client, token=access_token, user="postgres",
+            issuer=ISSUER, sslmode="require",
+        )
 
         access_result = attempt_oauth(
             cluster, client, token=access_token, user="appuser", issuer=ISSUER,
@@ -283,6 +338,14 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
         assert recovered_result.returncode == 0
 
         assert access_result.returncode == 0, access_result.stderr + "\n" + cluster.logs()
+        assert direct_result.returncode == 0, (
+            direct_result.stderr + "\n" + direct_cluster.logs()
+        )
+        assert direct_wrong_role_result.returncode != 0
+        assert delegated_result.returncode == 0, (
+            delegated_result.stderr + "\n" + delegated_cluster.logs()
+        )
+        assert delegated_absent_role_result.returncode != 0
         assert id_result.returncode != 0
         assert wrong_scope_result.returncode != 0
         assert wrong_audience_result.returncode != 0
@@ -293,6 +356,8 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
             access_result, id_result, wrong_scope_result,
             wrong_audience_result, wrong_issuer_result, unmapped_role_result,
             rotated_result, old_key_result, outage_result, recovered_result,
+            direct_result, direct_wrong_role_result, delegated_result,
+            delegated_absent_role_result,
         )
         for token in (
             access_token, id_token, wrong_scope_token, wrong_audience_token,
@@ -303,3 +368,5 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
                 assert token not in result.stderr
     finally:
         cluster.stop()
+        direct_cluster.stop()
+        delegated_cluster.stop()

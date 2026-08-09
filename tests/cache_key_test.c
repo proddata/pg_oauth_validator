@@ -23,7 +23,10 @@ policy(void)
 		.required_scopes = "connect:postgres",
 		.audiences = "postgres://primary",
 		.required_token_type = "at+jwt",
-		.authn_claim = "sub",
+		.identity_claim = "sub",
+		.identity_format = "direct",
+		.authorization_mode = "identity",
+		.roles_claim = "roles",
 		.allowed_jwks_hosts = "",
 		.ca_file = "",
 		.allowed_algorithms = 1,
@@ -93,7 +96,10 @@ main(void)
 	CHECK_STRING(required_scopes, "connect:postgres read:metadata");
 	CHECK_STRING(audiences, "postgres://secondary");
 	CHECK_STRING(required_token_type, "application/at+jwt");
-	CHECK_STRING(authn_claim, "uid");
+	CHECK_STRING(identity_claim, "uid");
+	CHECK_STRING(identity_format, "issuer_qualified");
+	CHECK_STRING(authorization_mode, "claim_roles");
+	CHECK_STRING(roles_claim, "postgres_roles");
 	CHECK_STRING(allowed_jwks_hosts, "keys.example");
 	CHECK_STRING(ca_file, "/etc/postgresql/oauth-ca.pem");
 	CHECK_NUMBER(allowed_algorithms);

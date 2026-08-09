@@ -53,6 +53,7 @@ oauth_validator_libraries = 'pg_oauth_validator'
 pg_oauth_validator.audiences = 'https://postgres.example.internal/'
 pg_oauth_validator.allowed_algorithms = 'RS256,ES256'
 pg_oauth_validator.required_token_type = 'at+jwt'
+pg_oauth_validator.identity_format = 'issuer_qualified'
 pg_oauth_validator.ca_file = '/etc/postgresql/oauth/provider-ca.pem'
 # Fail closed after provider-advertised key freshness expires.
 pg_oauth_validator.jwks_stale_grace = '0s'
@@ -75,8 +76,13 @@ hostssl appdb +oauth_login 10.0.0.0/8 oauth \
 oauthmap  v1.<base64url-issuer>.<base64url-stable-subject>  app_user
 ```
 
-Never enable `delegate_ident_mapping`; the validator rejects it. Never place
-client secrets or bearer tokens in PostgreSQL configuration. PostgreSQL may
+Use `delegate_ident_mapping=1` only with the documented `claim_roles` validator
+mode and an explicit HBA `USER` role list. The validator does not separately
+deny superusers or classify role privileges: a role named by both HBA and the
+validated token is reachable. Avoid `all` and broad `+group` matches unless
+that authority is intentional, and treat issuer-side role-claim mapping as
+database authorization policy. Never place client secrets or bearer tokens in
+PostgreSQL configuration. PostgreSQL may
 write changed GUC values to its server log during reload, so validator settings
 and filesystem paths are not secret-storage boundaries.
 

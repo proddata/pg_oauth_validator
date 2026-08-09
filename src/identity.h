@@ -30,6 +30,10 @@ extern PgOAuthIdentityError pg_oauth_identity_build(
 													const char *issuer, size_t issuer_length, const char *subject,
 													size_t subject_length, const PgOAuthIdentityPolicy *policy,
 													PgOAuthIdentity *identity);
+extern PgOAuthIdentityError pg_oauth_identity_build_direct(
+														   const char *subject, size_t subject_length,
+														   const PgOAuthIdentityPolicy *policy,
+														   PgOAuthIdentity *identity);
 extern void pg_oauth_identity_clear(PgOAuthIdentity *identity);
 extern const char *pg_oauth_identity_error_code(PgOAuthIdentityError error);
 
