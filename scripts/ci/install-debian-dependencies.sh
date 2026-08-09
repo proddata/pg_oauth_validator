@@ -65,7 +65,8 @@ DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
 	libpq-dev=$pg_dev_version \
 	postgresql-server-dev-$pg_major=$pg_dev_version \
 	python3=3.11.2-1+b1 \
-	python3-pytest=7.2.1-2
+	python3-pytest=7.2.1-2 \
+	python3-pytest-xdist=3.1.0-1
 
 # Fail if apt silently selected a different direct dependency version.
 check_version()
@@ -86,6 +87,7 @@ check_version bison 2:3.8.2+dfsg-1+b1
 check_version flex 2.6.4-8.2
 check_version libpq-dev "$pg_dev_version"
 check_version postgresql-server-dev-$pg_major "$pg_dev_version"
+check_version python3-pytest-xdist 3.1.0-1
 
 printf '%s\n' \
 	"debian-snapshot: $debian_snapshot" \

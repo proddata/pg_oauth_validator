@@ -1,0 +1,13 @@
+ARG POSTGRES_IMAGE=postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+FROM ${POSTGRES_IMAGE}
+
+ARG PG_MAJOR
+
+WORKDIR /opt/pg-oauth-validator
+COPY scripts/ci/install-debian-dependencies.sh scripts/ci/install-libjwt.sh ./scripts/ci/
+
+RUN ./scripts/ci/install-debian-dependencies.sh "$PG_MAJOR" \
+    && ./scripts/ci/install-libjwt.sh \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace

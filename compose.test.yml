@@ -1,0 +1,54 @@
+name: pg-oauth-validator-test
+
+services:
+  pg18:
+    image: pg-oauth-validator-dev:pg18
+    build:
+      context: .
+      dockerfile: tools/dev/Containerfile
+      args:
+        PG_MAJOR: "18"
+        POSTGRES_IMAGE: postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+    working_dir: /workspace
+    environment:
+      BUILD_ROOT: /build
+      PG_CONFIG_PATH: /usr/lib/postgresql/18/bin/pg_config
+      PG_MAJOR: "18"
+    volumes:
+      - .:/workspace:ro
+      - pg18-build:/build
+    tmpfs:
+      - /source
+    entrypoint:
+      - /bin/sh
+      - /workspace/tools/dev/run-tests.sh
+    command:
+      - dev-test-pg18
+
+  pg19:
+    image: pg-oauth-validator-dev:pg19
+    build:
+      context: .
+      dockerfile: tools/dev/Containerfile
+      args:
+        PG_MAJOR: "19"
+        POSTGRES_IMAGE: postgres:19beta2-bookworm@sha256:9222211d932c983331df86f01a6224eba868d61000a334e4a3e613626cf884f0
+    working_dir: /workspace
+    environment:
+      BUILD_ROOT: /build
+      PG_CONFIG_PATH: /usr/lib/postgresql/19/bin/pg_config
+      PG_MAJOR: "19"
+    volumes:
+      - .:/workspace:ro
+      - pg19-build:/build
+    tmpfs:
+      - /source
+    entrypoint:
+      - /bin/sh
+      - /workspace/tools/dev/run-tests.sh
+    command:
+      - dev-test-pg19
+
+volumes:
+  pg18-build:
+  pg19-build:

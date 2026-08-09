@@ -41,6 +41,7 @@ def install_cache_probe(cluster):
     """)
 
 
+@pytest.mark.xdist_group(name="timing")
 def test_shared_cache_capacity_fails_closed_with_bounded_contention(
         integration_environment):
     pg_config, validator_library, _client = integration_environment
@@ -102,6 +103,7 @@ def test_shared_cache_capacity_fails_closed_with_bounded_contention(
         cluster.stop()
 
 
+@pytest.mark.xdist_group(name="timing")
 def test_valid_cached_authentication_remains_responsive_under_hostile_load(
         integration_environment):
     pg_config, validator_library, client = integration_environment

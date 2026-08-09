@@ -106,6 +106,10 @@ include $(PGXS)
 	release-package \
 	interop-keycloak \
 	sanitizercheck fuzz-smoke \
+	dev-check-pg18 dev-check-pg19 dev-integration-pg18 dev-integration-pg19 \
+	dev-integration-full-pg18 dev-integration-full-pg19 \
+	dev-test-pg18 dev-test-pg19 dev-test-full-pg18 dev-test-full-pg19 \
+	dev-verify-pg18 dev-verify-pg19 verify-dev \
 	test-pg18 test-pg19 \
 	verify verify-all
 
@@ -134,7 +138,7 @@ fuzz-smoke:
 		fuzz-identity fuzz-metadata
 
 # Prevent compilation from starting with incompatible server headers.
-$(OBJS): check-pg-version
+$(OBJS): | check-pg-version
 
 check-pg-version:
 	@version="$$($(PG_CONFIG) --version)"; \
@@ -389,6 +393,7 @@ integrationcheck: all $(OAUTH_TEST_CLIENT_PATH) $(CACHE_PROBE_PATH)
 	CACHE_PROBE="$(CACHE_PROBE_PATH)" \
 	PYTHONPYCACHEPREFIX="$(CURDIR)/.pycache" \
 	python3 -m pytest -q -o cache_dir="$(CURDIR)/.pytest_cache" \
+		$(INTEGRATION_TEST_ARGS) \
 		"$(srcdir)/tests/integration"
 
 packagecheck: all
@@ -424,6 +429,12 @@ verify: check-release-artifacts check-symbols check-fail-closed check-policy che
 	check-jwks check-signature check-claims check-identity check-metadata \
 	check-http-transport check-issuer-key check-validator
 
+# Fast local gate. CI and release preparation continue to use `verify`, which
+# additionally checks reproducible release artifacts.
+verify-dev: check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
+	check-jwks check-signature check-claims check-identity check-metadata \
+	check-http-transport check-issuer-key check-validator
+
 build-pg18:
 	@mkdir -p "$(BUILD_ROOT)/pg18/src" "$(BUILD_ROOT)/pg18/tests/integration"
 	$(MAKE) -C "$(BUILD_ROOT)/pg18" -f "$(SOURCE_DIR)/Makefile" \
@@ -434,6 +445,34 @@ test-pg18:
 	$(MAKE) -C "$(BUILD_ROOT)/pg18" -f "$(SOURCE_DIR)/Makefile" \
 		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG18_CONFIG)" EXPECTED_PG_MAJOR=18 \
 		verify integrationcheck
+
+dev-verify-pg18:
+	@mkdir -p "$(BUILD_ROOT)/pg18/src" "$(BUILD_ROOT)/pg18/tests/integration"
+	$(MAKE) -C "$(BUILD_ROOT)/pg18" -f "$(SOURCE_DIR)/Makefile" \
+		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG18_CONFIG)" EXPECTED_PG_MAJOR=18 \
+		verify-dev
+
+dev-check-pg18:
+	@mkdir -p "$(BUILD_ROOT)/pg18/src" "$(BUILD_ROOT)/pg18/tests/integration"
+	$(MAKE) -C "$(BUILD_ROOT)/pg18" -f "$(SOURCE_DIR)/Makefile" \
+		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG18_CONFIG)" EXPECTED_PG_MAJOR=18 \
+		$(or $(DEV_CHECK_TARGETS),check-policy check-claims check-identity)
+
+dev-integration-pg18:
+	@mkdir -p "$(BUILD_ROOT)/pg18/src" "$(BUILD_ROOT)/pg18/tests/integration"
+	$(MAKE) -C "$(BUILD_ROOT)/pg18" -f "$(SOURCE_DIR)/Makefile" \
+		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG18_CONFIG)" EXPECTED_PG_MAJOR=18 \
+		INTEGRATION_TEST_ARGS='-m "not slow" -n 2 --dist loadgroup $(INTEGRATION_TEST_ARGS)' integrationcheck
+
+dev-test-pg18: dev-verify-pg18 dev-integration-pg18
+
+dev-integration-full-pg18:
+	@mkdir -p "$(BUILD_ROOT)/pg18/src" "$(BUILD_ROOT)/pg18/tests/integration"
+	$(MAKE) -C "$(BUILD_ROOT)/pg18" -f "$(SOURCE_DIR)/Makefile" \
+		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG18_CONFIG)" EXPECTED_PG_MAJOR=18 \
+		INTEGRATION_TEST_ARGS='-n 2 --dist loadgroup $(INTEGRATION_TEST_ARGS)' integrationcheck
+
+dev-test-full-pg18: dev-verify-pg18 dev-integration-full-pg18
 
 clean-pg18:
 	@mkdir -p "$(BUILD_ROOT)/pg18/src" "$(BUILD_ROOT)/pg18/tests/integration"
@@ -450,6 +489,34 @@ test-pg19:
 	$(MAKE) -C "$(BUILD_ROOT)/pg19" -f "$(SOURCE_DIR)/Makefile" \
 		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG19_CONFIG)" EXPECTED_PG_MAJOR=19 \
 		verify integrationcheck
+
+dev-verify-pg19:
+	@mkdir -p "$(BUILD_ROOT)/pg19/src" "$(BUILD_ROOT)/pg19/tests/integration"
+	$(MAKE) -C "$(BUILD_ROOT)/pg19" -f "$(SOURCE_DIR)/Makefile" \
+		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG19_CONFIG)" EXPECTED_PG_MAJOR=19 \
+		verify-dev
+
+dev-check-pg19:
+	@mkdir -p "$(BUILD_ROOT)/pg19/src" "$(BUILD_ROOT)/pg19/tests/integration"
+	$(MAKE) -C "$(BUILD_ROOT)/pg19" -f "$(SOURCE_DIR)/Makefile" \
+		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG19_CONFIG)" EXPECTED_PG_MAJOR=19 \
+		$(or $(DEV_CHECK_TARGETS),check-policy check-claims check-identity)
+
+dev-integration-pg19:
+	@mkdir -p "$(BUILD_ROOT)/pg19/src" "$(BUILD_ROOT)/pg19/tests/integration"
+	$(MAKE) -C "$(BUILD_ROOT)/pg19" -f "$(SOURCE_DIR)/Makefile" \
+		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG19_CONFIG)" EXPECTED_PG_MAJOR=19 \
+		INTEGRATION_TEST_ARGS='-m "not slow" -n 2 --dist loadgroup $(INTEGRATION_TEST_ARGS)' integrationcheck
+
+dev-test-pg19: dev-verify-pg19 dev-integration-pg19
+
+dev-integration-full-pg19:
+	@mkdir -p "$(BUILD_ROOT)/pg19/src" "$(BUILD_ROOT)/pg19/tests/integration"
+	$(MAKE) -C "$(BUILD_ROOT)/pg19" -f "$(SOURCE_DIR)/Makefile" \
+		VPATH="$(SOURCE_DIR)" PG_CONFIG="$(PG19_CONFIG)" EXPECTED_PG_MAJOR=19 \
+		INTEGRATION_TEST_ARGS='-n 2 --dist loadgroup $(INTEGRATION_TEST_ARGS)' integrationcheck
+
+dev-test-full-pg19: dev-verify-pg19 dev-integration-full-pg19
 
 clean-pg19:
 	@mkdir -p "$(BUILD_ROOT)/pg19/src" "$(BUILD_ROOT)/pg19/tests/integration"

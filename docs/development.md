@@ -59,6 +59,71 @@ verify-all` runs both when both `PG18_CONFIG` and `PG19_CONFIG` are supplied or
 otherwise resolve to the appropriate versions. Direct PGXS targets remain
 available for conventional extension packaging.
 
+### Cached container workflow
+
+For development without local PostgreSQL dependencies, build the two pinned
+toolchain images once:
+
+```sh
+docker compose -f compose.test.yml build
+```
+
+The images contain the pinned Debian packages and precompiled libjwt. Source is
+mounted read-only at runtime, while per-major named volumes retain incremental
+compiler output. Repeated test runs therefore do not reinstall dependencies or
+recompile the other PostgreSQL major.
+
+Run one complete developer gate with:
+
+```sh
+docker compose -f compose.test.yml run --rm pg18
+docker compose -f compose.test.yml run --rm pg19
+```
+
+Or run both services concurrently:
+
+```sh
+docker compose -f compose.test.yml up --abort-on-container-failure
+```
+
+The developer gate uses `verify-dev`, which runs the strict build and all unit
+and component tests but omits release-package reproducibility. Its integration
+suite runs two workers and excludes tests marked `slow` because those tests wait
+for real timeout, expiry, or cooldown intervals. Canonical CI and the existing
+`verify`/`test-pg*` targets still include the release gate and every integration
+test.
+
+Run the complete integration suite locally, still with two workers, using:
+
+```sh
+docker compose -f compose.test.yml run --rm pg18 dev-test-full-pg18
+docker compose -f compose.test.yml run --rm pg19 dev-test-full-pg19
+```
+
+For a short policy/claims/identity loop:
+
+```sh
+docker compose -f compose.test.yml run --rm \
+  -e DEV_CHECK_TARGETS='check-policy check-claims check-identity' \
+  pg18 dev-check-pg18
+```
+
+Filter the real-server pytest suite with normal pytest selectors:
+
+```sh
+docker compose -f compose.test.yml run --rm \
+  -e INTEGRATION_TEST_ARGS='-k direct_identity_and_delegated_roles' \
+  pg18 dev-integration-pg18
+```
+
+Rebuild the images after changing either dependency installer, the development
+Containerfile, a pinned base-image digest, or reviewed package versions. Remove
+the retained compiler caches when a truly clean build is required:
+
+```sh
+docker compose -f compose.test.yml down --volumes
+```
+
 To select an installation explicitly:
 
 ```sh
