@@ -263,11 +263,13 @@ pg_oauth_issuer_key_fetch_cached(const char *metadata_url,
 		error = PG_OAUTH_ISSUER_KEY_JWKS_HTTP;
 		goto done;
 	}
+
+	/*
+	 * A fresh JWKS document is authoritative from here on: discard any key
+	 * selected from the stale copy so a later failure cannot accept it.
+	 */
 	if (selected_from_stale)
-	{
 		pg_oauth_selected_jwk_clear(&result->selected);
-		selected_from_stale = false;
-	}
 	result->jwks_error = pg_oauth_jwks_select(
 											  jwks_response.body, jwks_response.body_length, key_id, token_algorithm,
 											  &policy->jwks, &result->selected);
