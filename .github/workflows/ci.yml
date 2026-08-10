@@ -57,6 +57,9 @@ jobs:
       - name: Install build dependencies
         run: ./scripts/ci/install-debian-dependencies.sh ${{ matrix.package }}
 
+      - name: Install pinned PIC static Jansson dependency
+        run: CC=${{ matrix.cc }} ./scripts/ci/install-jansson.sh
+
       - name: Install pinned libjwt spike dependency
         run: CC=${{ matrix.cc }} ./scripts/ci/install-libjwt.sh
 
@@ -103,6 +106,9 @@ jobs:
 
       - name: Check C formatting
         run: make formatcheck
+
+      - name: Install pinned PIC static Jansson dependency
+        run: CC=clang ./scripts/ci/install-jansson.sh
 
       - name: Install pinned libjwt dependency
         run: CC=clang ./scripts/ci/install-libjwt.sh

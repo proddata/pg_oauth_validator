@@ -148,15 +148,12 @@ install -m 0644 "$snapshot_dir/THIRD-PARTY-NOTICES.md" \
 	"$package_root/THIRD-PARTY-NOTICES.md"
 install -m 0644 /usr/local/share/doc/libjwt/LICENSE \
 	"$license_dir/LIBJWT-MPL-2.0"
-jansson_copyright=/usr/share/doc/libjansson-dev/copyright
-if test ! -f "$jansson_copyright"; then
-	jansson_copyright=/usr/share/doc/libjansson4/copyright
-fi
-test -f "$jansson_copyright" || {
-	echo "error: Jansson copyright file is unavailable" >&2
+jansson_license=/usr/local/share/doc/jansson/LICENSE
+test -f "$jansson_license" || {
+	echo "error: Jansson license file is unavailable" >&2
 	exit 1
 }
-install -m 0644 "$jansson_copyright" "$license_dir/JANSSON"
+install -m 0644 "$jansson_license" "$license_dir/JANSSON"
 find "$package_root" -type d -exec chmod 0755 {} +
 find "$package_root" -type f -exec chmod 0644 {} +
 chmod 0755 "$package_root$($pg_config --pkglibdir)/pg_oauth_validator.so"
@@ -182,7 +179,7 @@ manifest=$package_root/BUILD-MANIFEST
 		echo "build-input-debian-snapshot: unavailable"
 	fi
 	echo "debian-packages:"
-	for package in libcurl4 libcurl4-openssl-dev libjansson-dev libpq-dev libssl3 libssl-dev; do
+	for package in libcurl4 libcurl4-openssl-dev libpq-dev libssl3 libssl-dev; do
 		if dpkg-query -W -f='${Package} ${Version}\n' "$package" 2>/dev/null; then
 			:
 		else

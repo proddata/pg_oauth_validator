@@ -44,6 +44,9 @@ fi
 printf '%s\n' 'Acquire::Check-Valid-Until "false";' \
 	>/etc/apt/apt.conf.d/99-pg-oauth-snapshot
 
+# Jansson and libjwt are not installed from Debian: the module embeds them and
+# requires PIC static archives. Use scripts/ci/install-jansson.sh and
+# scripts/ci/install-libjwt.sh for those pinned source builds.
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
 	build-essential=12.9 \
@@ -57,7 +60,6 @@ DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
 	git=1:2.39.5-0+deb12u3 \
 	libclang-rt-dev=1:14.0-55.7~deb12u1 \
 	libcurl4-openssl-dev=7.88.1-10+deb12u15 \
-	libjansson-dev=2.14-2 \
 	libkrb5-dev=1.20.1-2+deb12u5 \
 	libssl-dev=3.0.20-1~deb12u2 \
 	openssl=3.0.20-1~deb12u2 \
@@ -81,7 +83,6 @@ check_version()
 }
 
 check_version libcurl4-openssl-dev 7.88.1-10+deb12u15
-check_version libjansson-dev 2.14-2
 check_version libssl-dev 3.0.20-1~deb12u2
 check_version bison 2:3.8.2+dfsg-1+b1
 check_version flex 2.6.4-8.2

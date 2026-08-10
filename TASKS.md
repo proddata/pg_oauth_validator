@@ -164,6 +164,15 @@ parallel subject to their file boundaries.
   security-relevant package inventory, and bundle libjwt/Jansson notices. Fresh
   PG18 and PG19 beta 2 package smoke builds passed. Advisory disposition and
   GitHub security/approval evidence remain open before candidate promotion.
+- **2026-08-10 Jansson provenance:** Debian's `libjansson-dev` ships a non-PIC
+  static archive, so linking it into the module failed on Linux/amd64. Jansson
+  is now built from pinned upstream 2.15.1 (commit
+  `dbb5fb3636e155fccfce4cd215de752779bd6971`, archive SHA-256 recorded in
+  `scripts/ci/install-jansson.sh` and `THIRD-PARTY-NOTICES.md`) as a PIC static
+  archive, the release archive bundles the upstream `LICENSE`, and
+  `check-static-link-dependencies` now proves each archive links into a shared
+  object. The `0.1.0-rc.1` review records remain scoped to their reviewed
+  revision and must be re-dated against the eventual candidate.
 - **2026-08-08 advisory review:** exact-version findings and usage-bound
   dispositions are recorded in
   `docs/releases/0.1.0-rc.1-vulnerability-disposition.md`. No reachable,

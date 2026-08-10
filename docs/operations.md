@@ -22,8 +22,8 @@ through `oauth_validator_libraries` when OAuth authentication is configured.
 ## Build and staged installation
 
 Install the PostgreSQL server-development package, C toolchain, libcurl,
-OpenSSL, Jansson, and the reviewed libjwt build described in the development
-guide. Then run:
+OpenSSL, and the reviewed Jansson and libjwt builds described in the
+development guide. Then run:
 
 ```sh
 make clean

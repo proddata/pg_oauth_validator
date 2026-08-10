@@ -26,11 +26,23 @@ patches in the corresponding `pg_oauth_validator` source revision recorded in
 
 ## Jansson
 
-The module statically incorporates Jansson. Its exact version is recorded in
-`BUILD-MANIFEST`. Jansson is distributed under the MIT license and contains
-`src/dtoa.c`, whose additional notice is included in Debian's packaged
-copyright file. The generated archive copies that complete packaged copyright
-file as `THIRD-PARTY-LICENSES/JANSSON`.
+The module statically incorporates Jansson 2.15.1 from commit
+`dbb5fb3636e155fccfce4cd215de752779bd6971`, licensed under the MIT license.
+Its exact version is also recorded in `BUILD-MANIFEST`.
+
+The corresponding source is available from:
+
+`https://github.com/akheron/jansson/tree/dbb5fb3636e155fccfce4cd215de752779bd6971`
+
+The source archive used by the build is:
+
+`https://codeload.github.com/akheron/jansson/tar.gz/dbb5fb3636e155fccfce4cd215de752779bd6971`
+
+Its SHA-256 digest is
+`65084e4e43de9840d66a0604c8d9d9c499b2fc0db52c05730e3b6ac3c11ed66f`.
+Jansson contains `src/dtoa.c`, whose additional notice is part of the upstream
+`LICENSE` file. The generated archive copies that complete file as
+`THIRD-PARTY-LICENSES/JANSSON`.
 
 ## Dynamically linked libraries
 

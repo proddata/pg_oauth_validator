@@ -9,11 +9,14 @@ This guide covers local build and test workflows. See
 - a C17 compiler;
 - GNU Make or a compatible `make` implementation;
 - `nm` for the exported-symbol check;
-- Jansson, the system OpenSSL development package, libcurl, and libjwt 3.3.3
-  or later.
+- the system OpenSSL development package and libcurl;
+- Jansson 2.15.1 and libjwt 3.3.3 or later, built as described below.
 
-The module build requires PIC static archives for Jansson and libjwt. The
-checked-in installer produces the required libjwt archive.
+The module build requires PIC static archives for Jansson and libjwt, and the
+build refuses to start when an archive cannot be linked into a shared object.
+The checked-in installers produce both archives. Distribution packages are not
+usable here: Debian's `libjansson-dev`, for example, ships a non-PIC static
+archive.
 
 The integration suite additionally requires Python 3, pytest, `initdb`,
 `pg_ctl`, `runuser`, and a libpq development installation from the same
@@ -25,9 +28,12 @@ versions.
 
 ## Build and verify
 
-Until libjwt 3.3.3 is commonly packaged, reproduce the reviewed dependency:
+Reproduce the reviewed embedded dependencies. Both installers pin an upstream
+commit and archive SHA-256 and build position-independent static archives into
+`/usr/local`:
 
 ```sh
+./scripts/ci/install-jansson.sh
 ./scripts/ci/install-libjwt.sh
 ```
 
@@ -239,6 +245,7 @@ The pinned libjwt dependency and its reviewed boundary behavior can be checked
 separately:
 
 ```sh
+./scripts/ci/install-jansson.sh
 ./scripts/ci/install-libjwt.sh
 make dependency-spike SANITIZE=1
 make fuzz-libjwt-spike
@@ -249,7 +256,7 @@ make fuzz-identity
 make fuzz-metadata
 ```
 
-The installer pins both the upstream commit and archive SHA-256. The validation
+Both installers pin the upstream commit and archive SHA-256. The validation
 core and callback use libjwt for signature verification. libjwt and Jansson are
 linked as position-independent static code with local symbol binding to prevent
 collision with PostgreSQL server symbols.

@@ -4,9 +4,11 @@ FROM ${POSTGRES_IMAGE}
 ARG PG_MAJOR
 
 WORKDIR /opt/pg-oauth-validator
-COPY scripts/ci/install-debian-dependencies.sh scripts/ci/install-libjwt.sh ./scripts/ci/
+COPY scripts/ci/install-debian-dependencies.sh scripts/ci/install-jansson.sh \
+    scripts/ci/install-libjwt.sh ./scripts/ci/
 
 RUN ./scripts/ci/install-debian-dependencies.sh "$PG_MAJOR" \
+    && ./scripts/ci/install-jansson.sh \
     && ./scripts/ci/install-libjwt.sh \
     && rm -rf /var/lib/apt/lists/*
 

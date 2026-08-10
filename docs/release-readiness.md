@@ -102,10 +102,11 @@ procedure and does **not** assert that a current review has been completed.
    module. Reconcile that inventory with ADR 0001. Confirm that libjwt and
    Jansson are statically embedded and that the runtime OpenSSL and libcurl are
    the intended vendor-supported builds.
-2. Verify the libjwt commit and archive digest in
-   `scripts/ci/install-libjwt.sh`; review upstream changes since the previously
-   approved revision. Re-run the dependency spike, strict boundary tests,
-   sanitizers, and fuzz smoke before accepting an update.
+2. Verify the libjwt and Jansson commits and archive digests in
+   `scripts/ci/install-libjwt.sh` and `scripts/ci/install-jansson.sh`; review
+   upstream changes since the previously approved revisions. Re-run the
+   dependency spike, strict boundary tests, sanitizers, and fuzz smoke before
+   accepting an update.
 3. Record versions and licenses for PostgreSQL, libjwt, Jansson, OpenSSL,
    libcurl, and all packaged transitive components. Review license texts and
    notice/source-offer obligations with the packaging owner. An unknown,

@@ -154,10 +154,8 @@ check-pg-version:
 	fi
 
 check-static-link-dependencies:
-	@test -f "$(LIBJWT_STATIC)" || \
-		{ echo "error: PIC static libjwt archive is required: $(LIBJWT_STATIC)" >&2; exit 1; }
-	@test -f "$(JANSSON_STATIC)" || \
-		{ echo "error: PIC static Jansson archive is required: $(JANSSON_STATIC)" >&2; exit 1; }
+	"$(srcdir)/scripts/ci/check-static-archives.sh" "$(CC)" \
+		"$(LIBJWT_STATIC)" "$(JANSSON_STATIC)"
 
 check-symbols: all
 	@nm $(MODULE_big)$(DLSUFFIX) | grep -q '_PG_oauth_validator_module_init' || \
