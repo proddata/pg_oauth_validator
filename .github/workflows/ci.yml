@@ -129,7 +129,7 @@ jobs:
 
       - name: Run Clang static analyzer
         run: |
-          scan-build --status-bugs --keep-going --output .ci-analysis \
+          scan-build --status-bugs --keep-going -o .ci-analysis \
             make verify CC=clang
 
       - name: Upload static-analysis reports
