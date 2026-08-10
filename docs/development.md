@@ -188,9 +188,14 @@ verify formatting without changing files.
 `sanitizercheck` requires Clang's AddressSanitizer and UndefinedBehaviorSanitizer
 runtimes. GitHub Actions builds and tests PostgreSQL 18 and 19 with both GCC and
 Clang, runs the sanitizer/fuzz gates once with PostgreSQL 19 and Clang, and
-runs Clang static analysis in a separate pinned PostgreSQL 19 job. GCC jobs
-also validate staged and real installed paths. Every job cleans and rejects
-unexpected build products even after an earlier failure.
+runs formatting and Clang static analysis in a separate pinned PostgreSQL 19
+job. GCC jobs also validate staged and real installed paths.
+
+`check-source-tree` runs on the GitHub runner rather than in a pinned
+PostgreSQL container. The container images do not ship Git, so
+`actions/checkout` falls back to a source tarball there and no Git work tree
+exists. For the same reason, the container jobs still run `make clean` after
+their steps, but their untracked-build-product guard cannot detect leftovers.
 
 ## Provider interoperability
 

@@ -84,8 +84,25 @@ jobs:
           make clean
           test -z "$(git status --short)"
 
+  # The pinned PostgreSQL images do not ship Git, so actions/checkout falls back
+  # to a source tarball there and the container jobs have no working tree. Run
+  # the Git-dependent hygiene checks on the runner, which has Git and Python.
+  hygiene:
+    name: Source hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # Invoke the script directly: the make target loads PGXS, which this job
+      # deliberately does not depend on.
+      - name: Check source-tree hygiene
+        run: ./scripts/ci/check-source-tree.sh
+
   quality:
-    name: Source hygiene and Clang static analysis
+    name: C formatting and Clang static analysis
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     container:
@@ -97,9 +114,6 @@ jobs:
 
       - name: Install analysis dependencies
         run: ./scripts/ci/install-debian-dependencies.sh 19
-
-      - name: Check source-tree hygiene
-        run: make check-source-tree
 
       - name: Install pinned pgindent
         run: ./scripts/ci/install-pgindent.sh
