@@ -35,6 +35,9 @@ deployments. Other PostgreSQL major versions are rejected by the build.
 - [`docs/adr/`](docs/adr/) — reviewed architectural and dependency decisions;
 - [`AGENTS.md`](AGENTS.md) — engineering and contribution requirements.
 - [`TASKS.md`](TASKS.md) — temporary dependency-aware implementation board.
+- [`LICENSE`](LICENSE) and
+  [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) — this project's license
+  and the separate terms of the components it incorporates or links against.
 
 ## Quick start
 
@@ -113,3 +116,13 @@ include bearer tokens or secrets.
 
 This is security-critical infrastructure under active review. Passing local
 tests alone is not a production-readiness claim.
+
+## License
+
+`pg_oauth_validator` is released under the [PostgreSQL License](LICENSE).
+
+The build statically incorporates libjwt (Mozilla Public License 2.0) and
+Jansson (MIT), and dynamically links libcurl and OpenSSL. Those components keep
+their own terms; see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) for the
+exact versions, source locations, and license texts included in a release
+archive.

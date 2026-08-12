@@ -144,6 +144,7 @@ make -C "$build_dir" -f ../source/Makefile VPATH=../source \
 mv "$stage_dir" "$package_root"
 license_dir=$package_root/THIRD-PARTY-LICENSES
 mkdir -p "$license_dir"
+install -m 0644 "$snapshot_dir/LICENSE" "$package_root/LICENSE"
 install -m 0644 "$snapshot_dir/THIRD-PARTY-NOTICES.md" \
 	"$package_root/THIRD-PARTY-NOTICES.md"
 install -m 0644 /usr/local/share/doc/libjwt/LICENSE \

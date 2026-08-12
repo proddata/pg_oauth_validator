@@ -17,6 +17,7 @@ test -f "$library"
 test -f "$staged_docdir/README.md"
 test -f "$staged_docdir/operations.md"
 test -f "$staged_docdir/PROVIDER-COMPATIBILITY.md"
+test -f "$staged_docdir/LICENSE"
 test -f "$staged_docdir/THIRD-PARTY-NOTICES.md"
 
 if find "$stage" -type f -perm /022 | grep -q .; then
@@ -37,9 +38,9 @@ if test -d "$bitcode_dir"; then
     test -f "$stage$pkglibdir/bitcode/pg_oauth_validator.index.bc"
     bitcode_count=$(find "$bitcode_dir" -type f -name '*.bc' | wc -l | tr -d ' ')
     test "$bitcode_count" -eq 18
-    expected_count=24
+    expected_count=25
 else
-    expected_count=5
+    expected_count=6
 fi
 
 if test "$file_count" -ne "$expected_count"; then

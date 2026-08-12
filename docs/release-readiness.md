@@ -111,9 +111,10 @@ procedure and does **not** assert that a current review has been completed.
    libcurl, and all packaged transitive components. Review license texts and
    notice/source-offer obligations with the packaging owner. An unknown,
    incompatible, or missing license blocks publication.
-   Confirm that `THIRD-PARTY-NOTICES.md`, `THIRD-PARTY-LICENSES/JANSSON`, and
-   `THIRD-PARTY-LICENSES/LIBJWT-MPL-2.0` are present in each archive and listed
-   in its manifest.
+   Confirm that `LICENSE`, `THIRD-PARTY-NOTICES.md`,
+   `THIRD-PARTY-LICENSES/JANSSON`, and `THIRD-PARTY-LICENSES/LIBJWT-MPL-2.0` are
+   present in each archive and listed in its manifest, and that the archive-path
+   table in `THIRD-PARTY-NOTICES.md` still matches what the archive contains.
 4. Query the operating-system vendor security tracker and the official
    upstream advisories for every dependency/version, recording query date,
    identifiers, applicability, and disposition. A scanner result is supporting
