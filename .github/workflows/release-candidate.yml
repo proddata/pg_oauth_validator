@@ -51,6 +51,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
+      - name: Verify exact checked-out revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+
       - name: Install build and test dependencies
         run: ./scripts/ci/install-debian-dependencies.sh ${{ matrix.package }}
 
