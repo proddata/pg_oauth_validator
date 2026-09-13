@@ -1,0 +1,63 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: C security analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: postgres:19beta3-bookworm@sha256:c2f9db76caf60eda17be053e222349f4f3921b514b30a660c74dd9d9b976806f
+
+    steps:
+      - name: Bootstrap trusted Git checkout
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends \
+            ca-certificates=20230311+deb12u1 \
+            git=1:2.39.5-0+deb12u3
+
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Verify exact checked-out revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+
+      - name: Install pinned build dependencies
+        run: sh ./scripts/ci/install-debian-dependencies.sh 19
+
+      - name: Install pinned static dependencies
+        run: |
+          sh ./scripts/ci/install-jansson.sh
+          sh ./scripts/ci/install-libjwt.sh
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@faaca9a8f6edddba5725ffe5adefdab6669a2eca
+        with:
+          languages: c-cpp
+
+      - name: Build analyzed module
+        run: make clean all
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@faaca9a8f6edddba5725ffe5adefdab6669a2eca
+        with:
+          category: /language:c-cpp
