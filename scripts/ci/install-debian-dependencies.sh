@@ -11,7 +11,7 @@ usage()
 test "$#" -eq 1 || usage
 pg_major=$1
 case "$pg_major" in
-	18) pg_dev_version=18.4-1.pgdg12+1 ;;
+	18) pg_dev_version=18.6-1.pgdg12+2 ;;
 	19) pg_dev_version=19~beta3-1.pgdg12+1 ;;
 	*) usage ;;
 esac

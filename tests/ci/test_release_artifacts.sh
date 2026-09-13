@@ -26,15 +26,15 @@ make_artifact()
 
 make_artifact "$work_dir/first" 18
 cp -R "$work_dir/first" "$work_dir/second"
-"$checker" "$work_dir/first" "$work_dir/second" 18
+sh "$checker" "$work_dir/first" "$work_dir/second" 18
 
-if "$checker" "$work_dir/first" "$work_dir/second" 19 >/dev/null 2>&1; then
+if sh "$checker" "$work_dir/first" "$work_dir/second" 19 >/dev/null 2>&1; then
 	echo "error: wrong PostgreSQL major was accepted" >&2
 	exit 1
 fi
 
 printf '\n' >>"$work_dir/second/package.tar.gz.manifest"
-if "$checker" "$work_dir/first" "$work_dir/second" 18 >/dev/null 2>&1; then
+if sh "$checker" "$work_dir/first" "$work_dir/second" 18 >/dev/null 2>&1; then
 	echo "error: non-reproducible manifests were accepted" >&2
 	exit 1
 fi

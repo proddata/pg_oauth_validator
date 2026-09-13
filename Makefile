@@ -117,16 +117,16 @@ include $(PGXS)
 all: check-pg-version check-static-link-dependencies
 
 check-source-tree:
-	"$(srcdir)/scripts/ci/check-source-tree.sh"
+	sh "$(srcdir)/scripts/ci/check-source-tree.sh"
 
 format:
-	"$(srcdir)/scripts/format-c.sh"
+	sh "$(srcdir)/scripts/format-c.sh"
 
 formatcheck:
-	"$(srcdir)/scripts/format-c.sh" --check
+	sh "$(srcdir)/scripts/format-c.sh" --check
 
 check-release-artifacts:
-	"$(srcdir)/tests/ci/test_release_artifacts.sh"
+	sh "$(srcdir)/tests/ci/test_release_artifacts.sh"
 
 sanitizercheck:
 	$(MAKE) dependency-spike check-http-transport check-issuer-key \
@@ -399,7 +399,7 @@ packagecheck: all
 	@stage="$$(mktemp -d)"; \
 	trap 'rm -rf "$$stage"' EXIT INT TERM; \
 	$(MAKE) install DESTDIR="$$stage" >/dev/null; \
-	"$(srcdir)/scripts/ci/check-staged-install.sh" "$$stage" "$(PG_CONFIG)"
+	sh "$(srcdir)/scripts/ci/check-staged-install.sh" "$$stage" "$(PG_CONFIG)"
 
 # RELEASE_VERSION and SOURCE_DATE_EPOCH are mandatory so release artifacts are
 # explicitly versioned and reproducible. RELEASE_OUTPUT defaults outside build
@@ -410,7 +410,7 @@ release-package:
 	@test -n "$(SOURCE_DATE_EPOCH)" || \
 		{ echo "error: SOURCE_DATE_EPOCH is required" >&2; exit 2; }
 	SOURCE_DATE_EPOCH="$(SOURCE_DATE_EPOCH)" \
-		"$(srcdir)/scripts/ci/build-release-package.sh" \
+		sh "$(srcdir)/scripts/ci/build-release-package.sh" \
 		"$(RELEASE_VERSION)" "$(PG_CONFIG)" \
 		"$(or $(RELEASE_OUTPUT),$(CURDIR)/dist)"
 
@@ -422,7 +422,7 @@ installedcheck: packagecheck
 		VALIDATOR_LIBRARY="$(shell $(PG_CONFIG) --pkglibdir)/$(MODULE_big)$(DLSUFFIX)"
 
 interop-keycloak:
-	"$(srcdir)/scripts/interop/keycloak.sh"
+	sh "$(srcdir)/scripts/interop/keycloak.sh"
 
 verify: check-release-artifacts check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
 	check-jwks check-signature check-claims check-identity check-metadata \
