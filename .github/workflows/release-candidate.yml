@@ -38,8 +38,25 @@ jobs:
       image: ${{ matrix.image }}
 
     steps:
+      # Release packaging archives the exact recorded commit. Install Git
+      # before checkout so the action does not fall back to an unversioned
+      # source snapshot in the minimal PostgreSQL images.
+      - name: Install Git for revision-preserving checkout
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends \
+            ca-certificates=20230311+deb12u1 \
+            git=1:2.39.5-0+deb12u3
+
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Verify exact checked-out revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
 
       - name: Install build and test dependencies
         run: ./scripts/ci/install-debian-dependencies.sh ${{ matrix.package }}
@@ -59,7 +76,10 @@ jobs:
             PG19_CONFIG="$PG_CONFIG"
 
       - name: Derive reproducible build timestamp
-        run: echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+        run: |
+          source_date_epoch=$(git show -s --format=%ct HEAD)
+          test -n "$source_date_epoch"
+          echo "SOURCE_DATE_EPOCH=$source_date_epoch" >> "$GITHUB_ENV"
 
       - name: Build release-candidate package
         env:
