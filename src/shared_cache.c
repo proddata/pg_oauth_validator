@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "portability/instr_time.h"
 #include "storage/condition_variable.h"
 #include "storage/dsm_registry.h"
 #include "storage/lwlock.h"
@@ -189,9 +188,6 @@ bool
 pg_oauth_shared_cache_wait_refresh(const void *key, size_t key_length,
 								   int64_t timeout_ms, int64_t *elapsed_ms)
 {
-	instr_time	started;
-	instr_time	current;
-	long		remaining;
 	bool		refreshing;
 
 	if (elapsed_ms != NULL)
@@ -201,36 +197,28 @@ pg_oauth_shared_cache_wait_refresh(const void *key, size_t key_length,
 		timeout_ms > 5000 || elapsed_ms == NULL)
 		return false;
 
-	INSTR_TIME_SET_CURRENT(started);
-	remaining = (long) timeout_ms;
 	ConditionVariablePrepareToSleep(&shared_state->refresh_cv);
-	for (;;)
+	LWLockAcquire(&shared_state->lock, LW_SHARED);
+	refreshing = pg_oauth_cache_is_refreshing(&cache_view, key, key_length);
+	LWLockRelease(&shared_state->lock);
+	if (!refreshing)
 	{
-		LWLockAcquire(&shared_state->lock, LW_SHARED);
-		refreshing = pg_oauth_cache_is_refreshing(&cache_view, key, key_length);
-		LWLockRelease(&shared_state->lock);
-		if (!refreshing)
-		{
-			ConditionVariableCancelSleep();
-			return true;
-		}
-		if (ConditionVariableTimedSleep(&shared_state->refresh_cv, remaining,
-										PG_WAIT_EXTENSION))
-		{
-			*elapsed_ms = timeout_ms;
-			ConditionVariableCancelSleep();
-			return false;
-		}
-		INSTR_TIME_SET_CURRENT(current);
-		INSTR_TIME_SUBTRACT(current, started);
-		*elapsed_ms = (int64_t) INSTR_TIME_GET_MILLISEC(current);
-		remaining = (long) timeout_ms - (long) *elapsed_ms;
-		if (remaining <= 0)
-		{
-			ConditionVariableCancelSleep();
-			return false;
-		}
+		ConditionVariableCancelSleep();
+		return true;
 	}
+	/*
+	 * Use one bounded wait. PostgreSQL 19's x86 instr_time conversion reaches
+	 * backend timing globals that are not exported to validator modules.
+	 * Rechecking after wakeup is sufficient: a spurious wakeup fails closed.
+	 */
+	(void) ConditionVariableTimedSleep(&shared_state->refresh_cv, (long) timeout_ms,
+									 PG_WAIT_EXTENSION);
+	LWLockAcquire(&shared_state->lock, LW_SHARED);
+	refreshing = pg_oauth_cache_is_refreshing(&cache_view, key, key_length);
+	LWLockRelease(&shared_state->lock);
+	ConditionVariableCancelSleep();
+	*elapsed_ms = timeout_ms;
+	return !refreshing;
 }
 
 bool

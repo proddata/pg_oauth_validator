@@ -63,7 +63,7 @@ pg_ident.conf: external identity (248289761001)  ->  app_reader
 #### Option 3: Delegated role claims
 
 When the identity provider is intentionally the source of PostgreSQL role membership, the validator can check a configured claim for an exact role match. The validated token must contain the exact role the client requests, and the HBA rule must independently list that
-role. 
+role.
 
 ```text
 token: { "sub": "alice", "roles": ["reporting", "app_reader"] }
