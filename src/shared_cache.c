@@ -206,13 +206,14 @@ pg_oauth_shared_cache_wait_refresh(const void *key, size_t key_length,
 		ConditionVariableCancelSleep();
 		return true;
 	}
+
 	/*
 	 * Use one bounded wait. PostgreSQL 19's x86 instr_time conversion reaches
 	 * backend timing globals that are not exported to validator modules.
 	 * Rechecking after wakeup is sufficient: a spurious wakeup fails closed.
 	 */
 	(void) ConditionVariableTimedSleep(&shared_state->refresh_cv, (long) timeout_ms,
-									 PG_WAIT_EXTENSION);
+									   PG_WAIT_EXTENSION);
 	LWLockAcquire(&shared_state->lock, LW_SHARED);
 	refreshing = pg_oauth_cache_is_refreshing(&cache_view, key, key_length);
 	LWLockRelease(&shared_state->lock);
