@@ -1,128 +1,215 @@
 # pg_oauth_validator
 
-`pg_oauth_validator` is a production-oriented OAuth 2.0 access-token validator
-for PostgreSQL 18 and 19.
+Use OAuth 2.0 access tokens to authenticate PostgreSQL connections instead of
+database passwords. `pg_oauth_validator` verifies a token from a trusted
+identity provider, identifies the caller, and lets PostgreSQL apply its normal
+role-mapping rules.
 
-The validator currently supports strict signed JWT access-token validation,
-shared metadata/JWKS caching, configurable external identity construction,
-normal PostgreSQL identity mapping, and opt-in exact role-claim authorization.
-It remains under active security review
-and is not yet a tagged stable release.
 
-PostgreSQL 18 is the stable production target. PostgreSQL 19 support is preview
-only while it remains in beta and must not itself be used for production
-deployments. Other PostgreSQL major versions are rejected by the build.
+## What it does
 
-## Documentation
+```text
+OAuth access token  ->  validate token and identity  ->  PostgreSQL role mapping
+```
 
-- [`docs/configuration.md`](docs/configuration.md) — secure configuration,
-  identity mapping, reload behavior, and deployment constraints;
-- [`docs/development.md`](docs/development.md) — prerequisites, builds, tests,
-  fuzzing, and provider interoperability;
-- [`docs/operations.md`](docs/operations.md) — installation, upgrades,
-  rollback, and production rollout checks;
-- [`docs/release-readiness.md`](docs/release-readiness.md) — reproducible
-  release candidates, dependency review, provenance, and promotion gates;
-- [`docs/architecture.md`](docs/architecture.md) — the implemented validation
-  pipeline, trust boundaries, cache, and PostgreSQL integration;
-- [`playground/README.md`](playground/README.md) — disposable Docker/Podman
-  Compose environment with an OAuth-capable `psql` example;
-- [`FEATURES.md`](FEATURES.md) — supported and planned product behavior;
-- [`PROVIDER-COMPATIBILITY.md`](PROVIDER-COMPATIBILITY.md) — provider-specific
-  compatibility status and requirements;
-- [`oauth-validator-plan.md`](oauth-validator-plan.md) — design rationale,
-  threat model, and roadmap;
-- [`docs/adr/`](docs/adr/) — reviewed architectural and dependency decisions;
-- [`AGENTS.md`](AGENTS.md) — engineering and contribution requirements.
-- [`TASKS.md`](TASKS.md) — temporary dependency-aware implementation board.
-- [`LICENSE`](LICENSE) and
-  [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) — this project's license
-  and the separate terms of the components it incorporates or links against.
+The validator accepts signed JWT access tokens from an explicitly configured
+issuer. It checks the token's signature, issuer, audience, expiry, type,
+required scopes, and stable identity before allowing PostgreSQL to continue
+authentication.
+
+By default, PostgreSQL decides which database role that external identity may
+use: either its name must match the requested role, or a normal
+`pg_ident.conf` usermap makes the decision.
+
+### How a token becomes a PostgreSQL role
+
+Every mode first validates the token completely. What differs is the final
+role-authorization decision.
+
+Let's assume a user requests the `app_reader` role in the `appdb` database.
+
+```sh
+psql "service=postgres-oauth" -U app_reader -d appdb
+```
+
+#### Option 1: Direct identity
+
+When the sub claim of the validated token is the same as the requested PostgreSQL role, the validator allows the connection.
+
+
+```text
+token: { "sub": "app_reader" }
+                    v
+requested role: app_reader
+                    v
+PostgreSQL allows the connection
+```
+
+#### Option 2: Identity mapped by PostgreSQL
+
+When a usermap is used and an external identity should connect as a different local
+role (e.g. `app_reader`) `pg_ident.conf` decides which PostgreSQL role that identity may use.
+
+```text
+token: { "sub": "248289761001" }
+                 v
+     validated external identity (248289761001)
+                 v
+pg_ident.conf: external identity (248289761001)  ->  app_reader
+                                                        v
+                                     requested role: app_reader
+```
+
+#### Option 3: Delegated role claims
+
+When the identity provider is intentionally the source of PostgreSQL role membership, the validator can check a configured claim for an exact role match. The validated token must contain the exact role the client requests, and the HBA rule must independently list that
+role. 
+
+```text
+token: { "sub": "alice", "roles": ["reporting", "app_reader"] }
+                                             |
+                                             v
+ requested role: app_reader  <- exact member of roles claim; order does not matter
+                 |
+                 v
+HBA allows app_reader  ->  PostgreSQL allows the connection
+```
+
+Configure both the validator and the
+HBA rule:
+
+```conf
+# postgresql.conf
+pg_oauth_validator.authorization_mode = 'claim_roles'
+pg_oauth_validator.roles_claim = 'roles'
+
+# pg_hba.conf
+hostssl appdb app_reader,reporting 10.0.0.0/8 oauth \
+    issuer="https://idp.example/" \
+    scope="connect:postgres" \
+    validator=pg_oauth_validator \
+    delegate_ident_mapping=1
+```
+
+For that connection to succeed, the access token must contain `"app_reader"`
+in its configured `roles` claim, and the HBA rule above must allow
+`app_reader`. Requesting `reporting` instead requires both the same HBA
+permission and `"reporting"` in the token's roles array.
+
 
 ## Quick start
 
-Install the reviewed, pinned libjwt dependency before building:
+Install the module built for the *same PostgreSQL major version* as your
+server. The [operations guide](docs/operations.md) covers packaging and
+installation.
+
+Configure the PostgreSQL resource identifier (audience) in `postgresql.conf`:
+
+```conf
+oauth_validator_libraries = 'pg_oauth_validator'
+pg_oauth_validator.audiences = 'https://postgres.example.internal/'
+```
+
+Then add an OAuth rule to `pg_hba.conf`. This PostgreSQL 19 example accepts
+connections over TLS from the named issuer when the token includes the required
+connection scope:
+
+```conf
+hostssl appdb app_reader 10.0.0.0/8 oauth \
+    issuer="https://idp.example/" \
+    scope="connect:postgres" \
+    validator=pg_oauth_validator \
+    validator.policy=default
+```
+
+With the default identity settings, configure the identity provider to issue a
+stable `sub` claim equal to `app_reader`, then create that PostgreSQL role:
+
+```sql
+CREATE ROLE app_reader LOGIN;
+```
+
+Reload PostgreSQL after changing configuration. PostgreSQL 18 uses the same
+configuration except that it must omit `validator.policy=default`.
+
+For a complete, production-ready mapping example, including a `pg_ident.conf`
+usermap, see the [configuration guide](docs/configuration.md).
+
+## Secure production checklist
+
+- Use `hostssl` and have clients verify the PostgreSQL server certificate.
+- Configure one exact trusted issuer and an explicit audience.
+- Require only the connection scopes your application needs.
+- Use a stable, provider-controlled identity claim; do not use mutable email
+  addresses without an explicit policy decision.
+- Restrict HBA rules to intended databases, roles, and networks.
+- Keep a strongly protected, non-OAuth administrative recovery path.
+- Test rejected tokens too: wrong audience, issuer, scope, token type, and
+  expiry must all deny access.
+
+The validator fails closed when configuration, token validation, key retrieval,
+or required network dependencies fail. It does not log bearer tokens or
+secrets in normal diagnostics.
+
+## Supported today
+
+- PostgreSQL 18, plus PostgreSQL 19 preview support
+- Signed JWT OAuth access tokens
+- Exact issuer and audience validation
+- Discovery/JWKS retrieval with bounded shared caching
+- Normal PostgreSQL identity matching and `pg_ident.conf` usermaps
+- Optional, explicitly configured exact role claims
+
+## Documentation
+
+### Getting started and operating
+
+- [Configuration](docs/configuration.md): settings, role mapping, reloads, and
+  secure examples
+- [Installation and operations](docs/operations.md): packages, upgrades,
+  rollout, and rollback
+- [Playground](playground/README.md): disposable Docker/Podman environment for
+  trying a real provider
+- [Provider compatibility](PROVIDER-COMPATIBILITY.md): supported provider
+  behavior and requirements
+
+### Reference and contributors
+
+- [Feature specification](FEATURES.md): supported behavior and security
+  contract
+- [Architecture](docs/architecture.md): validation pipeline, trust boundaries,
+  caching, and PostgreSQL integration
+- [Development](docs/development.md): prerequisites, builds, tests, fuzzing,
+  and interoperability work
+- [Project plan](oauth-validator-plan.md): rationale, threat model, and
+  roadmap
+- [Architecture decisions](docs/adr/): reviewed technical and dependency
+  decisions
+
+## Developing locally
+
+Install the reviewed, pinned libjwt dependency, then build and test against
+PostgreSQL 18 or 19:
 
 ```sh
 ./scripts/ci/install-libjwt.sh
-```
-
-With PostgreSQL 18 or 19's `pg_config` on `PATH`:
-
-```sh
 make clean
 make verify
 make integrationcheck
 ```
 
-For normal development, prefer an isolated version-specific build tree:
+For normal development, use separate build trees for each PostgreSQL major:
 
 ```sh
 make test-pg18 PG18_CONFIG=/path/to/postgresql-18/bin/pg_config
 make test-pg19 PG19_CONFIG=/path/to/postgresql-19/bin/pg_config
 ```
 
-See the [development guide](docs/development.md) for complete prerequisites,
-other build layouts, and the additional test suites.
-
-The opt-in Keycloak interoperability suite also exercises genuine signing-key
-rotation and a complete provider stop/restart cycle; see the development guide
-for its Docker requirements and scope.
-
-## Minimum secure configuration
-
-Audience has no safe universal default and must be configured explicitly:
-
-```conf
-pg_oauth_validator.audiences = 'https://postgres.example.internal/'
-```
-
-Production OAuth HBA rules should use `hostssl`, specify a non-empty connection
-scope, and select the validator. Direct identity mode is the default and
-requires the configured identity claim to exactly equal the requested role.
-For issuer-qualified usermap mode on PostgreSQL 19:
-
-```conf
-hostssl all all 0.0.0.0/0 oauth \
-    issuer=https://idp.example.com/ \
-    scope="connect:postgres" \
-    validator=pg_oauth_validator \
-    validator.policy=default \
-    map=oauth
-```
-
-Configure `identity_format = 'issuer_qualified'`; the validator then returns:
-
-```text
-v1.<base64url(issuer)>.<base64url(configured-stable-claim)>
-```
-
-PostgreSQL then applies the selected `pg_ident.conf` map to decide whether that
-identity may assume the requested database role. Alternatively, explicitly
-configured `claim_roles` mode can authorize the exact requested role from a
-bounded token array when the HBA rule uses `delegate_ident_mapping=1`.
-
-Read the complete [configuration contract](docs/configuration.md) before a
-deployment. In particular, production use requires TLS, an exact trusted
-issuer, an explicit audience, required scopes, and carefully reviewed JWKS host
-and CA settings.
-
-## Security status
-
-The callback begins denied and returns success only after metadata, JWKS,
-signature, claims, audience, token type, scopes, and stable identity all pass.
-Client errors remain generic, and protected diagnostics are designed not to
-include bearer tokens or secrets.
-
-This is security-critical infrastructure under active review. Passing local
-tests alone is not a production-readiness claim.
+See the [development guide](docs/development.md) for prerequisites and the
+full test suite.
 
 ## License
 
 `pg_oauth_validator` is released under the [PostgreSQL License](LICENSE).
-
-The build statically incorporates libjwt (Mozilla Public License 2.0) and
-Jansson (MIT), and dynamically links libcurl and OpenSSL. Those components keep
-their own terms; see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) for the
-exact versions, source locations, and license texts included in a release
-archive.
+See [third-party notices](THIRD-PARTY-NOTICES.md) for incorporated and linked
+components and their licenses.
