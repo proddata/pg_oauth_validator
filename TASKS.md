@@ -27,8 +27,8 @@ Do not reopen it by treating deferred product milestones as cleanup work.
 
 ### REL-01 — Release candidate evidence and approval
 
-- **Status:** ready
-- **Owner:** unassigned
+- **Status:** in progress — pins and local gates complete; immutable CI and operational rehearsal pending
+- **Owner:** root
 - **Scope:** Select the candidate revision/version; produce version-separated
   PostgreSQL 18 and PostgreSQL 19 preview artifacts; collect immutable build,
   dependency, advisory, GitHub security, reproducibility, installation,
@@ -40,7 +40,7 @@ Do not reopen it by treating deferred product milestones as cleanup work.
 
 ### PG19-01 — PostgreSQL 19 Beta 3 compatibility refresh
 
-- **Status:** in progress
+- **Status:** in progress — local gates complete; immutable candidate CI evidence pending
 - **Owner:** root
 - **Scope:** PostgreSQL 19 Beta 3 was released on 2026-08-13. Its immutable
   image, package, formatter, CI, release-candidate, playground, and
@@ -49,6 +49,22 @@ Do not reopen it by treating deferred product milestones as cleanup work.
   quality, integration, TLS, robustness, package, and interoperability gates.
 - **Exit:** Record the exact immutable Beta 3 inputs and successful evidence;
   retain the preview label. This is not PostgreSQL 19 final-release approval.
+  Local results and the completed contract review are recorded in
+  [`docs/releases/pg19-beta3-compatibility.md`](docs/releases/pg19-beta3-compatibility.md).
+
+### PG18-02 — PostgreSQL 18 current-minor security refresh
+
+- **Status:** in progress — local gates complete; immutable CI and human approval pending
+- **Owner:** root
+- **Scope:** PostgreSQL 18.6 superseded the currently pinned 18.4 package on
+  2026-08-13 and includes security fixes. Refresh the immutable image and exact
+  PGDG package pins together, review the 18.6 security and compatibility
+  changes, and rerun all PostgreSQL 18 quality, integration, packaging,
+  installation, upgrade, rollback, and interoperability gates.
+- **Exit:** Record advisory dispositions and successful evidence for the exact
+  18.6 inputs. Do not prepare the release candidate from the older 18.4 build.
+  Local results and the security-impact review are recorded in
+  [`docs/releases/pg18-18.6-security-refresh.md`](docs/releases/pg18-18.6-security-refresh.md).
 
 ## Intentionally deferred
 

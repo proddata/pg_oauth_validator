@@ -139,7 +139,7 @@ make -C "$build_dir" -f ../source/Makefile VPATH=../source \
 	CC="$build_cc" PG_CFLAGS="$reproducible_cflags" \
 	BITCODE_CFLAGS="$reproducible_bitcode_cflags" \
 	install DESTDIR="$stage_dir"
-"$snapshot_dir/scripts/ci/check-staged-install.sh" "$stage_dir" "$pg_config"
+sh "$snapshot_dir/scripts/ci/check-staged-install.sh" "$stage_dir" "$pg_config"
 
 mv "$stage_dir" "$package_root"
 license_dir=$package_root/THIRD-PARTY-LICENSES

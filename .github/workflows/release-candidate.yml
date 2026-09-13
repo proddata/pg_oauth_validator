@@ -27,7 +27,7 @@ jobs:
           - pg: "18"
             package: "18"
             target: test-pg18
-            image: postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+            image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
             wrong_package: "19"
           - pg: "19 beta 3"
             package: "19"
@@ -123,3 +123,19 @@ jobs:
             dist/first/pg${{ matrix.package }}/RELEASE-EVIDENCE.md
           if-no-files-found: error
           retention-days: 14
+
+  interoperability:
+    name: Keycloak interoperability and recovery rehearsal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Run pinned Keycloak interoperability suite
+        run: sh ./scripts/interop/keycloak.sh
+
+      - name: Reject generated or leaked source-tree files
+        if: always()
+        run: sh ./scripts/ci/check-source-tree.sh
