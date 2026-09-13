@@ -155,7 +155,7 @@ check-pg-version:
 	fi
 
 check-static-link-dependencies:
-	"$(srcdir)/scripts/ci/check-static-archives.sh" "$(CC)" \
+	sh "$(srcdir)/scripts/ci/check-static-archives.sh" "$(CC)" \
 		"$(LIBJWT_STATIC)" "$(JANSSON_STATIC)"
 
 check-symbols: all

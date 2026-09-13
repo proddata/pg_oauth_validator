@@ -14,7 +14,7 @@ integration tests, robustness tests, and local provider fixtures. These are
 part of the current Milestone 1 release candidate rather than a reason to
 broaden its authorization model.
 
-The repository also has pinned PostgreSQL 18 and PostgreSQL 19 beta 2 build
+The repository also has pinned PostgreSQL 18 and PostgreSQL 19 beta 3 build
 environments, GCC and Clang jobs, static analysis, sanitizers, deterministic
 fuzz smoke, formatting checks, staged and installed-path verification,
 Keycloak interoperability, dependency/license records, and reproducible
@@ -43,6 +43,11 @@ PostgreSQL 19 remains preview-only. After its final release, replace beta pins,
 review the final callback/HBA/PGXS contracts, rerun every quality and runtime
 gate, and repeat coexistence, installation, upgrade, and rollback rehearsals.
 A beta-built module must never be relabeled as a final PostgreSQL 19 artifact.
+
+PostgreSQL 19 Beta 3 (released 2026-08-13) is the current pinned preview
+build. Its compatibility evidence is recorded with `PG19-01` in
+[`../TASKS.md`](../TASKS.md); a final-release update still requires the full
+finalization gates above.
 
 ## Product work requiring explicit decisions
 

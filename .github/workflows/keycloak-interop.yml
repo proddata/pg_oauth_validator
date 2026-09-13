@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   keycloak-26-5:
-    name: Keycloak 26.5.0 / PostgreSQL 19 beta 2
+    name: Keycloak 26.5.0 / PostgreSQL 19 beta 3
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 

@@ -219,7 +219,7 @@ claim output before sharing it: it can identify the test user, tenant, and
 application. Decoding is diagnostic only—the validator continues to perform
 the actual cryptographic verification.
 
-For PostgreSQL 19 beta 2, its generated HBA selects the currently implemented
+For PostgreSQL 19 beta 3, its generated HBA selects the currently implemented
 `default` validator policy explicitly. The Node client is unchanged:
 
 ```sh

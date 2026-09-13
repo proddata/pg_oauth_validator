@@ -29,10 +29,10 @@ jobs:
             target: test-pg18
             image: postgres:18-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
             wrong_package: "19"
-          - pg: "19 beta 2"
+          - pg: "19 beta 3"
             package: "19"
             target: test-pg19
-            image: postgres:19beta2-bookworm@sha256:9222211d932c983331df86f01a6224eba868d61000a334e4a3e613626cf884f0
+            image: postgres:19beta3-bookworm@sha256:c2f9db76caf60eda17be053e222349f4f3921b514b30a660c74dd9d9b976806f
             wrong_package: "18"
     container:
       image: ${{ matrix.image }}

@@ -178,7 +178,7 @@ make sanitizercheck
 make fuzz-smoke
 ```
 
-The formatter is PostgreSQL 19 beta 2's pinned `pgindent`, backed by
+The formatter is PostgreSQL 19 beta 3's pinned `pgindent`, backed by
 `pg_bsd_indent` 2.1.3 and a checked-in project typedef list. The installer
 places both tools under `.tools/`; it does not modify the system installation.
 Building the local tool requires a C compiler, Bison, and Flex.
