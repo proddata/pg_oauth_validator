@@ -92,6 +92,9 @@ main(void)
 		fail("changed policy key reused cached trust");
 
 	refresh = begin(&cache, "issuer-a|policy-v1", 1200, true, 30);
+	if (!pg_oauth_cache_is_refreshing(&cache, "issuer-a|policy-v1", 18) ||
+		pg_oauth_cache_is_refreshing(&cache, "other", 5))
+		fail("exact refresh state was not observable");
 	if (pg_oauth_cache_begin_refresh(&cache, "issuer-a|policy-v1", 18, 1201,
 									 true, 30, &scratch_refresh) !=
 		PG_OAUTH_CACHE_REFRESH_IN_PROGRESS)
@@ -99,6 +102,8 @@ main(void)
 	if (!pg_oauth_cache_complete_refresh(&cache, &refresh, 1202, false, true,
 										 false, 100, 50, NULL, 0))
 		fail("failed refresh completion was rejected");
+	if (pg_oauth_cache_is_refreshing(&cache, "issuer-a|policy-v1", 18))
+		fail("completed refresh remained observable as active");
 	if (pg_oauth_cache_lookup(&cache, "issuer-a|policy-v1", 18, 1202, true,
 							  NULL) != PG_OAUTH_CACHE_MISS)
 		fail("entry outside stale grace survived as usable");

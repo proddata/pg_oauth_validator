@@ -194,6 +194,25 @@ pg_oauth_cache_begin_refresh(PgOAuthCache *cache, const void *key,
 }
 
 bool
+pg_oauth_cache_is_refreshing(const PgOAuthCache *cache, const void *key,
+							 size_t key_length)
+{
+	if (cache == NULL || cache->entries == NULL ||
+		!valid_key(key, key_length))
+		return false;
+
+	for (size_t i = 0; i < cache->capacity; i++)
+	{
+		const PgOAuthCacheEntry *entry = &cache->entries[i];
+
+		if (entry->occupied && entry->key_length == key_length &&
+			memcmp(entry->key, key, key_length) == 0)
+			return entry->refreshing;
+	}
+	return false;
+}
+
+bool
 pg_oauth_cache_complete_refresh(PgOAuthCache *cache,
 								const PgOAuthCacheRefresh *refresh, int64_t now_ms,
 								bool success, bool cacheable,

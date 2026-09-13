@@ -213,6 +213,7 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 	cache_policy.jwks_stale_grace_ms = policy.jwks_stale_grace_ms;
 	cache_policy.unknown_kid_refresh_cooldown_ms =
 		policy.unknown_kid_refresh_cooldown_ms;
+	cache_policy.refresh_wait_timeout_ms = policy.refresh_wait_timeout_ms;
 	if (token == NULL)
 		goto rejected;
 	for (token_length = 0;

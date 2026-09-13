@@ -45,6 +45,7 @@ typedef struct PgOAuthIssuerKeyCachePolicy
 	PgOAuthHttpFreshnessPolicy jwks_freshness;
 	int64_t		jwks_stale_grace_ms;
 	int64_t		unknown_kid_refresh_cooldown_ms;
+	int64_t		refresh_wait_timeout_ms;
 } PgOAuthIssuerKeyCachePolicy;
 
 extern PgOAuthIssuerKeyError pg_oauth_issuer_key_fetch(

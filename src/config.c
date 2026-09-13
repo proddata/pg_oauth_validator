@@ -25,6 +25,7 @@ static int	oauth_jwks_default_ttl_ms;
 static int	oauth_cache_max_ttl_ms;
 static int	oauth_jwks_stale_grace_ms;
 static int	oauth_unknown_kid_refresh_cooldown_ms;
+static int	oauth_refresh_wait_timeout_ms;
 static int	oauth_cache_max_entries;
 static bool oauth_allow_insecure_http;
 
@@ -103,6 +104,11 @@ _PG_init(void)
 							"Minimum interval between JWKS refreshes caused by unknown key identifiers.", NULL,
 							&oauth_unknown_kid_refresh_cooldown_ms, 30000, 1000, 300000,
 							PGC_SIGHUP, GUC_UNIT_MS, NULL, NULL, NULL);
+	DefineCustomIntVariable("pg_oauth_validator.refresh_wait_timeout",
+							"Maximum time to wait for another backend refreshing the same cache entry.",
+							"Zero disables waiting and fails closed immediately.",
+							&oauth_refresh_wait_timeout_ms, 5000, 0, 5000,
+							PGC_SIGHUP, GUC_UNIT_MS, NULL, NULL, NULL);
 	DefineCustomIntVariable("pg_oauth_validator.cache_max_entries",
 							"Maximum number of shared metadata and JWKS cache entries.",
 							"Changing this shared-memory bound requires a server restart.",
@@ -134,6 +140,7 @@ pg_oauth_config_snapshot(PgOAuthPolicyConfig *config)
 	config->cache_max_ttl_ms = oauth_cache_max_ttl_ms;
 	config->jwks_stale_grace_ms = oauth_jwks_stale_grace_ms;
 	config->unknown_kid_refresh_cooldown_ms = oauth_unknown_kid_refresh_cooldown_ms;
+	config->refresh_wait_timeout_ms = oauth_refresh_wait_timeout_ms;
 	config->allow_insecure_http = oauth_allow_insecure_http;
 }
 

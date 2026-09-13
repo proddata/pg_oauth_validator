@@ -41,7 +41,8 @@ class TemporaryPostgres:
                  ca_file="", server_certificate=None, server_key=None,
                  identity_claim="sub", identity_format="issuer_qualified",
                  authorization_mode="identity", roles_claim="roles",
-                 delegate_ident_mapping=False, hba_users="all"):
+                 delegate_ident_mapping=False, hba_users="all",
+                 refresh_wait_timeout="5s"):
         self.pg_config = pathlib.Path(pg_config)
         self.bindir = pathlib.Path(
             command(self.pg_config, "--bindir").stdout.strip()
@@ -66,6 +67,7 @@ class TemporaryPostgres:
         self.roles_claim = roles_claim
         self.delegate_ident_mapping = delegate_ident_mapping
         self.hba_users = hba_users
+        self.refresh_wait_timeout = refresh_wait_timeout
         self.port = unused_port()
         self.root = pathlib.Path(tempfile.mkdtemp(prefix="pg-oauth-validator-"))
         self.data = self.root / "data"
@@ -124,6 +126,8 @@ class TemporaryPostgres:
                 f"pg_oauth_validator.identity_format = '{self.identity_format}'\n"
                 f"pg_oauth_validator.authorization_mode = '{self.authorization_mode}'\n"
                 f"pg_oauth_validator.roles_claim = '{self.roles_claim}'\n"
+                f"pg_oauth_validator.refresh_wait_timeout = "
+                f"'{self.refresh_wait_timeout}'\n"
                 f"pg_oauth_validator.allow_insecure_http = "
                 f"{'on' if self.allow_insecure_http else 'off'}\n"
                 f"pg_oauth_validator.ca_file = '{ca_file}'\n"
@@ -240,6 +244,7 @@ class LocalIdp:
         self.cache_max_age = cache_max_age
         self.outage = False
         self.faults = {"metadata": None, "jwks": None}
+        self.delays = {"metadata": 0, "jwks": 0}
         self.requests = {"metadata": 0, "jwks": 0}
         self.requests_lock = threading.Lock()
         self.keys = {}
@@ -272,6 +277,8 @@ class LocalIdp:
                 if idp.outage:
                     self.send_error(503)
                     return
+                if idp.delays[resource] > 0:
+                    time.sleep(idp.delays[resource])
                 fault = idp.faults[resource]
                 if fault == "http_error":
                     self.send_response(503)
@@ -362,6 +369,11 @@ class LocalIdp:
         if resource not in self.faults:
             raise ValueError(f"unknown IdP resource: {resource}")
         self.faults[resource] = fault
+
+    def set_delay(self, resource, delay):
+        if resource not in self.delays or delay < 0:
+            raise ValueError(f"invalid IdP delay for {resource}: {delay}")
+        self.delays[resource] = delay
 
     def pause_accepting_connections(self):
         self.server.shutdown()

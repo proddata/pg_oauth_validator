@@ -84,6 +84,7 @@ pg_oauth_validator.jwks_default_ttl = '5min'
 pg_oauth_validator.cache_max_ttl = '1h'
 pg_oauth_validator.jwks_stale_grace = '0s'
 pg_oauth_validator.unknown_kid_refresh_cooldown = '30s'
+pg_oauth_validator.refresh_wait_timeout = '5s'
 pg_oauth_validator.cache_max_entries = 32
 ```
 
@@ -96,13 +97,15 @@ The operator-facing ranges and reload contexts are:
 | `cache_max_ttl` | 1 second–24 hours | reload |
 | `jwks_stale_grace` | 0–1 hour | reload |
 | `unknown_kid_refresh_cooldown` | 1 second–5 minutes | reload |
+| `refresh_wait_timeout` | 0–5 seconds | reload |
 | `cache_max_entries` | 8–256 | restart |
 
 `cache_max_ttl` must not be shorter than either fallback TTL. Invalid or
 internally inconsistent values fail closed rather than being silently clamped.
-Every reloadable value participates in canonical cache-key separation. Cache
-capacity determines shared-memory layout and therefore cannot change on
-reload.
+Every reloadable trust-policy value participates in canonical cache-key
+separation. `refresh_wait_timeout` changes only backend scheduling and does not
+change whether a cached value is trusted. Cache capacity determines
+shared-memory layout and therefore cannot change on reload.
 
 `jwks_stale_grace = 0s` is the fail-closed default. An operator may explicitly
 choose a short nonzero value, bounded to at most one hour, as an availability
@@ -136,8 +139,11 @@ cache key and cannot create cache entries or bypass the cooldown.
 Only one backend marks an entry as refreshing. The shared lock protects brief
 lookup, copy, state-transition and replacement operations only. It is released
 before DNS, connection, TLS or HTTP work. Other backends may use an eligible
-fresh/stale snapshot; if none exists, they fail closed rather than waiting on a
-network operation while holding or polling a PostgreSQL lock.
+fresh/stale snapshot. If none exists, they sleep on a shared condition variable
+for a bounded, operator-configured time without holding or polling a PostgreSQL
+lock. Refresh completion wakes waiters, which re-check the exact canonical
+entry and proceed only with an eligible published value. A zero timeout retains
+immediate fail-closed behavior.
 
 Signature failure with a known key does not automatically trigger refresh in
 Milestone 1. This avoids turning arbitrary invalid signatures into outbound
@@ -173,8 +179,8 @@ tokens, signatures, JWK private material or response bodies.
 - The cache cannot silently bridge a changed trust configuration.
 - Fixed-size shared memory makes resource use reviewable and prevents
   attacker-driven allocation growth.
-- A cold cache can reject concurrent connections while one backend refreshes;
-  this favors bounded failure over lock-held network waits or request storms.
+- A cold cache normally delays concurrent connections while one backend
+  refreshes; an owner failure or bounded wait expiry rejects them fail closed.
 
 ## Rejected alternatives
 

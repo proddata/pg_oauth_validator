@@ -653,6 +653,150 @@ def test_unknown_kid_refresh_is_suppressed_across_backends(
 
 
 @pytest.mark.xdist_group(name="timing")
+def test_cold_cache_concurrent_authentications_wait_for_refresh(
+        integration_environment):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-") as directory:
+        idp = LocalIdp(pathlib.Path(directory))
+        idp.set_delay("metadata", 0.5)
+        idp.set_delay("jwks", 0.5)
+        cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+            identity_format="direct",
+        )
+        token = idp.sign(subject="postgres")
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+
+        try:
+            cluster.start()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+                attempts = [
+                    pool.submit(
+                        attempt_oauth, cluster, client, token=token,
+                        user="postgres", issuer=idp.issuer, sslmode="require",
+                    )
+                    for _ in range(8)
+                ]
+                results = [attempt.result(timeout=8) for attempt in attempts]
+
+            for result in results:
+                assert result.returncode == 0, result.stderr + "\n" + cluster.logs()
+            assert idp.request_counts() == {"metadata": 1, "jwks": 1}
+        finally:
+            cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
+@pytest.mark.xdist_group(name="timing")
+def test_zero_refresh_wait_timeout_retains_fail_fast_behavior(
+        integration_environment):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-") as directory:
+        idp = LocalIdp(pathlib.Path(directory))
+        idp.set_delay("metadata", 0.75)
+        idp.set_delay("jwks", 0.75)
+        cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+            identity_format="direct", refresh_wait_timeout="0",
+        )
+        token = idp.sign(subject="postgres")
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+
+        try:
+            cluster.start()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                owner = pool.submit(
+                    attempt_oauth, cluster, client, token=token,
+                    user="postgres", issuer=idp.issuer, sslmode="require",
+                )
+                deadline = time.monotonic() + 2
+                while idp.request_counts()["metadata"] == 0:
+                    if time.monotonic() >= deadline:
+                        raise AssertionError("refresh owner did not fetch metadata")
+                    time.sleep(0.01)
+
+                started = time.monotonic()
+                competitor = attempt_oauth(
+                    cluster, client, token=token, user="postgres",
+                    issuer=idp.issuer, sslmode="require",
+                )
+                elapsed = time.monotonic() - started
+                owner_result = owner.result(timeout=5)
+
+            assert competitor.returncode != 0
+            assert elapsed < 0.5, "disabled refresh wait did not fail promptly"
+            assert owner_result.returncode == 0, owner_result.stderr
+            assert idp.request_counts() == {"metadata": 1, "jwks": 1}
+        finally:
+            cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
+@pytest.mark.xdist_group(name="timing")
+def test_refresh_wait_timeout_fails_closed_at_deadline(integration_environment):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-") as directory:
+        idp = LocalIdp(pathlib.Path(directory))
+        idp.set_delay("metadata", 1)
+        cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+            identity_format="direct", refresh_wait_timeout="100ms",
+        )
+        token = idp.sign(subject="postgres")
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+
+        try:
+            cluster.start()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                owner = pool.submit(
+                    attempt_oauth, cluster, client, token=token,
+                    user="postgres", issuer=idp.issuer, sslmode="require",
+                )
+                deadline = time.monotonic() + 2
+                while idp.request_counts()["metadata"] == 0:
+                    if time.monotonic() >= deadline:
+                        raise AssertionError("refresh owner did not fetch metadata")
+                    time.sleep(0.01)
+
+                started = time.monotonic()
+                competitor = attempt_oauth(
+                    cluster, client, token=token, user="postgres",
+                    issuer=idp.issuer, sslmode="require",
+                )
+                elapsed = time.monotonic() - started
+                owner_result = owner.result(timeout=5)
+
+            assert competitor.returncode != 0
+            assert 0.08 <= elapsed < 0.75
+            assert owner_result.returncode == 0, owner_result.stderr
+            assert idp.request_counts() == {"metadata": 1, "jwks": 1}
+        finally:
+            cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
+@pytest.mark.xdist_group(name="timing")
 def test_shared_cache_cross_backend_refresh_suppression(integration_environment):
     pg_config, validator_library, _client = integration_environment
     cache_probe = pathlib.Path(os.environ["CACHE_PROBE"]).resolve()

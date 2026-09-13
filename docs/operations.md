@@ -115,6 +115,14 @@ configured grace. Enable it only after documenting that tradeoff and retaining
 a protected recovery path. Responses marked `no-cache`, `must-revalidate`, or
 `no-store` cannot be used stale.
 
+After PostgreSQL restart, the first OAuth authentication for an issuer owns
+the cold metadata/JWKS refresh. Other authentications for the same issuer wait
+up to `pg_oauth_validator.refresh_wait_timeout` (5 seconds by default) and use
+the atomically published cache entry. They do not hold a PostgreSQL lock while
+sleeping. A provider failure or expired wait still fails closed. Set the value
+to `0` only when immediate rejection is preferable to a bounded cold-start
+delay.
+
 ## Validation before rollout
 
 1. Verify the package matches the server's PostgreSQL major version.

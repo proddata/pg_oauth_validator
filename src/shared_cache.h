@@ -21,6 +21,9 @@ extern PgOAuthSharedCacheLookup pg_oauth_shared_cache_lookup(
 extern PgOAuthCacheRefreshResult pg_oauth_shared_cache_begin_refresh(
 																	 const void *key, size_t key_length, int64_t now_ms, bool unknown_kid,
 																	 int64_t unknown_kid_cooldown_ms, PgOAuthCacheRefresh *refresh);
+extern bool pg_oauth_shared_cache_wait_refresh(
+											   const void *key, size_t key_length, int64_t timeout_ms,
+											   int64_t *elapsed_ms);
 extern bool pg_oauth_shared_cache_complete_refresh(
 												   const PgOAuthCacheRefresh *refresh, int64_t now_ms, bool success,
 												   bool cacheable, bool revalidation_required, int64_t ttl_ms,

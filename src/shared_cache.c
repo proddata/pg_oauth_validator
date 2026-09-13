@@ -2,15 +2,18 @@
 
 #include <string.h>
 
+#include "portability/instr_time.h"
+#include "storage/condition_variable.h"
 #include "storage/dsm_registry.h"
 #include "storage/lwlock.h"
+#include "utils/wait_event.h"
 
 #include "shared_cache.h"
 
-#define PG_OAUTH_SHARED_CACHE_NAME "pg_oauth_validator.cache.v2"
+#define PG_OAUTH_SHARED_CACHE_NAME "pg_oauth_validator.cache.v3"
 #define PG_OAUTH_SHARED_CACHE_TRANCHE "pg_oauth_validator_cache"
 #define PG_OAUTH_SHARED_CACHE_MAGIC UINT32_C(0x50474f43)
-#define PG_OAUTH_SHARED_CACHE_VERSION UINT32_C(2)
+#define PG_OAUTH_SHARED_CACHE_VERSION UINT32_C(3)
 
 typedef struct PgOAuthSharedCacheState
 {
@@ -19,6 +22,7 @@ typedef struct PgOAuthSharedCacheState
 	uint32		capacity;
 	int			tranche_id;
 	LWLock		lock;
+	ConditionVariable refresh_cv;
 	PgOAuthCacheControl control;
 	PgOAuthCacheEntry entries[FLEXIBLE_ARRAY_MEMBER];
 } PgOAuthSharedCacheState;
@@ -62,6 +66,7 @@ initialize_shared_cache(void *memory)
 	state->tranche_id = LWLockNewTrancheId();
 #endif
 	LWLockInitialize(&state->lock, state->tranche_id);
+	ConditionVariableInit(&state->refresh_cv);
 	state->control.next_refresh_serial = 1;
 	state->capacity = (uint32) capacity;
 	state->version = PG_OAUTH_SHARED_CACHE_VERSION;
@@ -175,7 +180,57 @@ pg_oauth_shared_cache_complete_refresh(const PgOAuthCacheRefresh *refresh,
 											 success, cacheable, revalidation_required, ttl_ms, stale_grace_ms,
 											 payload, payload_length);
 	LWLockRelease(&shared_state->lock);
+	if (result)
+		ConditionVariableBroadcast(&shared_state->refresh_cv);
 	return result;
+}
+
+bool
+pg_oauth_shared_cache_wait_refresh(const void *key, size_t key_length,
+								   int64_t timeout_ms, int64_t *elapsed_ms)
+{
+	instr_time	started;
+	instr_time	current;
+	long		remaining;
+	bool		refreshing;
+
+	if (elapsed_ms != NULL)
+		*elapsed_ms = 0;
+	if (!pg_oauth_shared_cache_attach() || key == NULL || key_length == 0 ||
+		key_length > PG_OAUTH_CACHE_MAX_KEY_SIZE || timeout_ms <= 0 ||
+		timeout_ms > 5000 || elapsed_ms == NULL)
+		return false;
+
+	INSTR_TIME_SET_CURRENT(started);
+	remaining = (long) timeout_ms;
+	ConditionVariablePrepareToSleep(&shared_state->refresh_cv);
+	for (;;)
+	{
+		LWLockAcquire(&shared_state->lock, LW_SHARED);
+		refreshing = pg_oauth_cache_is_refreshing(&cache_view, key, key_length);
+		LWLockRelease(&shared_state->lock);
+		if (!refreshing)
+		{
+			ConditionVariableCancelSleep();
+			return true;
+		}
+		if (ConditionVariableTimedSleep(&shared_state->refresh_cv, remaining,
+										PG_WAIT_EXTENSION))
+		{
+			*elapsed_ms = timeout_ms;
+			ConditionVariableCancelSleep();
+			return false;
+		}
+		INSTR_TIME_SET_CURRENT(current);
+		INSTR_TIME_SUBTRACT(current, started);
+		*elapsed_ms = (int64_t) INSTR_TIME_GET_MILLISEC(current);
+		remaining = (long) timeout_ms - (long) *elapsed_ms;
+		if (remaining <= 0)
+		{
+			ConditionVariableCancelSleep();
+			return false;
+		}
+	}
 }
 
 bool
@@ -228,6 +283,15 @@ shared_io_complete(void *context, const PgOAuthCacheRefresh *refresh,
 												  payload_length);
 }
 
+static bool
+shared_io_wait(void *context, const void *key, size_t key_length,
+			   int64_t timeout_ms, int64_t *elapsed_ms)
+{
+	(void) context;
+	return pg_oauth_shared_cache_wait_refresh(key, key_length, timeout_ms,
+											  elapsed_ms);
+}
+
 bool
 pg_oauth_shared_cache_io(PgOAuthCacheIo *io)
 {
@@ -236,6 +300,7 @@ pg_oauth_shared_cache_io(PgOAuthCacheIo *io)
 	io->context = NULL;
 	io->lookup = shared_io_lookup;
 	io->begin_refresh = shared_io_begin;
+	io->wait_refresh = shared_io_wait;
 	io->complete_refresh = shared_io_complete;
 	return true;
 }

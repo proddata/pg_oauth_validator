@@ -83,6 +83,7 @@ cache_policy(LocalCache *local, PgOAuthCacheIo *io)
 		.jwks_freshness = {300000, 3600000},
 		.jwks_stale_grace_ms = 0,
 		.unknown_kid_refresh_cooldown_ms = 30000,
+		.refresh_wait_timeout_ms = 0,
 	};
 
 	memset(local, 0, sizeof(*local));

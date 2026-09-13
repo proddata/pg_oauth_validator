@@ -63,6 +63,13 @@ attacker-triggered JWKS refreshes per canonical issuer policy. `cache_max_entrie
 accepts 8 to 256 and bounds the combined metadata/JWKS shared cache. The
 default of 32 preserves the original fixed capacity.
 
+`refresh_wait_timeout` controls how long an authentication backend waits when
+another backend is already refreshing the same metadata or JWKS cache entry.
+It accepts zero to 5 seconds and defaults to 5 seconds. Waiters sleep without
+holding the shared-cache lock, retry the exact entry after publication, and
+fail closed when the owner fails or the deadline expires. Set it to `0` to
+restore immediate fail-closed behavior for concurrent cold-cache requests.
+
 ## HBA and identity mapping
 
 Production OAuth HBA rules should use `hostssl`; bearer-token authentication

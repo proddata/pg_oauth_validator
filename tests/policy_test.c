@@ -35,6 +35,7 @@ valid_config(void)
 		.cache_max_ttl_ms = 3600000,
 		.jwks_stale_grace_ms = 0,
 		.unknown_kid_refresh_cooldown_ms = 30000,
+		.refresh_wait_timeout_ms = 5000,
 	};
 
 	return config;
@@ -178,6 +179,10 @@ main(void)
 					   "undersized unknown-kid cooldown was accepted");
 	EXPECT_CACHE_ERROR(unknown_kid_refresh_cooldown_ms, 300001,
 					   "oversized unknown-kid cooldown was accepted");
+	EXPECT_CACHE_ERROR(refresh_wait_timeout_ms, -1,
+					   "negative refresh wait timeout was accepted");
+	EXPECT_CACHE_ERROR(refresh_wait_timeout_ms, 5001,
+					   "oversized refresh wait timeout was accepted");
 #undef EXPECT_CACHE_ERROR
 
 	config = valid_config();

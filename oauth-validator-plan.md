@@ -312,6 +312,7 @@ pg_oauth_validator.jwks_default_ttl = '5min'
 pg_oauth_validator.cache_max_ttl = '1h'
 pg_oauth_validator.jwks_stale_grace = '0s'
 pg_oauth_validator.unknown_kid_refresh_cooldown = '30s'
+pg_oauth_validator.refresh_wait_timeout = '5s'
 pg_oauth_validator.cache_max_entries = 32
 pg_oauth_validator.allow_insecure_http = off
 pg_oauth_validator.delegated_authorization = off

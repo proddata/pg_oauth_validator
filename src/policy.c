@@ -239,7 +239,9 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 		config->jwks_stale_grace_ms < 0 ||
 		config->jwks_stale_grace_ms > 3600000 ||
 		config->unknown_kid_refresh_cooldown_ms < 1000 ||
-		config->unknown_kid_refresh_cooldown_ms > 300000)
+		config->unknown_kid_refresh_cooldown_ms > 300000 ||
+		config->refresh_wait_timeout_ms < 0 ||
+		config->refresh_wait_timeout_ms > 5000)
 		return PG_OAUTH_POLICY_INVALID_CACHE_POLICY;
 
 	policy->name = "default";
@@ -260,6 +262,7 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 	policy->jwks_stale_grace_ms = config->jwks_stale_grace_ms;
 	policy->unknown_kid_refresh_cooldown_ms =
 		config->unknown_kid_refresh_cooldown_ms;
+	policy->refresh_wait_timeout_ms = config->refresh_wait_timeout_ms;
 	policy->allow_insecure_http = config->allow_insecure_http;
 
 	return PG_OAUTH_POLICY_OK;

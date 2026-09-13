@@ -29,12 +29,15 @@ cache_policy_valid(const PgOAuthIssuerKeyCachePolicy *policy)
 	return policy != NULL && policy->io != NULL &&
 		policy->io->lookup != NULL && policy->io->begin_refresh != NULL &&
 		policy->io->complete_refresh != NULL &&
+		(policy->refresh_wait_timeout_ms == 0 ||
+		 policy->io->wait_refresh != NULL) &&
 		policy->metadata_freshness.default_ttl_ms >= 0 &&
 		policy->metadata_freshness.maximum_ttl_ms > 0 &&
 		policy->jwks_freshness.default_ttl_ms >= 0 &&
 		policy->jwks_freshness.maximum_ttl_ms > 0 &&
 		policy->jwks_stale_grace_ms >= 0 &&
-		policy->unknown_kid_refresh_cooldown_ms >= 0;
+		policy->unknown_kid_refresh_cooldown_ms >= 0 &&
+		policy->refresh_wait_timeout_ms >= 0;
 }
 
 static bool
@@ -79,6 +82,9 @@ pg_oauth_issuer_key_fetch_cached(const char *metadata_url,
 	PgOAuthCacheKey jwks_key;
 	PgOAuthCacheIoLookup lookup;
 	PgOAuthCacheRefresh refresh;
+	PgOAuthCacheRefreshResult refresh_result;
+	int64_t		cache_now_ms = now_ms;
+	int64_t		elapsed_ms;
 	unsigned char *cached = NULL;
 	size_t		cached_capacity = 0;
 	const char *metadata_body = NULL;
@@ -133,16 +139,46 @@ pg_oauth_issuer_key_fetch_cached(const char *metadata_url,
 		}
 		else
 		{
-			if (cache_policy->io->begin_refresh(cache_policy->io->context,
-												metadata_key.data, metadata_key.length, now_ms, false, 0,
-												&refresh) != PG_OAUTH_CACHE_REFRESH_STARTED)
+			refresh_result = cache_policy->io->begin_refresh(
+															 cache_policy->io->context, metadata_key.data, metadata_key.length,
+															 now_ms, false, 0, &refresh);
+			if (refresh_result == PG_OAUTH_CACHE_REFRESH_IN_PROGRESS &&
+				cache_policy->refresh_wait_timeout_ms > 0 &&
+				cache_policy->io->wait_refresh(cache_policy->io->context,
+											   metadata_key.data, metadata_key.length,
+											   cache_policy->refresh_wait_timeout_ms, &elapsed_ms))
+			{
+				if (elapsed_ms > INT64_MAX - cache_now_ms)
+				{
+					error = PG_OAUTH_ISSUER_KEY_CACHE;
+					goto done;
+				}
+				cache_now_ms += elapsed_ms;
+				lookup = cache_policy->io->lookup(cache_policy->io->context,
+												  metadata_key.data, metadata_key.length, cache_now_ms, false, cached,
+												  cached_capacity);
+				if (lookup.freshness == PG_OAUTH_CACHE_FRESH &&
+					lookup.copy_result == PG_OAUTH_CACHE_COPY_OK)
+				{
+					metadata_body = (const char *) cached;
+					metadata_length = lookup.payload_length;
+				}
+				else
+				{
+					error = PG_OAUTH_ISSUER_KEY_CACHE;
+					goto done;
+				}
+			}
+			else if (refresh_result != PG_OAUTH_CACHE_REFRESH_STARTED)
 			{
 				error = PG_OAUTH_ISSUER_KEY_CACHE;
 				goto done;
 			}
-			result->http_error = pg_oauth_http_get_json(metadata_url,
-														&policy->metadata_http, &metadata_response);
-			if (result->http_error != PG_OAUTH_HTTP_OK)
+			if (refresh_result == PG_OAUTH_CACHE_REFRESH_STARTED)
+				result->http_error = pg_oauth_http_get_json(metadata_url,
+															&policy->metadata_http, &metadata_response);
+			if (refresh_result == PG_OAUTH_CACHE_REFRESH_STARTED &&
+				result->http_error != PG_OAUTH_HTTP_OK)
 			{
 				(void) cache_policy->io->complete_refresh(
 														  cache_policy->io->context, &refresh, now_ms, false, false,
@@ -150,8 +186,11 @@ pg_oauth_issuer_key_fetch_cached(const char *metadata_url,
 				error = PG_OAUTH_ISSUER_KEY_METADATA_HTTP;
 				goto done;
 			}
-			metadata_body = metadata_response.body;
-			metadata_length = metadata_response.body_length;
+			if (refresh_result == PG_OAUTH_CACHE_REFRESH_STARTED)
+			{
+				metadata_body = metadata_response.body;
+				metadata_length = metadata_response.body_length;
+			}
 		}
 	}
 	else
@@ -211,7 +250,7 @@ pg_oauth_issuer_key_fetch_cached(const char *metadata_url,
 			goto done;
 		}
 		lookup = cache_policy->io->lookup(cache_policy->io->context,
-										  jwks_key.data, jwks_key.length, now_ms,
+										  jwks_key.data, jwks_key.length, cache_now_ms,
 										  cache_policy->jwks_stale_grace_ms > 0, cached, cached_capacity);
 		if (lookup.freshness != PG_OAUTH_CACHE_MISS &&
 			lookup.copy_result == PG_OAUTH_CACHE_COPY_OK)
@@ -233,11 +272,42 @@ pg_oauth_issuer_key_fetch_cached(const char *metadata_url,
 			}
 			selected_from_stale = result->jwks_error == PG_OAUTH_JWKS_OK;
 		}
-		if (cache_policy->io->begin_refresh(cache_policy->io->context,
-											jwks_key.data, jwks_key.length, now_ms,
-											result->jwks_error == PG_OAUTH_JWKS_KEY_NOT_FOUND,
-											cache_policy->unknown_kid_refresh_cooldown_ms, &refresh) !=
-			PG_OAUTH_CACHE_REFRESH_STARTED)
+		refresh_result = cache_policy->io->begin_refresh(
+														 cache_policy->io->context, jwks_key.data, jwks_key.length, cache_now_ms,
+														 result->jwks_error == PG_OAUTH_JWKS_KEY_NOT_FOUND,
+														 cache_policy->unknown_kid_refresh_cooldown_ms, &refresh);
+		if (!selected_from_stale &&
+			refresh_result == PG_OAUTH_CACHE_REFRESH_IN_PROGRESS &&
+			cache_policy->refresh_wait_timeout_ms > 0 &&
+			cache_policy->io->wait_refresh(cache_policy->io->context,
+										   jwks_key.data, jwks_key.length,
+										   cache_policy->refresh_wait_timeout_ms, &elapsed_ms))
+		{
+			if (elapsed_ms > INT64_MAX - cache_now_ms)
+			{
+				error = PG_OAUTH_ISSUER_KEY_CACHE;
+				goto done;
+			}
+			cache_now_ms += elapsed_ms;
+			lookup = cache_policy->io->lookup(cache_policy->io->context,
+											  jwks_key.data, jwks_key.length, cache_now_ms,
+											  cache_policy->jwks_stale_grace_ms > 0, cached, cached_capacity);
+			if (lookup.freshness != PG_OAUTH_CACHE_MISS &&
+				lookup.copy_result == PG_OAUTH_CACHE_COPY_OK)
+			{
+				result->jwks_error = pg_oauth_jwks_select((const char *) cached,
+														  lookup.payload_length, key_id, token_algorithm, &policy->jwks,
+														  &result->selected);
+				if (result->jwks_error == PG_OAUTH_JWKS_OK)
+				{
+					error = PG_OAUTH_ISSUER_KEY_OK;
+					goto done;
+				}
+			}
+			error = PG_OAUTH_ISSUER_KEY_CACHE;
+			goto done;
+		}
+		if (refresh_result != PG_OAUTH_CACHE_REFRESH_STARTED)
 		{
 			if (selected_from_stale)
 			{
@@ -254,7 +324,7 @@ pg_oauth_issuer_key_fetch_cached(const char *metadata_url,
 	{
 		if (use_cache)
 			(void) cache_policy->io->complete_refresh(cache_policy->io->context,
-													  &refresh, now_ms, false, false, false, 0, 0, NULL, 0);
+													  &refresh, cache_now_ms, false, false, false, 0, 0, NULL, 0);
 		if (selected_from_stale)
 		{
 			error = PG_OAUTH_ISSUER_KEY_OK;
@@ -277,11 +347,11 @@ pg_oauth_issuer_key_fetch_cached(const char *metadata_url,
 	{
 		if (use_cache)
 			(void) cache_policy->io->complete_refresh(cache_policy->io->context,
-													  &refresh, now_ms, false, false, false, 0, 0, NULL, 0);
+													  &refresh, cache_now_ms, false, false, false, 0, 0, NULL, 0);
 		error = PG_OAUTH_ISSUER_KEY_JWKS_INVALID;
 		goto done;
 	}
-	if (use_cache && !complete_response(cache_policy, &refresh, now_ms,
+	if (use_cache && !complete_response(cache_policy, &refresh, cache_now_ms,
 										response_time_seconds, &cache_policy->jwks_freshness,
 										cache_policy->jwks_stale_grace_ms, &jwks_response))
 	{

@@ -97,6 +97,8 @@ extern PgOAuthCacheRefreshResult pg_oauth_cache_begin_refresh(
 															  PgOAuthCache *cache, const void *key, size_t key_length, int64_t now_ms,
 															  bool unknown_kid, int64_t unknown_kid_cooldown_ms,
 															  PgOAuthCacheRefresh *refresh);
+extern bool pg_oauth_cache_is_refreshing(const PgOAuthCache *cache,
+										 const void *key, size_t key_length);
 extern bool pg_oauth_cache_complete_refresh(PgOAuthCache *cache,
 											const PgOAuthCacheRefresh *refresh, int64_t now_ms, bool success,
 											bool cacheable, bool revalidation_required, int64_t ttl_ms,

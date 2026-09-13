@@ -36,6 +36,7 @@ typedef struct PgOAuthPolicyConfig
 	int			cache_max_ttl_ms;
 	int			jwks_stale_grace_ms;
 	int			unknown_kid_refresh_cooldown_ms;
+	int			refresh_wait_timeout_ms;
 	bool		allow_insecure_http;
 } PgOAuthPolicyConfig;
 
@@ -60,6 +61,7 @@ typedef struct PgOAuthValidationPolicy
 	int			cache_max_ttl_ms;
 	int			jwks_stale_grace_ms;
 	int			unknown_kid_refresh_cooldown_ms;
+	int			refresh_wait_timeout_ms;
 	bool		allow_insecure_http;
 } PgOAuthValidationPolicy;
 

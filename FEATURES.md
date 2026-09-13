@@ -138,10 +138,14 @@ than use `all` or a broad `+group` unless that wider authority is intentional.
 - URL schemes, redirects, response sizes, timeouts, and allowed hosts are restricted by policy.
 - Cache entries are separated by exact URL, issuer, and provider profile.
 - Unknown signing keys may trigger at most one controlled refresh, subject to per-issuer rate limiting.
+- When another backend is already refreshing the same cold cache entry,
+  authentication waits for bounded publication by default and then retries the
+  shared cache. The wait can be set to zero for immediate fail-closed behavior.
 - Failed refreshes do not erase a still-permitted last-known-good key set.
 - Any stale-key availability window is bounded and administrator-defined.
 - Provider outage behavior is deterministic and documented; an unverifiable token is never accepted for availability.
 - PostgreSQL locks are not held during network operations.
+- PostgreSQL locks are not held while waiting for another refresh owner.
 
 ## Provider profiles
 

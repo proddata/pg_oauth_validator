@@ -13,6 +13,7 @@
 #include "libpq/hba.h"
 #include "libpq/libpq-be.h"
 #include "libpq/oauth.h"
+#include "storage/condition_variable.h"
 #include "storage/dsm_registry.h"
 #include "storage/lwlock.h"
 
@@ -132,6 +133,40 @@ LWLockRelease(LWLock *lock)
 	(void) lock;
 }
 
+PGDLLEXPORT void
+ConditionVariableInit(ConditionVariable *cv)
+{
+	(void) cv;
+}
+
+PGDLLEXPORT void
+ConditionVariablePrepareToSleep(ConditionVariable *cv)
+{
+	(void) cv;
+}
+
+PGDLLEXPORT bool
+ConditionVariableTimedSleep(ConditionVariable *cv, long timeout,
+							uint32 wait_event_info)
+{
+	(void) cv;
+	(void) timeout;
+	(void) wait_event_info;
+	return true;
+}
+
+PGDLLEXPORT bool
+ConditionVariableCancelSleep(void)
+{
+	return false;
+}
+
+PGDLLEXPORT void
+ConditionVariableBroadcast(ConditionVariable *cv)
+{
+	(void) cv;
+}
+
 #if PG_VERSION_NUM >= 190000
 PGDLLEXPORT void *
 GetNamedDSMSegment(const char *name, size_t size,
@@ -217,11 +252,15 @@ DefineCustomIntVariable(const char *name, const char *short_desc,
 			 boot_value == 30000 && min_value == 1000 && max_value == 300000 &&
 			 context == PGC_SIGHUP && flags == GUC_UNIT_MS)
 		cache_gucs_checked++;
+	else if (strcmp(name, "pg_oauth_validator.refresh_wait_timeout") == 0 &&
+			 boot_value == 5000 && min_value == 0 && max_value == 5000 &&
+			 context == PGC_SIGHUP && flags == GUC_UNIT_MS)
+		cache_gucs_checked++;
 	else if (strcmp(name, "pg_oauth_validator.cache_max_entries") == 0 &&
 			 boot_value == 32 && min_value == 8 && max_value == 256 &&
 			 context == PGC_SIGHUP && flags == 0)
 		cache_gucs_checked++;
-	cache_gucs_have_expected_contract = cache_gucs_checked == 6;
+	cache_gucs_have_expected_contract = cache_gucs_checked == 7;
 }
 
 PGDLLEXPORT void
@@ -326,7 +365,7 @@ main(int argc, char **argv)
 		fail("PostgreSQL module initialization symbol is unavailable");
 	memcpy(&module_init, &symbol, sizeof(module_init));
 	module_init();
-	if (registered_gucs != 18)
+	if (registered_gucs != 19)
 		fail("module did not register all configuration variables");
 	if (!cache_gucs_have_expected_contract)
 		fail("cache GUC defaults, bounds, or reload contexts changed");
