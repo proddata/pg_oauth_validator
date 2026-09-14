@@ -36,7 +36,7 @@ repeat the checks in this document against current official documentation.
 
 ## Current implementation and compatibility limits
 
-The module implements the strict Milestone 1 validation path. The common
+The module implements the active strict JWT validation path. The common
 configuration below is usable for RFC 9068-shaped access tokens, but every
 provider still requires an interoperability test before this document may call
 it supported. Named provider profiles remain future configuration.
@@ -159,7 +159,7 @@ discovery rather than constructing or normalizing it casually.
 - `preferred_username`, `email`, `name`, and `upn` are mutable/display claims
   and must not be the default identity.
 - Group claims can be replaced by an overage indication for highly connected
-  users. Groups must not drive Milestone 1 authorization in any event.
+  users. Groups must not drive authorization in the active strict JWT scope.
 - A multitenant application introduces multiple exact issuers. Supporting it
   safely requires explicit tenant allowlisting and per-issuer cache separation,
   not wildcard issuer matching.
@@ -206,7 +206,7 @@ validator.policy="okta-custom-as"
 - Custom claims and scopes are omitted from discovery metadata, so support
   cannot infer their existence from discovery.
 - Token encryption can be enabled. Encrypted/nested access tokens are outside
-  Milestone 1 and must be rejected rather than partially processed.
+  the active strict JWT scope and must be rejected rather than partially processed.
 - A client restriction (`cid`) may be useful hardening, but it is separate from
   audience and is not currently planned configuration.
 
@@ -399,7 +399,7 @@ validator.policy="pingone"
 - Client-credentials tokens can omit `sub` unless resource mapping requires it.
   Machine identities therefore need a separate policy contract.
 - Ping products expose extensive custom attribute and authorization mapping.
-  No custom permission or role claim is trusted by Milestone 1.
+  No custom permission or role claim is trusted by the active strict JWT scope.
 - Do not apply a PingOne profile to PingFederate or Advanced Identity Cloud
   solely because all products share a vendor.
 
@@ -461,7 +461,7 @@ and [JWT verification](https://docs.aws.amazon.com/cognito/latest/developerguide
 ### Provider setup
 
 - Configure the API/resource application to issue **JWT** access tokens; ZITADEL
-  can also return opaque bearer tokens, which Milestone 1 cannot validate.
+  can also return opaque bearer tokens, which the active strict JWT scope cannot validate.
 - Represent the PostgreSQL API in its own project and request the documented
   project audience scope, for example
   `urn:zitadel:iam:org:project:id:<project-id>:aud`.
@@ -607,7 +607,7 @@ these decisions prerequisites for provider implementation:
    multiple exact issuer configurations, never wildcards or hostname substring
    detection.
 8. **Opaque and encrypted tokens:** Google Accounts, ZITADEL opaque mode, and
-   encrypted Okta tokens cannot use Milestone 1 offline JWS validation. Reject
+   encrypted Okta tokens cannot use the active offline JWS validation path. Reject
    them until explicit introspection/JWE support exists.
 9. **Maximum token age:** provider-configured lifetimes can be much longer than
    desirable for database access. Consider a local maximum `exp - iat` policy in

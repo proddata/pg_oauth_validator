@@ -25,14 +25,16 @@ Do not reopen it by treating deferred product milestones as cleanup work.
 - **Exit:** Review the complete diff and record the exact test commands and
   outcomes before merge.
 
-### REL-01 — Release candidate evidence and approval
+### REL-01 — Release approval and publication
 
-- **Status:** in progress — pins and local gates complete; immutable CI and operational rehearsal pending
+- **Status:** in progress — automated candidate-head gates complete; human
+  review, signing, tag, and publication intentionally deferred
 - **Owner:** root
 - **Scope:** Select the candidate revision/version; produce version-separated
   PostgreSQL 18 and PostgreSQL 19 preview artifacts; collect immutable build,
   dependency, advisory, GitHub security, reproducibility, installation,
-  upgrade, rollback, signing, independent-review, and release-owner evidence.
+  upgrade, rollback, SBOM, provenance, signing, independent-review, and
+  release-owner evidence.
 - **Exit:** Every required item in
   [`docs/release-readiness.md`](docs/release-readiness.md) is evidenced for the
   exact candidate commit and artifact digests. Publication remains blocked on
@@ -40,7 +42,7 @@ Do not reopen it by treating deferred product milestones as cleanup work.
 
 ### PG19-01 — PostgreSQL 19 Beta 3 compatibility refresh
 
-- **Status:** in progress — local gates complete; immutable candidate CI evidence pending
+- **Status:** done for Beta 3 — local and immutable candidate-head gates complete
 - **Owner:** root
 - **Scope:** PostgreSQL 19 Beta 3 was released on 2026-08-13. Its immutable
   image, package, formatter, CI, release-candidate, playground, and
@@ -54,7 +56,8 @@ Do not reopen it by treating deferred product milestones as cleanup work.
 
 ### PG18-02 — PostgreSQL 18 current-minor security refresh
 
-- **Status:** in progress — local gates complete; immutable CI and human approval pending
+- **Status:** done for candidate head — local and immutable gates complete;
+  final human release approval remains under REL-01
 - **Owner:** root
 - **Scope:** PostgreSQL 18.6 superseded the currently pinned 18.4 package on
   2026-08-13 and includes security fixes. Refresh the immutable image and exact
@@ -71,4 +74,4 @@ Do not reopen it by treating deferred product milestones as cleanup work.
 The following need a specification/ADR decision before work starts: named
 provider profiles and per-rule audience policy; delegated role/group/
 entitlement authorization; opaque-token introspection and revocation-aware
-validation. They are not release blockers for the strict Milestone 1 scope.
+validation. They are not release blockers for the active strict JWT scope.

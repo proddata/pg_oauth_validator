@@ -5,7 +5,8 @@
 - **PostgreSQL package:** `19~beta3-1.pgdg12+1`
 - **Container:** `postgres:19beta3-bookworm@sha256:c2f9db76caf60eda17be053e222349f4f3921b514b30a660c74dd9d9b976806f`
 - **Architecture tested:** `aarch64`
-- **Status:** local compatibility gates complete; immutable candidate CI evidence pending
+- **Status:** local and immutable candidate-head compatibility gates complete;
+  preview-only support retained
 
 This record covers the PostgreSQL 19 Beta 3 compatibility refresh. PostgreSQL
 19 remains preview-only. The PostgreSQL project explicitly advises against
@@ -77,9 +78,8 @@ All commands below used the pinned container above and completed successfully.
 
 The first container attempt also exposed that `/source` is deliberately mounted
 `noexec`: Makefile recipes executed repository shell scripts directly. The
-working-tree fix invokes those scripts through `sh`; the full gate set above
-then passed. Because that portability fix and this evidence record are not yet
-committed, the generated local archive is test evidence only and must not be
-published or treated as evidence for the base revision alone. The required
-next step is to run the PG19 CI and release-candidate workflows on the exact
-committed candidate revision and retain their artifacts.
+committed fix invokes those scripts through `sh`. Candidate-head revision
+`59be9f4c1e91eb164c41bd06892f8fc47625d091` subsequently passed CI and the
+release-candidate workflow; its PostgreSQL 19 Beta 3 archive SHA-256 is
+`b42e4e0d90b121bdacec5764aef9ece2340389aaf5a7bcd36cb8981e063eb393`.
+This evidence does not approve PostgreSQL 19 final or authorize publication.

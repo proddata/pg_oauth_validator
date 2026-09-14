@@ -1,7 +1,7 @@
-# Remaining work after the Milestone 1 implementation
+# Remaining work after the strict JWT implementation
 
 This is the short operational backlog for work that does not change the
-Milestone 1 validation policy. The product contract remains in
+active validation policy. The product contract remains in
 [`../FEATURES.md`](../FEATURES.md), and the longer-term design remains in
 [`../oauth-validator-plan.md`](../oauth-validator-plan.md).
 
@@ -11,7 +11,7 @@ The original Milestone 2 list is substantially implemented: the module has a
 shared bounded metadata/JWKS cache, strict TLS and HTTP transport controls,
 stable sanitized diagnostics, configuration/cache separation, real PostgreSQL
 integration tests, robustness tests, and local provider fixtures. These are
-part of the current Milestone 1 release candidate rather than a reason to
+part of the current strict JWT release scope rather than a reason to
 broaden its authorization model.
 
 The repository also has pinned PostgreSQL 18 and PostgreSQL 19 beta 3 build
@@ -22,17 +22,20 @@ release-package construction.
 
 ## Release-engineering work
 
-- Exercise the same-environment reproducibility gate in GitHub Actions and
-  retain its comparison evidence. Repeat it in independent fresh environments
-  for release approval.
-- Rehearse clean installation, upgrade, rollback, provider outage recovery,
-  and protected administrator recovery for PostgreSQL 18.
-- Define the approved artifact-signing mechanism and sign the archive,
-  checksum, tag, and release record.
-- Review GitHub dependency alerts, secret scanning, and code scanning for the
-  candidate commit. Record dispositions rather than treating scanner output as
-  an approval.
+- Repeat reproducibility in independent fresh environments for release
+  approval. The exact-candidate same-environment GitHub Actions gate passed.
+- Retain the first approved artifact so the next release can rehearse upgrade,
+  replacement, rollback digest comparison, and recovery against it. Clean
+  installation, installed-path testing, provider outage recovery, and
+  protected administrator recovery have passed for this candidate.
+- Define the approved artifact-signing and provenance mechanism, generate an
+  SBOM, and sign the archive, checksum, tag, and release record.
+- Recheck GitHub dependency alerts, secret scanning, and code scanning at the
+  exact revision selected for publication. The candidate-head checks were
+  clean, but scanner output is evidence rather than approval.
 - Obtain independent security-sensitive review and release-owner approval.
+- Verify repository rules require the intended reviews and successful status
+  checks before a production release can merge.
 - Publish a candidate only after every item in
   [`release-readiness.md`](release-readiness.md) has evidence for the exact
   commit and artifacts.

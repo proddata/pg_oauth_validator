@@ -28,15 +28,15 @@ validation and an authenticated identity.
 - Each PostgreSQL major version receives a separately compiled module and its own CI job because PostgreSQL does not provide cross-major ABI compatibility.
 - The shared library uses PostgreSQL's native C ABI and PGXS build infrastructure.
 - Protocol parsing and cryptographic primitives will come from reviewed, established libraries rather than bespoke implementations.
-- The callback starts denied and authorizes only after the complete Milestone 1 validation slice succeeds.
+- The callback starts denied and authorizes only after the complete configured validation pipeline succeeds.
 - Issuer and required scopes come from the matched HBA rule through a small, isolated PostgreSQL-internal compatibility adapter.
 - PostgreSQL 19 registers `validator.policy` through the supported custom HBA option API so a rule can select additional named validation policy.
 - A validated immutable policy combines matched-HBA issuer/scopes with configured audience, algorithms, token type, identity claim, clock skew, and token-size limit.
 - Audience is mandatory and has no implicit default. Algorithms default to `RS256,ES256`, token type to `at+jwt`, identity claim to `sub`, clock skew to 60 seconds, and maximum token size to 16 KiB.
 
-## Active scope: Milestone 1
+## Active release scope: strict offline JWT validation
 
-Milestone 1 provides strict offline validation of signed JWT access tokens:
+The active release scope provides strict offline validation of signed JWT access tokens:
 
 - PostgreSQL 18 and 19 OAuth validator module initialization and callback integration, with version-specific result handling.
 - Explicit trusted issuer configuration and exact issuer validation.
@@ -166,7 +166,7 @@ Implicit provider detection from issuer-hostname substrings is unsupported.
 
 ## Explicitly deferred or unsupported
 
-The following are outside Milestone 1:
+The following are outside the active release scope:
 
 - browser authorization and device-code flows performed by clients;
 - acting as an authorization server or identity provider;
@@ -201,19 +201,19 @@ The implementation is ready for an initial security review only when:
 - negative tests cover the documented threat model and run in CI;
 - PostgreSQL integration tests exercise real connections over TLS.
 
-## Decisions required before their related implementation
+## Current constraints and deferred decisions
 
-These remain product/security decisions, not implementation details:
+- The first release uses the strict JWT profile described above. Named provider
+  profiles require a reviewed specification and provider-specific evidence.
+- Audience is an explicit, administrator-configured cluster-wide GUC; there is
+  no implicit canonical audience. Per-rule audience selection is deferred to
+  named policies.
+- Metadata/JWKS freshness bounds and outage behavior follow
+  [`ADR 0002`](docs/adr/0002-metadata-jwks-cache-and-outage-policy.md).
+  Changes to that policy require a new reviewed decision.
+- Reload uses complete canonical-key separation. Shared-memory layout changes
+  and same-path CA bundle replacement require restart or an explicitly
+  versioned CA path.
 
-1. Canonical PostgreSQL audience identifier and how each provider/client requests it.
-2. Whether the first release is strict RFC 9068 only or includes named compatibility profiles.
-3. Metadata/JWKS freshness bounds and provider-outage policy are resolved by
-   [`ADR 0002`](docs/adr/0002-metadata-jwks-cache-and-outage-policy.md); the
-   implementation gates in that decision remain active work.
-4. Issuer and scopes are HBA-owned; audience is currently a cluster-wide GUC.
-   Per-rule audience selection is deferred to named policies.
-5. Reload uses complete canonical-key separation. Shared-memory layout changes
-   and same-path CA bundle replacement require restart or an explicitly
-   versioned CA path.
-
-Resolve and document each decision before making it part of the public configuration or compatibility contract.
+Resolve and document any change to these constraints before implementing it as
+part of the public configuration or compatibility contract.

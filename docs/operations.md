@@ -1,6 +1,6 @@
 # Installation and operations
 
-This guide covers the pre-release Milestone 1 validator for PostgreSQL 18 and
+This guide covers the pre-release strict JWT validator for PostgreSQL 18 and
 the PostgreSQL 19 preview. Validate every upgrade in staging and retain the
 previous package until rollback has been tested.
 
