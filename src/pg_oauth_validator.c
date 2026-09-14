@@ -4,7 +4,7 @@
  *    OAuth access-token validator for PostgreSQL 18 and 19.
  *
  * The callback begins denied and authorizes only after the complete
- * Milestone 1 validation pipeline succeeds.
+ * configured validation pipeline succeeds.
  *
  *-------------------------------------------------------------------------
  */
