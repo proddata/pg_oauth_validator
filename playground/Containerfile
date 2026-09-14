@@ -14,6 +14,7 @@ RUN ./scripts/ci/install-debian-dependencies.sh "$PG_MAJOR" \
          "libpq-oauth=$oauth_package_version" \
     && ./scripts/ci/install-jansson.sh \
     && ./scripts/ci/install-libjwt.sh \
+    && make PG_CONFIG="/usr/lib/postgresql/$PG_MAJOR/bin/pg_config" clean \
     && make PG_CONFIG="/usr/lib/postgresql/$PG_MAJOR/bin/pg_config" all \
     && make PG_CONFIG="/usr/lib/postgresql/$PG_MAJOR/bin/pg_config" install \
     && make PG_CONFIG="/usr/lib/postgresql/$PG_MAJOR/bin/pg_config" clean \
