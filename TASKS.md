@@ -69,6 +69,28 @@ Do not reopen it by treating deferred product milestones as cleanup work.
   Local results and the security-impact review are recorded in
   [`docs/releases/pg18-18.6-security-refresh.md`](docs/releases/pg18-18.6-security-refresh.md).
 
+### PKG-01 — Downstream distribution packaging contract
+
+- **Status:** in progress — build-system and gate work complete; the tag-based
+  source contract is documented but unexercised because no tag is published yet
+- **Owner:** root
+- **Scope:** Make this source tree packageable by a distribution without
+  forking it. Per-library `JANSSON_LINK_MODE`/`LIBJWT_LINK_MODE` switches with
+  static as the default and a named diagnostic for every unresolvable
+  dependency; declared minimum versions for libjwt, Jansson, libcurl, and
+  OpenSSL enforced before compilation; a `WERROR=0` opt-out so a released tag
+  still builds on a newer toolchain; proof that `make all && make install`
+  needs no network and no installer; and native aarch64 coverage alongside
+  x86-64.
+- **Exit:** Every published switch has a gate that fails when it regresses.
+  Version floors, link modes, the offline guarantee, and the source-tarball and
+  digest contract are recorded in
+  [`docs/dependencies.md`](docs/dependencies.md),
+  [`docs/rpm-platforms.md`](docs/rpm-platforms.md), and
+  [`docs/release-readiness.md`](docs/release-readiness.md). The tarball contract
+  remains unevidenced until REL-01 publishes a signed tag and the recorded
+  checksums.
+
 ## Intentionally deferred
 
 The following need a specification/ADR decision before work starts: named

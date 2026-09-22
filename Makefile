@@ -42,8 +42,51 @@ SOURCE_DIR := $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 BUILD_ROOT ?= $(SOURCE_DIR)/build
 PG18_CONFIG ?= pg_config
 PG19_CONFIG ?= pg_config
-LIBJWT_STATIC := $(shell pkg-config --variable=libdir libjwt 2>/dev/null)/libjwt.a
-JANSSON_STATIC := $(shell pkg-config --variable=libdir jansson 2>/dev/null)/libjansson.a
+# Reviewed minimum dependency versions. These are the floors this source tree
+# actually requires, not the versions the release contract pins. See
+# docs/dependencies.md for the API that establishes each floor.
+LIBJWT_MIN_VERSION = 3.3.3
+JANSSON_MIN_VERSION = 2.7
+LIBCURL_MIN_VERSION = 7.63.0
+OPENSSL_MIN_VERSION = 3.0.0
+
+# How each embedded dependency is linked. The release contract is `static`:
+# reviewed PIC static archives produced by scripts/ci/install-jansson.sh and
+# scripts/ci/install-libjwt.sh, so the module does not depend on the deployment
+# environment's JOSE and JSON libraries. Downstream distribution packagers that
+# must link shared system libraries instead select `shared`, per library,
+# because the two dependencies are rarely both available in a usable form. A
+# distribution that ships Jansson without a static archive, for example, builds
+# with JANSSON_LINK_MODE=shared and leaves LIBJWT_LINK_MODE at static.
+LINK_MODE ?= static
+JANSSON_LINK_MODE ?= $(LINK_MODE)
+LIBJWT_LINK_MODE ?= $(LINK_MODE)
+
+# Resolve a static archive through pkg-config, yielding an empty value rather
+# than a bare "/libjwt.a" when pkg-config cannot answer. Diagnosing that stays
+# in check-link-dependencies so that targets which do not link, such as `clean`
+# and `formatcheck`, still run without the dependencies installed.
+pkg_config_libdir = $(shell pkg-config --variable=libdir $(1) 2>/dev/null)
+static_archive = $(strip $(if $(call pkg_config_libdir,$(1)),\
+	$(call pkg_config_libdir,$(1))/$(2)))
+
+ifeq ($(LIBJWT_LINK_MODE),static)
+LIBJWT_STATIC := $(call static_archive,libjwt,libjwt.a)
+LIBJWT_LINK := $(LIBJWT_STATIC)
+else ifeq ($(LIBJWT_LINK_MODE),shared)
+LIBJWT_LINK := $(shell pkg-config --libs libjwt 2>/dev/null)
+else
+$(error LIBJWT_LINK_MODE must be static or shared (found: $(LIBJWT_LINK_MODE)))
+endif
+
+ifeq ($(JANSSON_LINK_MODE),static)
+JANSSON_STATIC := $(call static_archive,jansson,libjansson.a)
+JANSSON_LINK := $(JANSSON_STATIC)
+else ifeq ($(JANSSON_LINK_MODE),shared)
+JANSSON_LINK := $(shell pkg-config --libs jansson 2>/dev/null)
+else
+$(error JANSSON_LINK_MODE must be static or shared (found: $(JANSSON_LINK_MODE)))
+endif
 
 PGFILEDESC = "pg_oauth_validator - OAuth access-token validator"
 EXTRA_CLEAN = $(TEST_BIN) $(POLICY_TEST_BIN) $(JWT_ENVELOPE_TEST_BIN) \
@@ -69,17 +112,33 @@ EXTRA_CLEAN = $(TEST_BIN) $(POLICY_TEST_BIN) $(JWT_ENVELOPE_TEST_BIN) \
 	.ci-analysis \
 	tests/integration/__pycache__ tests/interop/keycloak/__pycache__
 
+# Warnings are fatal by default, and every gate in this repository keeps that
+# default. WERROR=0 exists for downstream distribution packagers building a
+# released tag on a newer toolchain, where a diagnostic added after the release
+# would otherwise turn an unchanged, reviewed source tree into a build failure.
+# Do not set it in this project's own builds.
+WERROR ?= 1
+ifeq ($(WERROR),1)
+WERROR_FLAG = -Werror
+endif
+
+# Shared strict flags for the standalone test and fuzz binaries, which are
+# compiled outside PGXS.
+STRICT_CFLAGS = -std=c17 -Wall -Wextra $(WERROR_FLAG) -Wshadow
+
 # Keep project warnings strict without imposing them on PostgreSQL itself.
-override PG_CFLAGS += -std=c17 -Wall -Wextra -Werror -Wshadow
+override PG_CFLAGS += $(STRICT_CFLAGS)
+ifeq ($(WERROR),1)
 ifneq (,$(findstring clang,$(notdir $(CC))))
 # PostgreSQL's PGXS exports GCC-only warning/optimization flags. Keep project
 # warnings fatal while allowing Clang to ignore only unsupported PGXS flags.
 override PG_CFLAGS += -Wno-error=unknown-warning-option \
 	-Wno-error=ignored-optimization-argument -Wno-error=ignored-attributes
 endif
+endif
 override PG_CPPFLAGS += $(shell pkg-config --cflags jansson libcurl libjwt openssl 2>/dev/null)
 SHLIB_LINK += -Wl,-Bsymbolic \
-	$(LIBJWT_STATIC) $(JANSSON_STATIC) \
+	$(LIBJWT_LINK) $(JANSSON_LINK) \
 	$(shell pkg-config --libs libcurl openssl 2>/dev/null)
 
 ifeq ($(SANITIZE),1)
@@ -98,14 +157,15 @@ include $(PGXS)
 	check-dependency-installers \
 	format formatcheck \
 	check-source-tree \
-	check-pg-version check-policy check-static-link-dependencies \
+	check-pg-version check-policy check-link-dependencies \
+	check-static-link-dependencies \
 	check-libjwt-spike check-libjwt-version check-symbols clean-pg18 clean-pg19 \
 	dependency-spike fuzz-claims fuzz-identity fuzz-jwks fuzz-jwt-envelope \
 	fuzz-metadata \
 	fuzz-libjwt-spike \
 	integrationcheck \
 	installedcheck packagecheck \
-	release-package \
+	release-package release-source-checksums \
 	interop-keycloak \
 	sanitizercheck fuzz-smoke \
 	dev-check-pg18 dev-check-pg19 dev-integration-pg18 dev-integration-pg19 \
@@ -115,7 +175,7 @@ include $(PGXS)
 	test-pg18 test-pg19 \
 	verify verify-all
 
-all: check-pg-version check-static-link-dependencies
+all: check-pg-version check-link-dependencies
 
 check-source-tree:
 	sh "$(srcdir)/scripts/ci/check-source-tree.sh"
@@ -142,8 +202,10 @@ fuzz-smoke:
 	$(MAKE) fuzz-libjwt-spike fuzz-jwt-envelope fuzz-jwks fuzz-claims \
 		fuzz-identity fuzz-metadata
 
-# Prevent compilation from starting with incompatible server headers.
-$(OBJS): | check-pg-version
+# Prevent compilation from starting with incompatible server headers or an
+# unusable link-time dependency configuration. These are order-only so the
+# checks cannot be reordered after the objects they guard.
+$(OBJS): | check-pg-version check-link-dependencies
 
 check-pg-version:
 	@version="$$($(PG_CONFIG) --version)"; \
@@ -158,20 +220,31 @@ check-pg-version:
 	  esac; \
 	fi
 
-check-static-link-dependencies:
-	sh "$(srcdir)/scripts/ci/check-static-archives.sh" "$(CC)" \
-		"$(LIBJWT_STATIC)" "$(JANSSON_STATIC)"
+# Resolves pkg-config, enforces the reviewed minimum versions, and probes each
+# selected static archive for PIC linkability. Runs from `all` so a build can
+# never begin against an unusable or too-old dependency.
+check-link-dependencies:
+	sh "$(srcdir)/scripts/ci/check-link-dependencies.sh" "$(CC)" \
+		libjwt "$(LIBJWT_LINK_MODE)" "$(LIBJWT_MIN_VERSION)" \
+			"$(LIBJWT_STATIC)" \
+		jansson "$(JANSSON_LINK_MODE)" "$(JANSSON_MIN_VERSION)" \
+			"$(JANSSON_STATIC)" \
+		libcurl shared "$(LIBCURL_MIN_VERSION)" "" \
+		openssl shared "$(OPENSSL_MIN_VERSION)" ""
+
+# Retained so existing invocations of the former target name keep working.
+check-static-link-dependencies: check-link-dependencies
 
 check-symbols: all
 	@nm $(MODULE_big)$(DLSUFFIX) | grep -q '_PG_oauth_validator_module_init' || \
 	  { echo "error: validator initialization symbol is not exported" >&2; exit 1; }
 
 check-libjwt-version:
-	@pkg-config --atleast-version=3.3.3 libjwt || \
-	  { echo "error: libjwt 3.3.3 or later is required for the dependency spike" >&2; exit 1; }
+	@pkg-config --atleast-version=$(LIBJWT_MIN_VERSION) libjwt || \
+	  { echo "error: libjwt $(LIBJWT_MIN_VERSION) or later is required for the dependency spike" >&2; exit 1; }
 
 $(LIBJWT_SPIKE_BIN): tests/dependency/libjwt_spike.c check-libjwt-version
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) $$(pkg-config --cflags libjwt) \
 		-o $@ $< $$(pkg-config --libs libjwt)
 
@@ -181,7 +254,7 @@ check-libjwt-spike: $(LIBJWT_SPIKE_BIN)
 dependency-spike: check-libjwt-version check-libjwt-spike
 
 $(LIBJWT_FUZZ_BIN): tests/fuzz/libjwt_inputs_fuzz.c check-libjwt-version
-	clang -std=c17 -Wall -Wextra -Werror -Wshadow \
+	clang $(STRICT_CFLAGS) \
 		-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer \
 		$$(pkg-config --cflags libjwt) -o $@ $< $$(pkg-config --libs libjwt)
 
@@ -206,21 +279,21 @@ check-policy: $(POLICY_TEST_BIN)
 	./$(POLICY_TEST_BIN)
 
 $(CACHE_STATE_TEST_BIN): tests/cache_state_test.c src/cache_state.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src -o $@ $^
 
 check-cache-state: $(CACHE_STATE_TEST_BIN)
 	./$(CACHE_STATE_TEST_BIN)
 
 $(CACHE_KEY_TEST_BIN): tests/cache_key_test.c src/cache_key.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src -o $@ $^
 
 check-cache-key: $(CACHE_KEY_TEST_BIN)
 	./$(CACHE_KEY_TEST_BIN)
 
 $(HTTP_FRESHNESS_TEST_BIN): tests/http_freshness_test.c src/http_freshness.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags libcurl) -o $@ $^ \
 		$$(pkg-config --libs libcurl)
@@ -230,7 +303,7 @@ check-http-freshness: $(HTTP_FRESHNESS_TEST_BIN)
 
 $(JWT_ENVELOPE_TEST_BIN): tests/jwt_envelope_test.c src/jwt_envelope.c \
 	src/base64url.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags jansson) -o $@ $^ \
 		$$(pkg-config --libs jansson)
@@ -240,7 +313,7 @@ check-jwt-envelope: $(JWT_ENVELOPE_TEST_BIN)
 
 $(JWT_ENVELOPE_FUZZ_BIN): tests/fuzz/jwt_envelope_fuzz.c src/jwt_envelope.c \
 	src/base64url.c
-	clang -std=c17 -Wall -Wextra -Werror -Wshadow \
+	clang $(STRICT_CFLAGS) \
 		-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer \
 		-I$(srcdir)/src \
 		$$(pkg-config --cflags jansson) -o $@ $^ \
@@ -253,7 +326,7 @@ fuzz-jwt-envelope: $(JWT_ENVELOPE_FUZZ_BIN)
 		"$(JWT_ENVELOPE_FUZZ_CORPUS)"
 
 $(JWKS_TEST_BIN): tests/jwks_test.c src/jwks.c src/base64url.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags jansson) -o $@ $^ \
 		$$(pkg-config --libs jansson openssl)
@@ -264,7 +337,7 @@ check-jwks: $(JWKS_TEST_BIN)
 $(SIGNATURE_TEST_BIN): tests/signature_test.c src/signature.c src/jwks.c \
 	src/jwt_envelope.c src/base64url.c src/claims.c src/identity.c \
 	check-libjwt-version
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags jansson libjwt openssl) -o $@ \
 		$(filter %.c,$^) $$(pkg-config --libs jansson libjwt openssl)
@@ -273,7 +346,7 @@ check-signature: $(SIGNATURE_TEST_BIN)
 	./$(SIGNATURE_TEST_BIN)
 
 $(CLAIMS_TEST_BIN): tests/claims_test.c src/claims.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags jansson) -o $@ $^ \
 		$$(pkg-config --libs jansson)
@@ -282,7 +355,7 @@ check-claims: $(CLAIMS_TEST_BIN)
 	./$(CLAIMS_TEST_BIN)
 
 $(CLAIMS_FUZZ_BIN): tests/fuzz/claims_fuzz.c src/claims.c
-	clang -std=c17 -Wall -Wextra -Werror -Wshadow \
+	clang $(STRICT_CFLAGS) \
 		-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer \
 		-I$(srcdir)/src $$(pkg-config --cflags jansson) -o $@ $^ \
 		$$(pkg-config --libs jansson)
@@ -293,14 +366,14 @@ fuzz-claims: $(CLAIMS_FUZZ_BIN)
 	./$(CLAIMS_FUZZ_BIN) -runs=2000 -max_len=16384 "$(CLAIMS_FUZZ_CORPUS)"
 
 $(IDENTITY_TEST_BIN): tests/identity_test.c src/identity.c src/base64url.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src -o $@ $^
 
 check-identity: $(IDENTITY_TEST_BIN)
 	./$(IDENTITY_TEST_BIN)
 
 $(IDENTITY_FUZZ_BIN): tests/fuzz/identity_fuzz.c src/identity.c src/base64url.c
-	clang -std=c17 -Wall -Wextra -Werror -Wshadow \
+	clang $(STRICT_CFLAGS) \
 		-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer \
 		-I$(srcdir)/src -o $@ $^
 
@@ -310,7 +383,7 @@ fuzz-identity: $(IDENTITY_FUZZ_BIN)
 	./$(IDENTITY_FUZZ_BIN) -runs=2000 -max_len=3072 "$(IDENTITY_FUZZ_CORPUS)"
 
 $(METADATA_TEST_BIN): tests/metadata_test.c src/metadata.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags jansson libcurl) -o $@ $^ \
 		$$(pkg-config --libs jansson libcurl)
@@ -319,7 +392,7 @@ check-metadata: $(METADATA_TEST_BIN)
 	./$(METADATA_TEST_BIN)
 
 $(HTTP_TRANSPORT_TEST_BIN): tests/http_transport_test.c src/http_transport.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags libcurl) -o $@ $^ \
 		$$(pkg-config --libs libcurl)
@@ -331,7 +404,7 @@ check-http-transport: $(HTTP_TRANSPORT_TEST_BIN)
 $(ISSUER_KEY_TEST_BIN): tests/issuer_key_test.c src/issuer_key.c \
 		src/http_transport.c src/http_freshness.c src/cache_key.c \
 		src/cache_state.c src/metadata.c src/jwks.c src/base64url.c
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags jansson libcurl) -o $@ $^ \
 		$$(pkg-config --libs jansson libcurl openssl)
@@ -345,7 +418,7 @@ $(VALIDATOR_TEST_BIN): tests/validator_test.c src/validator.c src/issuer_key.c \
 		src/cache_state.c src/metadata.c src/signature.c src/jwks.c \
 		src/jwt_envelope.c src/claims.c src/identity.c src/base64url.c \
 		check-libjwt-version
-	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+	$(CC) $(STRICT_CFLAGS) \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src \
 		$$(pkg-config --cflags jansson libcurl libjwt openssl) -o $@ \
 		$(filter %.c,$^) $$(pkg-config --libs jansson libcurl libjwt openssl)
@@ -355,7 +428,7 @@ check-validator: $(VALIDATOR_TEST_BIN)
 		"$(CURDIR)/$(VALIDATOR_TEST_BIN)"
 
 $(METADATA_FUZZ_BIN): tests/fuzz/metadata_fuzz.c src/metadata.c
-	clang -std=c17 -Wall -Wextra -Werror -Wshadow \
+	clang $(STRICT_CFLAGS) \
 		-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer \
 		-I$(srcdir)/src $$(pkg-config --cflags jansson libcurl) -o $@ $^ \
 		$$(pkg-config --libs jansson libcurl)
@@ -367,7 +440,7 @@ fuzz-metadata: $(METADATA_FUZZ_BIN)
 		"$(METADATA_FUZZ_CORPUS)"
 
 $(JWKS_FUZZ_BIN): tests/fuzz/jwks_fuzz.c src/jwks.c src/base64url.c
-	clang -std=c17 -Wall -Wextra -Werror -Wshadow \
+	clang $(STRICT_CFLAGS) \
 		-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer \
 		-I$(srcdir)/src $$(pkg-config --cflags jansson) -o $@ $^ \
 		$$(pkg-config --libs jansson openssl)
@@ -378,7 +451,7 @@ fuzz-jwks: $(JWKS_FUZZ_BIN)
 	./$(JWKS_FUZZ_BIN) -runs=2000 -max_len=65536 "$(JWKS_FUZZ_CORPUS)"
 
 $(OAUTH_TEST_CLIENT) $(OAUTH_TEST_CLIENT_PATH): tests/integration/oauth_test_client.c
-	$(CC) -std=c17 -Wall -Wextra -Werror \
+	$(CC) -std=c17 -Wall -Wextra $(WERROR_FLAG) \
 		-I$(shell $(PG_CONFIG) --includedir) \
 		-I$(shell $(PG_CONFIG) --includedir-server) \
 		-L$(shell $(PG_CONFIG) --libdir) \
@@ -417,6 +490,14 @@ release-package:
 		sh "$(srcdir)/scripts/ci/build-release-package.sh" \
 		"$(RELEASE_VERSION)" "$(PG_CONFIG)" \
 		"$(or $(RELEASE_OUTPUT),$(CURDIR)/dist)"
+
+# Records the reviewed checksums of a published tag's source tarball for
+# downstream packagers. Run only after the signed tag is pushed.
+release-source-checksums:
+	@test -n "$(RELEASE_TAG)" || \
+		{ echo "error: RELEASE_TAG is required" >&2; exit 2; }
+	sh "$(srcdir)/scripts/ci/release-source-checksums.sh" "$(RELEASE_TAG)" \
+		$(RELEASE_SOURCE_CHECKSUMS)
 
 # Installs into pg_config's real directories; run only in a disposable,
 # suitably privileged environment such as the pinned CI containers.

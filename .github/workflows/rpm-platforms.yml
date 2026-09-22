@@ -16,23 +16,51 @@ concurrency:
 
 jobs:
   build:
-    name: ${{ matrix.name }} / PostgreSQL 18
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    name: ${{ matrix.name }} / ${{ matrix.arch }} / PostgreSQL 18
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
+        # Both base-image digests are multi-architecture OCI indexes, so the
+        # same reviewed pin serves x86-64 and aarch64.
         include:
           - name: Fedora 44
             image_name: fedora44
             base_image: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
             rpm_platform: fedora44
             pg_config: /usr/bin/pg_server_config
+            arch: x86_64
+            runner: ubuntu-24.04
+            docker_platform: linux/amd64
+          - name: Fedora 44
+            image_name: fedora44
+            base_image: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+            rpm_platform: fedora44
+            pg_config: /usr/bin/pg_server_config
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            docker_platform: linux/arm64
           - name: Rocky Linux 9 / PGDG
             image_name: rocky9
             base_image: rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
             rpm_platform: el9
             pg_config: /usr/pgsql-18/bin/pg_config
+            arch: x86_64
+            runner: ubuntu-24.04
+            docker_platform: linux/amd64
+          - name: Rocky Linux 9 / PGDG
+            image_name: rocky9
+            base_image: rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
+            rpm_platform: el9
+            pg_config: /usr/pgsql-18/bin/pg_config
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            docker_platform: linux/arm64
+
+    env:
+      IMAGE: pg-oauth-validator-rpm-test:${{ matrix.image_name }}-${{ matrix.arch }}
+      DOCKER_PLATFORM: ${{ matrix.docker_platform }}
 
     steps:
       - name: Check out repository
@@ -41,25 +69,75 @@ jobs:
       - name: Build compatibility image
         env:
           BASE_IMAGE: ${{ matrix.base_image }}
-          IMAGE_NAME: ${{ matrix.image_name }}
           PG_CONFIG_PATH: ${{ matrix.pg_config }}
           RPM_PLATFORM: ${{ matrix.rpm_platform }}
         run: |
           docker build \
-            --platform linux/amd64 \
+            --platform "$DOCKER_PLATFORM" \
             --file tools/rpm/Containerfile \
             --build-arg BASE_IMAGE="$BASE_IMAGE" \
             --build-arg RPM_PLATFORM="$RPM_PLATFORM" \
             --build-arg PG_CONFIG_PATH="$PG_CONFIG_PATH" \
-            --tag "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
+            --tag "$IMAGE" \
             .
 
       - name: Verify build and staged installation
-        env:
-          IMAGE_NAME: ${{ matrix.image_name }}
         run: |
           docker run --rm --tmpfs /source:exec \
-            --platform linux/amd64 \
+            --platform "$DOCKER_PLATFORM" \
             --volume "$GITHUB_WORKSPACE:/workspace:ro" \
-            "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
-            verify-dev packagecheck
+            "$IMAGE" verify-dev packagecheck
+
+      # `rpmbuild` has no network access and must not run this project's
+      # dependency installers. Reproduce that exactly: the image already holds
+      # every development package, so `all` and `install` have to succeed with
+      # the network removed entirely. A build step that reached for a download,
+      # a package manager, or an installer script fails here.
+      - name: Verify offline build and staged install
+        run: |
+          docker run --rm --network none --tmpfs /source:exec \
+            --platform "$DOCKER_PLATFORM" \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            "$IMAGE" all install DESTDIR=/tmp/offline-stage
+
+      # Distribution packagers build a released tag on whichever toolchain
+      # their release carries, where a newly added compiler diagnostic must not
+      # turn an unchanged reviewed source tree into a build failure. Prove the
+      # documented WERROR=0 escape hatch keeps working.
+      - name: Verify the documented -Werror opt-out
+        run: |
+          docker run --rm --network none --tmpfs /source:exec \
+            --platform "$DOCKER_PLATFORM" \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            "$IMAGE" all install DESTDIR=/tmp/no-werror-stage WERROR=0
+
+      # The distribution Jansson development package ships no static archive, so
+      # a packager who may not vendor it needs JANSSON_LINK_MODE=shared. Prove
+      # that path against the real distribution package with the reviewed
+      # /usr/local Jansson removed, so the build cannot silently fall back to
+      # it. libjwt stays static: no RPM-family distribution ships a libjwt that
+      # meets this project's minimum version.
+      - name: Verify shared Jansson against the distribution package
+        run: |
+          docker run --rm --tmpfs /source:exec \
+            --platform "$DOCKER_PLATFORM" \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --entrypoint /bin/sh \
+            "$IMAGE" -c '
+              set -eu
+              dnf install --assumeyes jansson-devel
+              rm -f /usr/local/lib*/pkgconfig/jansson.pc \
+                /usr/local/lib*/libjansson.a
+              # Fail loudly if a static archive is still reachable, so this
+              # step cannot pass while silently linking the reviewed one.
+              # An explicit exit, not "! test": `set -e` ignores an inverted
+              # return status.
+              if test -f "$(pkg-config --variable=libdir jansson)/libjansson.a"
+              then
+                echo "error: a Jansson static archive is still reachable" >&2
+                exit 1
+              fi
+              /opt/pg-oauth-validator/tools/dev/run-tests.sh \
+                all install DESTDIR=/tmp/shared-jansson-stage \
+                JANSSON_LINK_MODE=shared
+            '

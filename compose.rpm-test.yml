@@ -1,9 +1,13 @@
 name: pg-oauth-validator-rpm-test
 
+# Both base-image digests are multi-architecture OCI indexes. Override the
+# target architecture with RPM_TEST_ARCH=arm64 to build natively on an
+# aarch64 host instead of emulating x86-64.
+
 services:
   fedora44:
     image: pg-oauth-validator-rpm-test:fedora44
-    platform: linux/amd64
+    platform: linux/${RPM_TEST_ARCH:-amd64}
     build:
       context: .
       dockerfile: tools/rpm/Containerfile
@@ -23,7 +27,7 @@ services:
 
   rocky9:
     image: pg-oauth-validator-rpm-test:rocky9
-    platform: linux/amd64
+    platform: linux/${RPM_TEST_ARCH:-amd64}
     build:
       context: .
       dockerfile: tools/rpm/Containerfile

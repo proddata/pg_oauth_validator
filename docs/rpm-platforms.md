@@ -5,12 +5,29 @@ contract remains the pinned Debian/PGDG environment documented in
 [`release-readiness.md`](release-readiness.md). A successful compatibility
 build does not make an RPM-family platform a supported production target.
 
+Dependency minimums and the static/shared link-mode switches are documented
+once, in [`dependencies.md`](dependencies.md); read that first when packaging
+this source tree.
+
 ## Initial compatibility matrix
 
 | Environment | PostgreSQL | Architecture | Current gate |
 | --- | --- | --- | --- |
-| Fedora 44 | Fedora PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
-| Rocky Linux 9 | PGDG PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
+| Fedora 44 | Fedora PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation, offline build, shared-Jansson build |
+| Fedora 44 | Fedora PostgreSQL 18 | aarch64 | strict build, unit/component verification, staged installation, offline build, shared-Jansson build |
+| Rocky Linux 9 | PGDG PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation, offline build, shared-Jansson build |
+| Rocky Linux 9 | PGDG PostgreSQL 18 | aarch64 | strict build, unit/component verification, staged installation, offline build, shared-Jansson build |
+
+Both architectures run natively, on `ubuntu-24.04` and `ubuntu-24.04-arm`
+respectively; neither is emulated. The pinned base-image digests are
+multi-architecture OCI indexes, so one reviewed digest per distribution covers
+both. The PGDG repository package is published from a per-architecture
+directory and the copies are not byte-identical, so
+`scripts/ci/install-rpm-dependencies.sh` selects its reviewed SHA-256 together
+with the URL and fails closed on any other machine type.
+
+aarch64 has the same gate as x86-64 and no separate support claim: as with
+x86-64, a passing compatibility build is not a production-support statement.
 
 Fedora uses `/usr/bin/pg_server_config` for server extension builds. The PGDG
 Enterprise Linux packages use `/usr/pgsql-18/bin/pg_config`. The same source
@@ -36,6 +53,9 @@ docker compose -f compose.rpm-test.yml build
 docker compose -f compose.rpm-test.yml up --abort-on-container-failure
 ```
 
+Both services target x86-64 by default. Set `RPM_TEST_ARCH=arm64` to build
+natively on an aarch64 host instead of emulating x86-64.
+
 The base-image manifests are pinned. Package repositories are not yet
 snapshot-pinned, so these jobs are compatibility signals rather than
 reproducible release builders. `/etc/pg-oauth-build-inputs` in each image
@@ -49,6 +69,44 @@ immutable RPM sources; network access during `rpmbuild` is not permitted.
 The RPM-family image sets `PKG_CONFIG_PATH` explicitly to the reviewed
 `/usr/local` static dependency prefix; Enterprise Linux does not search that
 prefix by default.
+
+## Offline build guarantee
+
+`rpmbuild` runs with no network access and must not execute this project's
+dependency installers. Both hold:
+
+- `make all` and `make install` invoke only the compiler, `pkg-config`,
+  `install`, and `scripts/ci/check-link-dependencies.sh`. No target reachable
+  from either one downloads anything or calls a package manager.
+- The installers are separate targets, never prerequisites of `all` or
+  `install`, and both accept pre-fetched archives through
+  `JANSSON_SOURCE_ARCHIVE` and `LIBJWT_SOURCE_ARCHIVE`.
+
+This is enforced rather than asserted. Every leg of the RPM platform
+compatibility workflow runs
+
+```sh
+docker run --network none … all install DESTDIR=…
+```
+
+against an image that already holds every development package, so a build step
+that reached for the network would fail the gate.
+
+## Linking against distribution packages
+
+An RPM build against distribution packages needs
+`JANSSON_LINK_MODE=shared`, because `jansson-devel` ships no static archive,
+and `LIBJWT_LINK_MODE=static`, because no current RPM-family distribution ships
+a libjwt new enough for this source tree. The reasoning, the exact version
+floors, and the `WERROR=0` escape hatch for building a released tag on a newer
+toolchain are in [`dependencies.md`](dependencies.md). The shared-Jansson
+configuration has its own gate in the compatibility workflow, run against the
+real distribution package with the reviewed `/usr/local` Jansson removed so the
+build cannot silently fall back to it.
+
+For the immutable source tarball and digest that a package pins as its source,
+see the downstream packaging contract in
+[`release-readiness.md`](release-readiness.md).
 
 ## Required work before support
 

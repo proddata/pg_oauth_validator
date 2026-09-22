@@ -29,8 +29,25 @@ case "$platform" in
 		pg_config=/usr/bin/pg_server_config
 		;;
 	el9)
-		pgdg_repo_url=https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-42.0-66.rhel9PGDG.noarch.rpm
-		pgdg_repo_sha256=416ce4d364e620c660dc6974b7c52ac6628ccb8375418f37d7dc00a50235b13c
+		# The repository RPM is noarch, but PGDG publishes it from a
+		# per-architecture directory and the two copies are not byte-identical,
+		# so the reviewed digest is selected together with the URL.
+		case "$(uname -m)" in
+			x86_64)
+				pgdg_repo_arch=x86_64
+				pgdg_repo_sha256=416ce4d364e620c660dc6974b7c52ac6628ccb8375418f37d7dc00a50235b13c
+				;;
+			aarch64)
+				pgdg_repo_arch=aarch64
+				pgdg_repo_sha256=ac07549ce04d89f9d90315e61c74efb2138afdd6239af7ce6e7881694115a995
+				;;
+			*)
+				echo "error: no reviewed PGDG repository package for" \
+					"$(uname -m)" >&2
+				exit 1
+				;;
+		esac
+		pgdg_repo_url=https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-$pgdg_repo_arch/pgdg-redhat-repo-42.0-66.rhel9PGDG.noarch.rpm
 		work_dir=$(mktemp -d)
 		trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 		pgdg_repo=$work_dir/pgdg-redhat-repo.noarch.rpm
@@ -66,6 +83,7 @@ esac
 
 {
 	echo "rpm-platform: $platform"
+	echo "architecture: $(uname -m)"
 	echo "postgresql-version: $($pg_config --version)"
 	echo "rpm-packages:"
 	rpm -q --qf '  %{NAME} %{VERSION}-%{RELEASE}.%{ARCH}\n' \

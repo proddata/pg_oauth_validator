@@ -9,14 +9,34 @@ This guide covers local build and test workflows. See
 - a C17 compiler;
 - GNU Make or a compatible `make` implementation;
 - `nm` for the exported-symbol check;
-- the system OpenSSL development package and libcurl;
+- OpenSSL 3.0.0 or later and libcurl 7.63.0 or later, from the system
+  development packages;
 - Jansson 2.15.1 and libjwt 3.3.3 or later, built as described below.
 
-The module build requires PIC static archives for Jansson and libjwt, and the
-build refuses to start when an archive cannot be linked into a shared object.
-The checked-in installers produce both archives. Distribution packages are not
-usable here: Debian's `libjansson-dev`, for example, ships a non-PIC static
-archive.
+`make all` checks every one of those minimums through
+`check-link-dependencies` before compiling anything, so a too-old dependency is
+reported by name. [`dependencies.md`](dependencies.md) records which API
+establishes each floor.
+
+By default the module build links PIC static archives for Jansson and libjwt,
+and refuses to start when an archive cannot be linked into a shared object. The
+checked-in installers produce both archives. Debian's `libjansson-dev`, for
+example, ships a non-PIC static archive and is not usable in this mode.
+
+Static linking is the release contract, not a build-system limitation.
+`JANSSON_LINK_MODE=shared` and `LIBJWT_LINK_MODE=shared` link the deployment
+environment's shared libraries instead, for packaging this source tree on a
+distribution that supplies its own; see [`dependencies.md`](dependencies.md).
+Do not use them for this project's own builds or gates.
+
+Warnings are fatal by default. `WERROR=0` removes `-Werror` for packagers
+building a released tag on a newer toolchain, and is likewise not for use in
+this project's builds.
+
+`make all` and `make install` need no network access and run no dependency
+installer; the installers below are separate targets. Every leg of the RPM
+platform compatibility workflow proves this by running them in a container
+started with `--network none`.
 
 The integration suite additionally requires Python 3, pytest, `initdb`,
 `pg_ctl`, `runuser`, and a libpq development installation from the same
