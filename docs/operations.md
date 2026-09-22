@@ -7,6 +7,10 @@ previous package until rollback has been tested.
 Publishing a candidate additionally requires the complete
 [`release-readiness.md`](release-readiness.md) evidence and approval process.
 
+The reviewed candidate environment is Debian/PGDG. Fedora and Enterprise
+Linux work remains experimental until the RPM, installed-runtime, and
+SELinux-enforcing gates in [`rpm-platforms.md`](rpm-platforms.md) are complete.
+
 ## Runtime and package requirements
 
 Build against the exact PostgreSQL major version used by the server. The

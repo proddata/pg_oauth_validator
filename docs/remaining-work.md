@@ -40,6 +40,15 @@ release-package construction.
   [`release-readiness.md`](release-readiness.md) has evidence for the exact
   commit and artifacts.
 
+## RPM-family platform work
+
+Fedora 44 and Rocky Linux 9/PGDG PostgreSQL 18 have experimental compatibility
+build definitions. Complete the offline RPM spec, repository snapshot/pinning,
+installed-path suite, and SELinux-enforcing runtime matrix described in
+[`rpm-platforms.md`](rpm-platforms.md) before describing either platform as
+supported. Add EL10 and additional architectures only after that first matrix
+is reviewable and deterministic.
+
 ## PostgreSQL 19 finalization
 
 PostgreSQL 19 remains preview-only. After its final release, replace beta pins,

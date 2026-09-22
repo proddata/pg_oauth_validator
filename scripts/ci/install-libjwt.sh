@@ -19,8 +19,16 @@ case "${CC:-cc}" in
 esac
 dependency_cflags="$dependency_warning_flags ${CFLAGS:-}"
 
-curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" \
-	"$LIBJWT_URL"
+if test -n "${LIBJWT_SOURCE_ARCHIVE:-}"; then
+	test -f "$LIBJWT_SOURCE_ARCHIVE" && test -r "$LIBJWT_SOURCE_ARCHIVE" || {
+		echo "error: LIBJWT_SOURCE_ARCHIVE is not a readable file" >&2
+		exit 1
+	}
+	cp "$LIBJWT_SOURCE_ARCHIVE" "$archive"
+else
+	curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" \
+		"$LIBJWT_URL"
+fi
 printf '%s  %s\n' "$LIBJWT_SHA256" "$archive" | sha256sum --check --status
 
 mkdir -p "$source_dir" "$build_dir"
@@ -33,6 +41,7 @@ cmake -S "$source_dir" -B "$build_dir" \
 	-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+	-DCMAKE_INSTALL_LIBDIR=lib \
 	-DEXCLUDE_DEPRECATED=ON \
 	-DWITH_GNUTLS=OFF \
 	-DWITH_JSON_C=OFF \

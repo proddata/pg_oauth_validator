@@ -3,6 +3,7 @@
  */
 
 #include "postgres.h"
+#include "miscadmin.h"
 
 #include <dlfcn.h>
 #include <stdarg.h>

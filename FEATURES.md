@@ -205,6 +205,10 @@ The implementation is ready for an initial security review only when:
 
 - The first release uses the strict JWT profile described above. Named provider
   profiles require a reviewed specification and provider-specific evidence.
+- The reviewed release environment is Debian/PGDG. Fedora 44 and Rocky Linux
+  9/PGDG PostgreSQL 18 are experimental build-compatibility targets, not
+  supported production platforms. Support requires reviewed offline RPMs,
+  installed-runtime evidence, and SELinux-enforcing integration coverage.
 - Audience is an explicit, administrator-configured cluster-wide GUC; there is
   no implicit canonical audience. Per-rule audience selection is deferred to
   named policies.

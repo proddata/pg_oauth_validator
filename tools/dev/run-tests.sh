@@ -18,4 +18,5 @@ make -C /source clean PG_CONFIG="$PG_CONFIG_PATH" >/dev/null
 
 exec make -C /source "$@" \
 	BUILD_ROOT=/build \
+	PG_CONFIG="$PG_CONFIG_PATH" \
 	"PG${PG_MAJOR}_CONFIG=$PG_CONFIG_PATH"
