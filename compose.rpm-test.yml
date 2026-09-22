@@ -1,0 +1,46 @@
+name: pg-oauth-validator-rpm-test
+
+services:
+  fedora44:
+    image: pg-oauth-validator-rpm-test:fedora44
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: tools/rpm/Containerfile
+      args:
+        BASE_IMAGE: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+        RPM_PLATFORM: fedora44
+        PG_CONFIG_PATH: /usr/bin/pg_server_config
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:ro
+      - fedora44-build:/build
+    tmpfs:
+      - /source:exec
+    command:
+      - verify-dev
+      - packagecheck
+
+  rocky9:
+    image: pg-oauth-validator-rpm-test:rocky9
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: tools/rpm/Containerfile
+      args:
+        BASE_IMAGE: rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
+        RPM_PLATFORM: el9
+        PG_CONFIG_PATH: /usr/pgsql-18/bin/pg_config
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:ro
+      - rocky9-build:/build
+    tmpfs:
+      - /source:exec
+    command:
+      - verify-dev
+      - packagecheck
+
+volumes:
+  fedora44-build:
+  rocky9-build:

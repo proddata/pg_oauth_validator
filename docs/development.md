@@ -26,6 +26,10 @@ PostgreSQL 18 is the stable production target. PostgreSQL 19 is supported as a
 preview while it remains in beta. The build rejects headers from other major
 versions.
 
+Experimental Fedora and Enterprise Linux compatibility builds are documented
+in [`rpm-platforms.md`](rpm-platforms.md). They are build and staged-install
+signals only; they are not release artifacts or production-support claims.
+
 ## Build and verify
 
 Reproduce the reviewed embedded dependencies. Both installers pin an upstream

@@ -17,8 +17,16 @@ archive="$work_dir/jansson.tar.gz"
 source_dir="$work_dir/source"
 build_dir="$work_dir/build"
 
-curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" \
-	"$JANSSON_URL"
+if test -n "${JANSSON_SOURCE_ARCHIVE:-}"; then
+	test -f "$JANSSON_SOURCE_ARCHIVE" && test -r "$JANSSON_SOURCE_ARCHIVE" || {
+		echo "error: JANSSON_SOURCE_ARCHIVE is not a readable file" >&2
+		exit 1
+	}
+	cp "$JANSSON_SOURCE_ARCHIVE" "$archive"
+else
+	curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" \
+		"$JANSSON_URL"
+fi
 printf '%s  %s\n' "$JANSSON_SHA256" "$archive" | sha256sum --check --status
 
 mkdir -p "$source_dir" "$build_dir"

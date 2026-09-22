@@ -95,6 +95,7 @@ include $(PGXS)
 	check-claims check-http-transport check-identity check-issuer-key check-metadata \
 	check-validator \
 	check-release-artifacts \
+	check-dependency-installers \
 	format formatcheck \
 	check-source-tree \
 	check-pg-version check-policy check-static-link-dependencies \
@@ -127,6 +128,9 @@ formatcheck:
 
 check-release-artifacts:
 	sh "$(srcdir)/tests/ci/test_release_artifacts.sh"
+
+check-dependency-installers:
+	sh "$(srcdir)/tests/ci/test_dependency_installers.sh"
 
 sanitizercheck:
 	$(MAKE) dependency-spike check-http-transport check-issuer-key \
@@ -424,13 +428,13 @@ installedcheck: packagecheck
 interop-keycloak:
 	sh "$(srcdir)/scripts/interop/keycloak.sh"
 
-verify: check-release-artifacts check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
+verify: check-release-artifacts check-dependency-installers check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
 	check-jwks check-signature check-claims check-identity check-metadata \
 	check-http-transport check-issuer-key check-validator
 
 # Fast local gate. CI and release preparation continue to use `verify`, which
 # additionally checks reproducible release artifacts.
-verify-dev: check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
+verify-dev: check-dependency-installers check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
 	check-jwks check-signature check-claims check-identity check-metadata \
 	check-http-transport check-issuer-key check-validator
 

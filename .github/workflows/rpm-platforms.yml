@@ -1,0 +1,65 @@
+name: RPM platform compatibility
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rpm-platforms-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }} / PostgreSQL 18
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Fedora 44
+            image_name: fedora44
+            base_image: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+            rpm_platform: fedora44
+            pg_config: /usr/bin/pg_server_config
+          - name: Rocky Linux 9 / PGDG
+            image_name: rocky9
+            base_image: rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
+            rpm_platform: el9
+            pg_config: /usr/pgsql-18/bin/pg_config
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Build compatibility image
+        env:
+          BASE_IMAGE: ${{ matrix.base_image }}
+          IMAGE_NAME: ${{ matrix.image_name }}
+          PG_CONFIG_PATH: ${{ matrix.pg_config }}
+          RPM_PLATFORM: ${{ matrix.rpm_platform }}
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --file tools/rpm/Containerfile \
+            --build-arg BASE_IMAGE="$BASE_IMAGE" \
+            --build-arg RPM_PLATFORM="$RPM_PLATFORM" \
+            --build-arg PG_CONFIG_PATH="$PG_CONFIG_PATH" \
+            --tag "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
+            .
+
+      - name: Verify build and staged installation
+        env:
+          IMAGE_NAME: ${{ matrix.image_name }}
+        run: |
+          docker run --rm --tmpfs /source:exec \
+            --platform linux/amd64 \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
+            verify-dev packagecheck

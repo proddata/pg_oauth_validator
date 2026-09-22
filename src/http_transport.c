@@ -369,10 +369,20 @@ pg_oauth_http_get_json(const char *url, const PgOAuthHttpPolicy *policy,
 	SETOPT(CURLOPT_HTTPGET, 1L);
 	SETOPT(CURLOPT_FOLLOWLOCATION, 0L);
 	SETOPT(CURLOPT_MAXREDIRS, 0L);
+#if LIBCURL_VERSION_NUM >= 0x075500
 	SETOPT(CURLOPT_PROTOCOLS_STR,
 		   policy->allow_insecure_http ? "http,https" : "https");
 	SETOPT(CURLOPT_REDIR_PROTOCOLS_STR,
 		   policy->allow_insecure_http ? "http,https" : "https");
+#else
+	/* The string options replaced these bitmasks in libcurl 7.85.0. */
+	SETOPT(CURLOPT_PROTOCOLS,
+		   (long) (CURLPROTO_HTTPS |
+				   (policy->allow_insecure_http ? CURLPROTO_HTTP : 0)));
+	SETOPT(CURLOPT_REDIR_PROTOCOLS,
+		   (long) (CURLPROTO_HTTPS |
+				   (policy->allow_insecure_http ? CURLPROTO_HTTP : 0)));
+#endif
 	SETOPT(CURLOPT_SSL_VERIFYPEER, 1L);
 	SETOPT(CURLOPT_SSL_VERIFYHOST, 2L);
 	SETOPT(CURLOPT_SSLVERSION, (long) CURL_SSLVERSION_TLSv1_2);
