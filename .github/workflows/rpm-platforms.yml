@@ -137,9 +137,11 @@ jobs:
                 echo "error: a Jansson static archive is still reachable" >&2
                 exit 1
               fi
+              # packagecheck stages its own install and verifies the
+              # linkage the build selected, so it covers `install` here and
+              # needs no DESTDIR of its own.
               # Invoked through sh, matching the image ENTRYPOINT: the
               # script is not marked executable in the image.
               sh /opt/pg-oauth-validator/tools/dev/run-tests.sh \
-                all install DESTDIR=/tmp/shared-jansson-stage \
-                JANSSON_LINK_MODE=shared
+                all packagecheck JANSSON_LINK_MODE=shared
             '

@@ -476,7 +476,8 @@ packagecheck: all
 	@stage="$$(mktemp -d)"; \
 	trap 'rm -rf "$$stage"' EXIT INT TERM; \
 	$(MAKE) install DESTDIR="$$stage" >/dev/null; \
-	sh "$(srcdir)/scripts/ci/check-staged-install.sh" "$$stage" "$(PG_CONFIG)"
+	sh "$(srcdir)/scripts/ci/check-staged-install.sh" "$$stage" \
+		"$(PG_CONFIG)" "$(JANSSON_LINK_MODE)" "$(LIBJWT_LINK_MODE)"
 
 # RELEASE_VERSION and SOURCE_DATE_EPOCH are mandatory so release artifacts are
 # explicitly versioned and reproducible. RELEASE_OUTPUT defaults outside build

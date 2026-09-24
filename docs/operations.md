@@ -15,10 +15,19 @@ SELinux-enforcing gates in [`rpm-platforms.md`](rpm-platforms.md) are complete.
 
 Build against the exact PostgreSQL major version used by the server. The
 installed module dynamically uses the operating system's libcurl and OpenSSL.
-The reviewed libjwt and Jansson builds are linked into the module as
-position-independent static archives. Production packages must use
-vendor-supported libcurl and OpenSSL releases and be rebuilt after relevant
-security updates.
+By default the reviewed libjwt and Jansson builds are linked into the module as
+position-independent static archives, and that is the release contract.
+Production packages must use vendor-supported libcurl and OpenSSL releases and
+be rebuilt after relevant security updates.
+
+A distribution package may instead link its own Jansson or libjwt with
+`JANSSON_LINK_MODE=shared` or `LIBJWT_LINK_MODE=shared`; see
+[`dependencies.md`](dependencies.md). Doing so moves that library's patching
+responsibility to the distribution and adds a runtime dependency the module
+would otherwise not have, so such a package must also be rebuilt or re-tested
+after that library's security updates. `packagecheck` verifies the linkage the
+build actually selected in both directions, so it will reject a shared
+selection that silently linked an archive.
 
 The validator does not require `shared_preload_libraries`. PostgreSQL loads it
 through `oauth_validator_libraries` when OAuth authentication is configured.
@@ -37,8 +46,8 @@ make install DESTDIR=/path/to/package-root
 ```
 
 `packagecheck` verifies the shared library, installed documentation,
-permissions, exported callback symbol, static libjwt/Jansson linkage, and the
-optional PostgreSQL LLVM-bitcode manifest. Build a separate package for each
+permissions, exported callback symbol, the selected libjwt/Jansson linkage, and
+the optional PostgreSQL LLVM-bitcode manifest. Build a separate package for each
 PostgreSQL major version. Never install a PostgreSQL 18 binary into PostgreSQL
 19 or the reverse.
 

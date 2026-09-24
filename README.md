@@ -181,6 +181,9 @@ secrets in normal diagnostics.
   caching, and PostgreSQL integration
 - [Development](docs/development.md): prerequisites, builds, tests, fuzzing,
   and interoperability work
+- [Dependencies](docs/dependencies.md): minimum dependency versions, the
+  static/shared link modes, and the offline-build guarantee for downstream
+  packagers.
 - [RPM platform work](docs/rpm-platforms.md): experimental Fedora/Enterprise
   Linux builds and required SELinux gates
 - [Project plan](oauth-validator-plan.md): rationale, threat model, and

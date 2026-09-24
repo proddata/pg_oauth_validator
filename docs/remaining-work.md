@@ -46,8 +46,12 @@ Fedora 44 and Rocky Linux 9/PGDG PostgreSQL 18 have experimental compatibility
 build definitions. Complete the offline RPM spec, repository snapshot/pinning,
 installed-path suite, and SELinux-enforcing runtime matrix described in
 [`rpm-platforms.md`](rpm-platforms.md) before describing either platform as
-supported. Add EL10 and additional architectures only after that first matrix
-is reviewable and deterministic.
+supported.
+
+Both platforms now build natively on x86-64 and aarch64, with offline-build and
+shared-Jansson gates on every leg, so the compatibility matrix is deterministic
+across architectures. Neither architecture is a support claim. Add EL10 only
+after the runtime and SELinux matrix above exists.
 
 ## PostgreSQL 19 finalization
 

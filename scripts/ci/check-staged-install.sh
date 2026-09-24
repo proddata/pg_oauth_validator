@@ -1,13 +1,17 @@
 #!/bin/sh
 set -eu
 
-if test "$#" -ne 2; then
-    echo "usage: $0 STAGE_ROOT PG_CONFIG" >&2
+if test "$#" -lt 2 || test "$#" -gt 4; then
+    echo "usage: $0 STAGE_ROOT PG_CONFIG [JANSSON_LINK_MODE] [LIBJWT_LINK_MODE]" >&2
     exit 2
 fi
 
 stage=$1
 pg_config=$2
+# Default to the release contract, so a caller that omits the modes still gets
+# the strict static check.
+jansson_link_mode=${3:-static}
+libjwt_link_mode=${4:-static}
 pkglibdir=$($pg_config --pkglibdir)
 docdir=$($pg_config --docdir)
 library="$stage$pkglibdir/pg_oauth_validator.so"
@@ -25,10 +29,34 @@ if find "$stage" -type f -perm /022 | grep -q .; then
     exit 1
 fi
 
-if ldd "$library" | grep -Eq 'lib(jwt|jansson)'; then
-    echo "error: libjwt and Jansson must remain statically embedded" >&2
-    exit 1
-fi
+# Verify the linkage the build actually selected, in both directions. A static
+# selection must not leave a runtime dependency, and a shared selection must
+# not have silently linked an archive instead -- which is how a packager would
+# otherwise ship a binary whose embedded copy nobody is patching.
+check_linkage()
+{
+    name=$1
+    pattern=$2
+    mode=$3
+
+    if ldd "$library" | grep -Eq "$pattern"; then
+        if test "$mode" != shared; then
+            echo "error: $name must remain statically embedded, but the" \
+                "staged library has a runtime dependency on it" >&2
+            exit 1
+        fi
+    else
+        if test "$mode" != static; then
+            echo "error: $name was selected for shared linking but the" \
+                "staged library has no runtime dependency on it; the build" \
+                "linked an archive instead" >&2
+            exit 1
+        fi
+    fi
+}
+
+check_linkage Jansson 'libjansson' "$jansson_link_mode"
+check_linkage libjwt 'libjwt' "$libjwt_link_mode"
 
 nm -D "$library" | grep -q '_PG_oauth_validator_module_init'
 

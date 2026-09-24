@@ -133,13 +133,20 @@ mkdir -p "$build_dir/src" "$build_dir/tests/integration" "$stage_dir" "$output_d
 make -C "$build_dir" -f ../source/Makefile VPATH=../source \
 	PG_CONFIG="$pg_config" EXPECTED_PG_MAJOR="$pg_major" CC="$build_cc" \
 	PG_CFLAGS="$reproducible_cflags" \
-	BITCODE_CFLAGS="$reproducible_bitcode_cflags" all
+	BITCODE_CFLAGS="$reproducible_bitcode_cflags" \
+	LINK_MODE=static JANSSON_LINK_MODE=static LIBJWT_LINK_MODE=static \
+	WERROR=1 all
 make -C "$build_dir" -f ../source/Makefile VPATH=../source \
 	PG_CONFIG="$pg_config" EXPECTED_PG_MAJOR="$pg_major" \
 	CC="$build_cc" PG_CFLAGS="$reproducible_cflags" \
 	BITCODE_CFLAGS="$reproducible_bitcode_cflags" \
-	install DESTDIR="$stage_dir"
-sh "$snapshot_dir/scripts/ci/check-staged-install.sh" "$stage_dir" "$pg_config"
+	LINK_MODE=static JANSSON_LINK_MODE=static LIBJWT_LINK_MODE=static \
+	WERROR=1 install DESTDIR="$stage_dir"
+# Release packages are static on both dependencies, without exception. Passing
+# the modes explicitly means a release cannot be produced from a shared build
+# even if the environment defaults ever change.
+sh "$snapshot_dir/scripts/ci/check-staged-install.sh" "$stage_dir" "$pg_config" \
+	static static
 
 mv "$stage_dir" "$package_root"
 license_dir=$package_root/THIRD-PARTY-LICENSES
