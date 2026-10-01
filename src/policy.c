@@ -97,6 +97,8 @@ parse_algorithms(const char *value, uint32 *algorithms)
 			algorithm = PG_OAUTH_ALGORITHM_RS256;
 		else if (length == 5 && memcmp(entry, "ES256", length) == 0)
 			algorithm = PG_OAUTH_ALGORITHM_ES256;
+		else if (length == 5 && memcmp(entry, "EdDSA", length) == 0)
+			algorithm = PG_OAUTH_ALGORITHM_EDDSA;
 		else
 			return false;
 

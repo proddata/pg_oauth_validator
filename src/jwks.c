@@ -22,6 +22,7 @@
 
 #include <openssl/bn.h>
 #include <openssl/ec.h>
+#include <openssl/evp.h>
 #include <openssl/obj_mac.h>
 
 #include "base64url.h"
@@ -115,6 +116,8 @@ key_algorithm(const json_t *key)
 		return PG_OAUTH_ALGORITHM_RS256;
 	if (json_string_equals(algorithm, "ES256"))
 		return PG_OAUTH_ALGORITHM_ES256;
+	if (json_string_equals(algorithm, "EdDSA"))
+		return PG_OAUTH_ALGORITHM_EDDSA;
 	return 0;
 }
 
@@ -249,6 +252,36 @@ done:
 	return valid;
 }
 
+/*
+ * RFC 8037 OKP/Ed25519 only. The curve is pinned here, as for P-256, rather
+ * than inherited from the verifier library: Ed448 and X25519 keys, and any
+ * wrong-length coordinate, are rejected before import. OpenSSL decodes the
+ * point when verifying; an undecodable point can only yield an invalid
+ * signature.
+ */
+static bool
+valid_ed25519_key(const json_t *key)
+{
+	uint8_t    *x = NULL;
+	size_t		x_length;
+	EVP_PKEY   *public_key = NULL;
+	bool		valid = false;
+
+	if (!json_string_equals(json_object_get(key, "kty"), "OKP") ||
+		!json_string_equals(json_object_get(key, "crv"), "Ed25519") ||
+		!decode_parameter(json_object_get(key, "x"), 32, &x, &x_length) ||
+		x_length != 32)
+		goto done;
+	public_key = EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519, NULL, x,
+											 x_length);
+	valid = public_key != NULL;
+
+done:
+	EVP_PKEY_free(public_key);
+	free(x);
+	return valid;
+}
+
 void
 pg_oauth_selected_jwk_clear(PgOAuthSelectedJwk *selected)
 {
@@ -369,7 +402,9 @@ pg_oauth_jwks_select(const char *document, size_t document_length,
 	}
 	if ((algorithm == PG_OAUTH_ALGORITHM_RS256 &&
 		 !valid_rsa_key(candidate, policy)) ||
-		(algorithm == PG_OAUTH_ALGORITHM_ES256 && !valid_ec_key(candidate)))
+		(algorithm == PG_OAUTH_ALGORITHM_ES256 && !valid_ec_key(candidate)) ||
+		(algorithm == PG_OAUTH_ALGORITHM_EDDSA &&
+		 !valid_ed25519_key(candidate)))
 	{
 		pg_oauth_selected_jwk_clear(selected);
 		return PG_OAUTH_JWKS_INVALID_KEY;

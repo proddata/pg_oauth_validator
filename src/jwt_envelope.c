@@ -138,6 +138,8 @@ parse_algorithm(const json_t *header)
 		return PG_OAUTH_ALGORITHM_RS256;
 	if (length == 5 && memcmp(algorithm, "ES256", length) == 0)
 		return PG_OAUTH_ALGORITHM_ES256;
+	if (length == 5 && memcmp(algorithm, "EdDSA", length) == 0)
+		return PG_OAUTH_ALGORITHM_EDDSA;
 	return 0;
 }
 

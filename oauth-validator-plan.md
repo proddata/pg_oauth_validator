@@ -592,7 +592,8 @@ policy decisions below.
 5. Initial decision: support RS256 with an explicit minimum of at least 2048
    bits and a bounded deployment maximum, and ES256 only with a validated
    P-256 public point. Adding algorithms or weakening these bounds requires a
-   reviewed policy and negative tests.
+   reviewed policy and negative tests. Opt-in Ed25519 `EdDSA` was added under
+   [`ADR 0003`](docs/adr/0003-eddsa-ed25519-support.md).
 6. Define cache freshness and provider-outage policy.
 7. Decide whether delegated authorization belongs in the same module or a later policy-focused module.
 8. Decide whether introspection is required for the intended production threat model.

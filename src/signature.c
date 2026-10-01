@@ -20,6 +20,8 @@ libjwt_algorithm(uint32_t algorithm)
 		return JWT_ALG_RS256;
 	if (algorithm == PG_OAUTH_ALGORITHM_ES256)
 		return JWT_ALG_ES256;
+	if (algorithm == PG_OAUTH_ALGORITHM_EDDSA)
+		return JWT_ALG_EDDSA;
 	return JWT_ALG_INVAL;
 }
 

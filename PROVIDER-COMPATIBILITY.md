@@ -45,7 +45,7 @@ The policy builder currently enforces:
 
 - one global comma-separated `pg_oauth_validator.audiences` setting;
 - `pg_oauth_validator.required_token_type = 'at+jwt'` only;
-- `RS256` and/or `ES256` only;
+- `RS256` and/or `ES256` by default, plus Ed25519 `EdDSA` when the administrator opts in (ADR 0003);
 - `sub` as the default authenticated identity claim;
 - direct identity matching by default, with optional issuer-qualified usermaps;
 - opt-in exact string-array role authorization when HBA delegation is enabled;

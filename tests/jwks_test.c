@@ -136,6 +136,39 @@ make_ec_jwks(bool valid_point)
 	return document;
 }
 
+/* RFC 8037 Appendix A.2 public key; a valid Ed25519 point. */
+static const char rfc8037_x[] = "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo";
+
+static char *
+make_okp_jwks(const char *key_type, const char *curve, const char *x,
+			  const char *members)
+{
+	size_t		capacity = strlen(key_type) + strlen(curve) + strlen(x) +
+		strlen(members) + 64;
+	char	   *document = malloc(capacity);
+
+	if (document == NULL)
+		fail("allocation failed");
+	snprintf(document, capacity,
+			 "{\"keys\":[{\"kty\":\"%s\",\"crv\":\"%s\",\"x\":\"%s\",%s}]}",
+			 key_type, curve, x, members);
+	return document;
+}
+
+static char *
+make_okp_x(size_t length)
+{
+	unsigned char *bytes = malloc(length);
+	char	   *encoded;
+
+	if (bytes == NULL)
+		fail("allocation failed");
+	memset(bytes, 0x01, length);
+	encoded = encode_bytes(bytes, length);
+	free(bytes);
+	return encoded;
+}
+
 static void
 expect_error(const char *document, const char *key_id, uint32_t algorithm,
 			 PgOAuthJwksError expected, const char *message)
@@ -246,6 +279,91 @@ main(void)
 	expect_error("{\"keys\":[{\"kid\":\"line\\nfeed\"}]}", "missing",
 				 PG_OAUTH_ALGORITHM_RS256, PG_OAUTH_JWKS_INVALID_KEY_ID,
 				 "control character in key identifier was accepted");
+
+	/* EdDSA is selected only when the administrator allows it. */
+	policy.allowed_algorithms |= PG_OAUTH_ALGORITHM_EDDSA;
+	document = make_okp_jwks("OKP", "Ed25519", rfc8037_x,
+							 "\"kid\":\"okp-1\",\"alg\":\"EdDSA\",\"use\":\"sig\"");
+	if (pg_oauth_jwks_select(document, strlen(document), "okp-1",
+							 PG_OAUTH_ALGORITHM_EDDSA, &policy, &selected) != PG_OAUTH_JWKS_OK)
+		fail("valid Ed25519 signing key was rejected");
+	if (selected.algorithm != PG_OAUTH_ALGORITHM_EDDSA || selected.jwk == NULL)
+		fail("valid Ed25519 key was selected incorrectly");
+	pg_oauth_selected_jwk_clear(&selected);
+	expect_error(document, "okp-1", PG_OAUTH_ALGORITHM_EDDSA,
+				 PG_OAUTH_JWKS_INVALID_ARGUMENT,
+				 "EdDSA key was selected without administrator allowance");
+	free(document);
+
+	document = make_okp_jwks("OKP", "Ed25519", rfc8037_x,
+							 "\"kid\":\"okp-1\",\"alg\":\"EdDSA\",\"key_ops\":[\"verify\"]");
+	if (pg_oauth_jwks_select(document, strlen(document), "okp-1",
+							 PG_OAUTH_ALGORITHM_EDDSA, &policy, &selected) != PG_OAUTH_JWKS_OK)
+		fail("Ed25519 verify key operation was rejected");
+	pg_oauth_selected_jwk_clear(&selected);
+	free(document);
+
+	{
+		static const struct
+		{
+			const char *key_type;
+			const char *curve;
+			size_t		x_bytes;
+			const char *members;
+			PgOAuthJwksError expected;
+			const char *message;
+		}			cases[] = {
+			{"OKP", "Ed448", 57, "\"kid\":\"k\",\"alg\":\"EdDSA\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_INVALID_KEY, "Ed448 key was accepted for EdDSA"},
+			{"OKP", "X25519", 32, "\"kid\":\"k\",\"alg\":\"EdDSA\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_INVALID_KEY, "X25519 key was accepted for EdDSA"},
+			{"OKP", "ed25519", 32, "\"kid\":\"k\",\"alg\":\"EdDSA\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_INVALID_KEY, "case-variant curve name was accepted"},
+			{"OKP", "Ed25519", 31, "\"kid\":\"k\",\"alg\":\"EdDSA\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_INVALID_KEY, "short Ed25519 key was accepted"},
+			{"OKP", "Ed25519", 33, "\"kid\":\"k\",\"alg\":\"EdDSA\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_INVALID_KEY, "long Ed25519 key was accepted"},
+			{"EC", "Ed25519", 32, "\"kid\":\"k\",\"alg\":\"EdDSA\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_INVALID_KEY, "wrong key type was accepted for EdDSA"},
+			{"OKP", "Ed25519", 32, "\"kid\":\"k\",\"alg\":\"EdDSA\",\"use\":\"sig\",\"d\":\"AQ\"",
+			PG_OAUTH_JWKS_INVALID_KEY, "Ed25519 private key material was accepted"},
+			{"OKP", "Ed25519", 32, "\"kid\":\"k\",\"alg\":\"EdDSA\",\"use\":\"enc\"",
+			PG_OAUTH_JWKS_KEY_NOT_FOR_SIGNATURE, "Ed25519 encryption key was accepted"},
+			{"OKP", "Ed25519", 32, "\"kid\":\"k\",\"alg\":\"EdDSA\"",
+			PG_OAUTH_JWKS_KEY_NOT_FOR_SIGNATURE, "Ed25519 key without signature intent was accepted"},
+			{"OKP", "Ed25519", 32, "\"kid\":\"k\",\"alg\":\"RS256\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_ALGORITHM_MISMATCH, "Ed25519 key labelled RS256 was accepted for EdDSA"},
+			{"OKP", "Ed25519", 32, "\"kid\":\"k\",\"alg\":\"Ed25519\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_ALGORITHM_MISMATCH, "unreviewed fully-specified algorithm name was accepted"},
+			{"OKP", "Ed25519", 32, "\"kid\":\"k\",\"use\":\"sig\"",
+			PG_OAUTH_JWKS_ALGORITHM_MISMATCH, "Ed25519 key without alg was accepted"},
+		};
+
+		for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+		{
+			char	   *x = make_okp_x(cases[i].x_bytes);
+
+			document = make_okp_jwks(cases[i].key_type, cases[i].curve, x,
+									 cases[i].members);
+			if (pg_oauth_jwks_select(document, strlen(document), "k",
+									 PG_OAUTH_ALGORITHM_EDDSA, &policy, &selected) !=
+				cases[i].expected)
+				fail(cases[i].message);
+			if (selected.jwks != NULL || selected.jwk != NULL)
+				fail("rejected EdDSA JWKS retained untrusted data");
+			free(document);
+			free(x);
+		}
+	}
+
+	/* An EdDSA-labelled token must not select an RSA or EC key. */
+	document = make_rsa_jwks(
+							 "\"kid\":\"rsa-1\",\"alg\":\"RS256\",\"use\":\"sig\"", 256, 0x80);
+	if (pg_oauth_jwks_select(document, strlen(document), "rsa-1",
+							 PG_OAUTH_ALGORITHM_EDDSA, &policy, &selected) !=
+		PG_OAUTH_JWKS_ALGORITHM_MISMATCH)
+		fail("EdDSA token selected an RSA key");
+	free(document);
 
 	if (strstr(pg_oauth_jwks_error_code(PG_OAUTH_JWKS_INVALID_KEY), "rsa-1") !=
 		NULL)
