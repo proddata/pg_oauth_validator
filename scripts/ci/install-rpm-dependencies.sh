@@ -40,6 +40,13 @@ case "$platform" in
 		printf '%s  %s\n' "$pgdg_repo_sha256" "$pgdg_repo" |
 			sha256sum --check --status
 		dnf install --assumeyes "$pgdg_repo"
+		# Since repo RPM 42.0-70 the repository path embeds the OS minor
+		# release (rhel-9.3-x86_64 here), and PGDG publishes only recent minors
+		# plus the unversioned rhel-9-x86_64 tree that earlier repo RPMs used.
+		# This image pins an older Rocky 9 minor, so select the unversioned tree.
+		sed -i 's|/rhel-\$releasever_major\.\$releasever_minor-|/rhel-$releasever_major-|' \
+			/etc/yum.repos.d/pgdg-redhat-all.repo
+		grep --quiet '/rhel-\$releasever_major-' /etc/yum.repos.d/pgdg-redhat-all.repo
 		dnf -qy module disable postgresql
 		dnf install --assumeyes dnf-plugins-core
 		dnf config-manager --set-enabled crb
