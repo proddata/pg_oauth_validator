@@ -127,6 +127,11 @@ sleeping. A provider failure or expired wait still fails closed. Set the value
 to `0` only when immediate rejection is preferable to a bounded cold-start
 delay.
 
+Misspelled `pg_oauth_validator.*` settings are not silently ignored: the prefix
+is reserved, so PostgreSQL logs a warning naming the unknown setting each time
+a backend loads the validator. Treat that warning as a configuration error,
+because the intended setting is not in effect.
+
 ## Validation before rollout
 
 1. Verify the package matches the server's PostgreSQL major version.
@@ -176,6 +181,11 @@ required restart creates a segment with the requested layout.
 7. Roll out gradually across instances where the deployment permits.
 
 Do not mix library files or LLVM bitcode from different builds.
+
+Rebuild and retest the module against the headers of every PostgreSQL minor
+release you deploy, not only each major. The matched HBA issuer and scope are
+read from PostgreSQL's internal HBA structure, and minor releases are not an
+ABI guarantee for server-internal types.
 
 ## Rollback
 

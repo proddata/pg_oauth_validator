@@ -195,6 +195,12 @@ GetNamedDSMSegment(const char *name, size_t size,
 #endif
 
 PGDLLEXPORT void
+MarkGUCPrefixReserved(const char *className)
+{
+	(void) className;
+}
+
+PGDLLEXPORT void
 DefineCustomStringVariable(const char *name, const char *short_desc,
 						   const char *long_desc, char **value_address,
 						   const char *boot_value, GucContext context, int flags,

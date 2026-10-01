@@ -223,16 +223,29 @@ pg_oauth_cache_complete_refresh(PgOAuthCache *cache,
 	PgOAuthCacheEntry *entry;
 
 	if (cache == NULL || cache->entries == NULL || refresh == NULL ||
-		refresh->entry_index >= cache->capacity || refresh->serial == 0 ||
-		now_ms < 0 || ttl_ms < 0 || stale_grace_ms < 0)
-		return false;
-	if (success && cacheable && (payload == NULL || payload_length == 0 ||
-								 payload_length > PG_OAUTH_CACHE_MAX_PAYLOAD_SIZE))
+		refresh->entry_index >= cache->capacity || refresh->serial == 0)
 		return false;
 	entry = &cache->entries[refresh->entry_index];
 	if (!entry->occupied || !entry->refreshing ||
 		entry->refresh_serial != refresh->serial)
 		return false;
+
+	/*
+	 * The caller owns this refresh, so a rejected completion must still
+	 * release it. Otherwise the entry would stay in progress for every other
+	 * backend until restart.
+	 */
+	if (now_ms < 0 || ttl_ms < 0 || stale_grace_ms < 0 ||
+		(success && cacheable &&
+		 (payload == NULL || payload_length == 0 ||
+		  payload_length > PG_OAUTH_CACHE_MAX_PAYLOAD_SIZE)))
+	{
+		entry->refreshing = false;
+		increment(&cache->control->stats.failures);
+		if (!entry->has_value)
+			memset(entry, 0, sizeof(*entry));
+		return false;
+	}
 
 	entry->refreshing = false;
 	if (!success)

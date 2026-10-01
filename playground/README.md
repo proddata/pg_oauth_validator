@@ -6,6 +6,9 @@ provider. It uses the custom Node.js OAuth client because stock libpq currently
 constructs Auth0's discovery URL incorrectly; `psql` remains selectable for
 demonstrating and tracking that interoperability behavior.
 
+The generated PostgreSQL files are for disposable local use only. They include
+`local ... trust` rules and must not be copied into a production `pg_hba.conf`.
+
 The playground does not bundle an identity provider. Provider-specific values
 and rendered PostgreSQL files live only in the ignored `.generated/` directory.
 
