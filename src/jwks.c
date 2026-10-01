@@ -1,3 +1,17 @@
+/*
+ * Select exactly one trusted verification key from an already-fetched JWKS.
+ *
+ * Performs no I/O. The JWKS document comes from the issuer's configured
+ * location but is still untrusted input: it is size- and count-bounded,
+ * parsed with duplicate-member rejection, and the chosen key must pass every
+ * check below before it is handed to signature verification.
+ *
+ * The key is picked by an exact kid match only; two keys with the same kid is
+ * an error rather than a tie-break. The key's own "alg" must equal the
+ * token's algorithm and be on the administrator's allowlist, so a token cannot
+ * pick the algorithm that verifies it (RSA/EC/Ed25519 confusion), and key type
+ * and parameters are checked against local policy per algorithm.
+ */
 #include "jwks.h"
 
 #include <ctype.h>
@@ -72,6 +86,10 @@ key_allows_verification(const json_t *key)
 	return has_marker;
 }
 
+/*
+ * A published verification key must be public. Private members in a JWKS mean
+ * a misconfigured or compromised issuer, so the key is rejected, not stripped.
+ */
 static bool
 contains_private_key_material(const json_t *key)
 {

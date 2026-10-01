@@ -1,3 +1,13 @@
+/*
+ * Builds the immutable validation policy from administrator configuration
+ * (GUCs) and the matched pg_hba.conf rule.
+ *
+ * Security policy is explicit here rather than inherited from a library
+ * default: audience and the required scopes have no default, the algorithm
+ * allowlist is exact and duplicate-free, and every bound is range-checked.
+ * Any invalid or incomplete setting returns a specific error and no policy,
+ * so authentication fails closed instead of running with a weaker one.
+ */
 #include "postgres.h"
 
 #include <ctype.h>
@@ -55,6 +65,11 @@ validate_audiences(const char *value)
 	return count > 0;
 }
 
+/*
+ * Parse the administrator's algorithm allowlist. Matching is exact and
+ * case-sensitive; unknown names, duplicates, and empty entries are rejected
+ * so that a typo cannot silently narrow or widen what is accepted.
+ */
 static bool
 parse_algorithms(const char *value, uint32 *algorithms)
 {
@@ -211,6 +226,13 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 		return PG_OAUTH_POLICY_INVALID_AUTHORIZATION_MODE;
 	if (!validate_claim_name(config->roles_claim))
 		return PG_OAUTH_POLICY_INVALID_ROLES_CLAIM;
+
+	/*
+	 * Delegated role authorization must be enabled on both sides at once: the
+	 * HBA rule hands role mapping to the validator, and the validator must be
+	 * configured to enforce the roles claim. Either alone would leave the
+	 * requested role unchecked or unmappable.
+	 */
 	if (hba->delegate_ident_mapping !=
 		(policy->authorization_mode == PG_OAUTH_AUTHORIZATION_CLAIM_ROLES))
 		return PG_OAUTH_POLICY_DELEGATION_MISMATCH;

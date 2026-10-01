@@ -1,3 +1,11 @@
+/*
+ * Signature verification: the only place that calls into libjwt to verify.
+ *
+ * It receives one JWK already vetted by jwks.c and fixes the checker to the
+ * single approved algorithm for that key. It makes no claim, time, issuer, URL,
+ * or caching decision and uses none of libjwt's remote-JWKS or claim helpers;
+ * those policies belong to this project's own stages (ADR 0001).
+ */
 #include "signature.h"
 
 #include <stdlib.h>
@@ -49,6 +57,13 @@ pg_oauth_signature_verify(const char *token, size_t token_length,
 	}
 	key = jwks_item_get(key_set, 0);
 	checker = jwt_checker_new();
+
+	/*
+	 * The two jwt_checker_time_leeway() calls below disable libjwt's own
+	 * exp/nbf decisions. It would evaluate them against the process wall
+	 * clock before the signature; time is judged once, by the
+	 * injectable-clock claims stage, after verification (ADR 0001).
+	 */
 	if (key == NULL || checker == NULL ||
 		jwt_checker_setkey(checker, algorithm, key) != 0 ||
 		jwt_checker_time_leeway(checker, JWT_CLAIM_EXP, -1) != 0 ||

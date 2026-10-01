@@ -1,3 +1,18 @@
+/*
+ * Strict structural parse of an untrusted compact JWS access token.
+ *
+ * This stage decides nothing about trust. It bounds sizes, requires canonical
+ * unpadded Base64URL and unique JSON members, and extracts only the values the
+ * later stages need: the algorithm and key id from the protected header. The
+ * decoded payload is kept as untrusted_payload and must not influence any
+ * decision until the signature has been verified (see validator.c).
+ *
+ * The algorithm is matched case-sensitively against the administrator's
+ * allowlist, never against what the token or the JWKS would like to use, and
+ * headers that could redirect key selection or change verification (such as
+ * token-supplied key locations and critical-header extensions) are rejected
+ * outright rather than ignored.
+ */
 #include "jwt_envelope.h"
 
 #include <ctype.h>

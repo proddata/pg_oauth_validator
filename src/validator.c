@@ -1,3 +1,21 @@
+/*
+ * Orchestrates the strict access-token validation pipeline.
+ *
+ * Stages run in a fixed trust order and the first failure ends validation:
+ *
+ *   1. envelope   - bounded structural parse of the untrusted token
+ *   2. issuer key - fetch metadata/JWKS from the configured issuer only and
+ *                   select the one key named by the token's kid
+ *   3. signature  - verify with that key
+ *   4. claims     - issuer, audience, expiry, scopes, identity claim
+ *   5. identity   - build the authenticated identity string
+ *
+ * Claims are read only after the signature verifies; before that, the payload
+ * is untrusted data. Each stage keeps its own error code so the caller can log
+ * a precise, non-sensitive reason, but every failure is a denial: nothing
+ * here converts an error into success. See FEATURES.md, "Required validation
+ * pipeline".
+ */
 #include "validator.h"
 
 #include <string.h>
