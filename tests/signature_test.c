@@ -97,6 +97,8 @@ generate_key(const char *algorithm)
 
 	if (strcmp(algorithm, "RS256") == 0)
 		key = EVP_PKEY_Q_keygen(NULL, NULL, "RSA", (size_t) 2048);
+	else if (strcmp(algorithm, "EdDSA") == 0)
+		key = EVP_PKEY_Q_keygen(NULL, NULL, "ED25519");
 	else
 		key = EVP_PKEY_Q_keygen(NULL, NULL, "EC", "P-256");
 	if (key == NULL)
@@ -131,6 +133,25 @@ public_jwks(EVP_PKEY *key, const char *algorithm, const char *key_id)
 				 "\"kid\":\"%s\",\"alg\":\"RS256\",\"use\":\"sig\"}]}",
 				 first_encoded, second_encoded, key_id);
 	}
+	else if (strcmp(algorithm, "EdDSA") == 0)
+	{
+		unsigned char raw[32];
+		size_t		raw_length = sizeof(raw);
+
+		if (EVP_PKEY_get_raw_public_key(key, raw, &raw_length) != 1 ||
+			raw_length != sizeof(raw))
+			fail("Ed25519 public key export failed");
+		first_encoded = encode_bytes(raw, raw_length);
+		second_encoded = duplicate_string("");
+		capacity = strlen(first_encoded) + strlen(key_id) + 160;
+		document = malloc(capacity);
+		if (document == NULL)
+			fail("allocation failed");
+		snprintf(document, capacity,
+				 "{\"keys\":[{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"%s\","
+				 "\"kid\":\"%s\",\"alg\":\"EdDSA\",\"use\":\"sig\"}]}",
+				 first_encoded, key_id);
+	}
 	else
 	{
 		if (EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &first) != 1 ||
@@ -161,8 +182,12 @@ sign_input(EVP_PKEY *key, const char *input, size_t *signature_length)
 	EVP_MD_CTX *context = EVP_MD_CTX_new();
 	unsigned char *signature;
 
+	/* Ed25519 signs the message directly; it takes no separate digest. */
+	const EVP_MD *digest = EVP_PKEY_id(key) == EVP_PKEY_ED25519 ?
+		NULL : EVP_sha256();
+
 	if (context == NULL ||
-		EVP_DigestSignInit(context, NULL, EVP_sha256(), NULL, key) != 1 ||
+		EVP_DigestSignInit(context, NULL, digest, NULL, key) != 1 ||
 		EVP_DigestSign(context, NULL, signature_length,
 					   (const unsigned char *) input, strlen(input)) != 1)
 		fail("signature initialization failed");
@@ -354,6 +379,7 @@ main(void)
 {
 	check_algorithm("RS256", PG_OAUTH_ALGORITHM_RS256, "rsa-signature-test");
 	check_algorithm("ES256", PG_OAUTH_ALGORITHM_ES256, "ec-signature-test");
+	check_algorithm("EdDSA", PG_OAUTH_ALGORITHM_EDDSA, "okp-signature-test");
 	if (strstr(pg_oauth_signature_error_code(PG_OAUTH_SIGNATURE_INVALID),
 			   "principal") != NULL)
 		fail("signature error code exposed token material");

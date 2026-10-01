@@ -167,6 +167,9 @@ main(void)
 		if (pg_oauth_cache_complete_refresh(&cache, &refresh, 4001, true, true,
 											false, 100, 0, oversized_payload, sizeof(oversized_payload)))
 			fail("oversized cache payload was accepted");
+		/* A rejected completion must release ownership, not wedge the entry. */
+		if (pg_oauth_cache_is_refreshing(&cache, "serial", 6))
+			fail("rejected completion left the refresh in progress");
 		if (pg_oauth_cache_complete_refresh(&cache, &stale_refresh, 4001, true,
 											true, false, 100, 0, "stale", strlen("stale")))
 			fail("stale refresh owner overwrote current state");
@@ -175,6 +178,7 @@ main(void)
 	if (cache.control->stats.refreshes == 0 ||
 		cache.control->stats.refresh_suppressions != 0)
 		fail("cache counters were not maintained deterministically");
+	refresh = begin(&cache, "serial", 4002, false, 0);
 	if (!pg_oauth_cache_attach(&attached_cache, entries, 2, cache.control) ||
 		pg_oauth_cache_begin_refresh(&attached_cache, "serial", 6, 4002, false,
 									 0, &scratch_refresh) !=

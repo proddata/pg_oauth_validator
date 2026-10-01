@@ -332,22 +332,37 @@ class LocalIdp:
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 
-    def rotate(self, key_id, retain_previous=True):
+    def rotate(self, key_id, retain_previous=True, algorithm="RS256"):
         key = self.root / f"idp-{key_id}.pem"
-        subprocess.run(
-            ["openssl", "genpkey", "-algorithm", "RSA", "-out", key,
-             "-pkeyopt", "rsa_keygen_bits:2048"],
-            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-        modulus_output = subprocess.check_output(
-            ["openssl", "rsa", "-in", key, "-noout", "-modulus"],
-            stderr=subprocess.DEVNULL,
-        ).decode().strip()
-        modulus = bytes.fromhex(modulus_output.split("=", 1)[1])
-        jwk = {
-            "kty": "RSA", "n": b64(modulus), "e": "AQAB",
-            "kid": key_id, "alg": "RS256", "use": "sig",
-        }
+        if algorithm == "EdDSA":
+            subprocess.run(
+                ["openssl", "genpkey", "-algorithm", "ED25519", "-out", key],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            # The raw Ed25519 public key is the last 32 bytes of its DER SPKI.
+            public_der = subprocess.check_output(
+                ["openssl", "pkey", "-in", key, "-pubout", "-outform", "DER"],
+                stderr=subprocess.DEVNULL,
+            )
+            jwk = {
+                "kty": "OKP", "crv": "Ed25519", "x": b64(public_der[-32:]),
+                "kid": key_id, "alg": "EdDSA", "use": "sig",
+            }
+        else:
+            subprocess.run(
+                ["openssl", "genpkey", "-algorithm", "RSA", "-out", key,
+                 "-pkeyopt", "rsa_keygen_bits:2048"],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            modulus_output = subprocess.check_output(
+                ["openssl", "rsa", "-in", key, "-noout", "-modulus"],
+                stderr=subprocess.DEVNULL,
+            ).decode().strip()
+            modulus = bytes.fromhex(modulus_output.split("=", 1)[1])
+            jwk = {
+                "kty": "RSA", "n": b64(modulus), "e": "AQAB",
+                "kid": key_id, "alg": "RS256", "use": "sig",
+            }
         self.keys[key_id] = (key, jwk)
         if not retain_previous:
             self.published_keys = []
@@ -387,11 +402,12 @@ class LocalIdp:
 
     def sign(self, *, subject="principal", scope=SCOPE, audience=AUDIENCE,
              expiry=None, key_id=None, header_key_id=None, token_type="at+jwt",
-             extra_claims=None):
+             extra_claims=None, header_algorithm=None):
         key_id = key_id or self.active_key_id
         now = int(time.time())
+        key_algorithm = self.keys[key_id][1]["alg"]
         header = {
-            "alg": "RS256", "typ": token_type,
+            "alg": header_algorithm or key_algorithm, "typ": token_type,
             "kid": header_key_id or key_id,
         }
         claims = {
@@ -408,9 +424,16 @@ class LocalIdp:
         input_file = self.root / "idp-signing-input"
         signature_file = self.root / "idp-signature"
         input_file.write_bytes(signing_input.encode())
+        if key_algorithm == "EdDSA":
+            sign_command = ["openssl", "pkeyutl", "-sign", "-rawin",
+                            "-inkey", self.keys[key_id][0], "-in", input_file,
+                            "-out", signature_file]
+        else:
+            sign_command = ["openssl", "dgst", "-sha256", "-sign",
+                            self.keys[key_id][0], "-out", signature_file,
+                            input_file]
         subprocess.run(
-            ["openssl", "dgst", "-sha256", "-sign", self.keys[key_id][0],
-             "-out", signature_file, input_file],
+            sign_command,
             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         return signing_input + "." + b64(signature_file.read_bytes())

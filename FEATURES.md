@@ -32,7 +32,7 @@ validation and an authenticated identity.
 - Issuer and required scopes come from the matched HBA rule through a small, isolated PostgreSQL-internal compatibility adapter.
 - PostgreSQL 19 registers `validator.policy` through the supported custom HBA option API so a rule can select additional named validation policy.
 - A validated immutable policy combines matched-HBA issuer/scopes with configured audience, algorithms, token type, identity claim, clock skew, and token-size limit.
-- Audience is mandatory and has no implicit default. Algorithms default to `RS256,ES256`, token type to `at+jwt`, identity claim to `sub`, clock skew to 60 seconds, and maximum token size to 16 KiB.
+- Audience is mandatory and has no implicit default. Algorithms default to `RS256,ES256` (`EdDSA`, Ed25519 only, is available when the administrator lists it; see [`ADR 0003`](docs/adr/0003-eddsa-ed25519-support.md)), token type to `at+jwt`, identity claim to `sub`, clock skew to 60 seconds, and maximum token size to 16 KiB.
 
 ## Active release scope: strict offline JWT validation
 
@@ -42,7 +42,7 @@ The active release scope provides strict offline validation of signed JWT access
 - Explicit trusted issuer configuration and exact issuer validation.
 - Standards-based discovery or explicitly configured metadata/JWKS location.
 - Strict access-token type enforcement through the selected profile.
-- Local asymmetric signing-algorithm allowlist.
+- Local asymmetric signing-algorithm allowlist (`RS256`, `ES256`, and opt-in Ed25519 `EdDSA`).
 - Hardened JWKS key selection and signature verification.
 - Mandatory configured audience validation.
 - Required expiry and stable authenticated identity.

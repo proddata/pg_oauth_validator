@@ -437,6 +437,86 @@ def test_reload_separates_trust_policy_cache_entries(integration_environment):
                 os.environ["SSL_CERT_FILE"] = previous_ca
 
 
+def test_eddsa_requires_administrator_allowance_and_binds_key_type(
+    integration_environment,
+):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-eddsa-") as directory:
+        idp = LocalIdp(pathlib.Path(directory), cache_max_age=120)
+        # A mixed key set is what an issuer with per-client algorithms
+        # publishes; only the kid-matched key may be considered.
+        idp.rotate("eddsa-key", retain_previous=True, algorithm="EdDSA")
+        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            identity_map=(identity, "appuser"), ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        rsa_token = idp.sign(key_id="integration-key")
+        eddsa_token = idp.sign(key_id="eddsa-key")
+        # Algorithm confusion: an EdDSA signature claiming RS256 against the
+        # Ed25519 key, and an EdDSA header selecting the RSA key.
+        relabelled_token = idp.sign(key_id="eddsa-key", header_algorithm="RS256")
+        wrong_key_token = idp.sign(
+            key_id="eddsa-key", header_key_id="integration-key",
+        )
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+
+        def connect(token):
+            return attempt_oauth(
+                cluster, client, token=token, user="appuser",
+                issuer=idp.issuer, sslmode="require",
+            )
+
+        try:
+            cluster.start()
+            psql(cluster, "CREATE ROLE appuser LOGIN")
+
+            # Secure default: EdDSA is not enabled unless an administrator
+            # lists it; the RSA key in the same set remains usable.
+            assert connect(rsa_token).returncode == 0, cluster.logs()
+            rejected_default = connect(eddsa_token)
+            assert rejected_default.returncode != 0
+
+            reload_setting(
+                cluster, "pg_oauth_validator.allowed_algorithms", "RS256,EdDSA",
+            )
+            accepted = connect(eddsa_token)
+            assert accepted.returncode == 0, accepted.stderr + "\n" + cluster.logs()
+            assert connect(rsa_token).returncode == 0
+
+            rejected_relabelled = connect(relabelled_token)
+            rejected_wrong_key = connect(wrong_key_token)
+            assert rejected_relabelled.returncode != 0
+            assert rejected_wrong_key.returncode != 0
+
+            reload_setting(
+                cluster, "pg_oauth_validator.allowed_algorithms", "EdDSA",
+            )
+            assert connect(eddsa_token).returncode == 0
+            rejected_rsa_only = connect(rsa_token)
+            assert rejected_rsa_only.returncode != 0
+
+            logs = cluster.logs()
+            for secret in (
+                rsa_token, eddsa_token, relabelled_token, wrong_key_token,
+            ):
+                assert secret not in logs
+                for result in (
+                    rejected_default, rejected_relabelled, rejected_wrong_key,
+                    rejected_rsa_only,
+                ):
+                    assert secret not in result.stderr
+        finally:
+            cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
 @pytest.mark.slow
 @pytest.mark.xdist_group(name="timing")
 def test_local_idp_rotation_outage_and_recovery(integration_environment):

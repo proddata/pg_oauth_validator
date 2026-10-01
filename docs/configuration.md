@@ -35,6 +35,14 @@ pg_oauth_validator.unknown_kid_refresh_cooldown = '30s'
 pg_oauth_validator.cache_max_entries = 32
 ```
 
+`allowed_algorithms` accepts `RS256`, `ES256`, and `EdDSA`. `EdDSA` is opt-in
+and means Ed25519 only: the signing JWK must be `kty=OKP`, `crv=Ed25519`,
+`alg=EdDSA`, and the token header must say `EdDSA`. The fully-specified
+`Ed25519` name from RFC 9864 is not accepted. Enable it with, for example,
+`pg_oauth_validator.allowed_algorithms = 'RS256,EdDSA'`. Operators on a
+FIPS-restricted OpenSSL should confirm Ed25519 support before enabling it.
+See [`ADR 0003`](adr/0003-eddsa-ed25519-support.md).
+
 An empty audience, empty HBA scope, unsupported or duplicate algorithm, token
 type other than `at+jwt` or `application/at+jwt`, unsafe identity/roles claim
 name, unknown identity format or authorization mode, mismatched HBA delegation,

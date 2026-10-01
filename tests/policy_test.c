@@ -95,6 +95,34 @@ main(void)
 				 "unsupported algorithm was accepted");
 
 	config = valid_config();
+	config.allowed_algorithms = "EdDSA";
+	if (pg_oauth_policy_build(&config, &hba, &policy) != PG_OAUTH_POLICY_OK ||
+		policy.allowed_algorithms != PG_OAUTH_ALGORITHM_EDDSA)
+		fail("EdDSA-only allowlist was not built");
+
+	config = valid_config();
+	config.allowed_algorithms = "RS256, EdDSA";
+	if (pg_oauth_policy_build(&config, &hba, &policy) != PG_OAUTH_POLICY_OK ||
+		policy.allowed_algorithms !=
+		(PG_OAUTH_ALGORITHM_RS256 | PG_OAUTH_ALGORITHM_EDDSA))
+		fail("mixed RS256/EdDSA allowlist was not built");
+
+	{
+		static const char *const rejected[] = {
+			"EdDSA,EdDSA", "eddsa", "EDDSA", "Ed25519", "Ed448", "EdDSA,",
+			",EdDSA", "EdDSA ES512"
+		};
+
+		for (size_t i = 0; i < sizeof(rejected) / sizeof(rejected[0]); i++)
+		{
+			config = valid_config();
+			config.allowed_algorithms = rejected[i];
+			expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_ALGORITHMS,
+						 "malformed or unreviewed EdDSA allowlist entry was accepted");
+		}
+	}
+
+	config = valid_config();
 	config.allowed_algorithms = "RS256,RS256";
 	expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_ALGORITHMS,
 				 "duplicate algorithm was accepted");

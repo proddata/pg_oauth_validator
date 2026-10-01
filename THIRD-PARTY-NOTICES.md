@@ -78,7 +78,7 @@ operating system packages that provide them:
 | Component | Use | License |
 | --- | --- | --- |
 | libcurl | HTTPS GET transport for metadata and JWKS | curl license (MIT/X derivative) |
-| OpenSSL 3.x | TLS, and RS256/ES256 signature verification | Apache License 2.0 |
+| OpenSSL 3.x | TLS, and RS256/ES256/EdDSA (Ed25519) signature verification | Apache License 2.0 |
 | PostgreSQL | Server module API (PGXS, validator callbacks) | PostgreSQL License |
 | C runtime and system libraries | Platform | Per operating system distribution |
 

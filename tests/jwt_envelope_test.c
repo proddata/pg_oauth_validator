@@ -137,6 +137,44 @@ main(void)
 	pg_oauth_jwt_envelope_clear(&envelope);
 	free(token);
 
+	token = make_token("{\"alg\":\"EdDSA\",\"typ\":\"at+jwt\",\"kid\":\"key-1\"}",
+					   "{\"sub\":\"principal\"}");
+	policy = valid_policy();
+	if (pg_oauth_jwt_envelope_parse(token, strlen(token), &policy, &envelope) !=
+		PG_OAUTH_JWT_ENVELOPE_INVALID_ALGORITHM)
+		fail("EdDSA was accepted without administrator allowance");
+	policy.allowed_algorithms |= PG_OAUTH_ALGORITHM_EDDSA;
+	if (pg_oauth_jwt_envelope_parse(token, strlen(token), &policy, &envelope) !=
+		PG_OAUTH_JWT_ENVELOPE_OK ||
+		envelope.algorithm != PG_OAUTH_ALGORITHM_EDDSA)
+		fail("allowed EdDSA envelope was rejected");
+	pg_oauth_jwt_envelope_clear(&envelope);
+	free(token);
+
+	{
+		static const char *const rejected[] = {
+			"eddsa", "EDDSA", "Ed25519", "Ed448", "EdDSA ", "EdDSA\\u0000x"
+		};
+
+		for (size_t i = 0; i < sizeof(rejected) / sizeof(rejected[0]); i++)
+		{
+			char		header[128];
+			PgOAuthJwtEnvelopePolicy eddsa_policy = valid_policy();
+			char	   *candidate;
+			PgOAuthJwtEnvelopeError result;
+
+			eddsa_policy.allowed_algorithms |= PG_OAUTH_ALGORITHM_EDDSA;
+			snprintf(header, sizeof(header),
+					 "{\"alg\":\"%s\",\"typ\":\"at+jwt\",\"kid\":\"k\"}", rejected[i]);
+			candidate = make_token(header, "{}");
+			result = pg_oauth_jwt_envelope_parse(candidate, strlen(candidate),
+												 &eddsa_policy, &envelope);
+			free(candidate);
+			if (result == PG_OAUTH_JWT_ENVELOPE_OK)
+				fail("non-canonical EdDSA algorithm name was accepted");
+		}
+	}
+
 	token = make_token(valid_header, "{}");
 	policy = valid_policy();
 	policy.max_header_size = 1;
