@@ -4,7 +4,7 @@ set -eu
 
 usage()
 {
-	echo "usage: $0 fedora43|fedora44|el9" >&2
+	echo "usage: $0 fedora43|fedora44|el10" >&2
 	exit 2
 }
 
@@ -28,9 +28,9 @@ case "$platform" in
 			postgresql postgresql-server postgresql-server-devel
 		pg_config=/usr/bin/pg_server_config
 		;;
-	el9)
-		pgdg_repo_url=https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-42.0-70.rhel9PGDG.noarch.rpm
-		pgdg_repo_sha256=a15b05a745c6a94637522113863f95690576316195ce29d925e494028663c9fd
+	el10)
+		pgdg_repo_url=https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-42.0-69.rhel10PGDG.noarch.rpm
+		pgdg_repo_sha256=6f6272b26ec3a26f2701ed47c69c580691affdf59ef26fa5a9c5a78f94f40a5d
 		work_dir=$(mktemp -d)
 		trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 		pgdg_repo=$work_dir/pgdg-redhat-repo.noarch.rpm
@@ -40,14 +40,6 @@ case "$platform" in
 		printf '%s  %s\n' "$pgdg_repo_sha256" "$pgdg_repo" |
 			sha256sum --check --status
 		dnf install --assumeyes "$pgdg_repo"
-		# Since repo RPM 42.0-70 the repository path embeds the OS minor
-		# release (rhel-9.3-x86_64 here), and PGDG publishes only recent minors
-		# plus the unversioned rhel-9-x86_64 tree that earlier repo RPMs used.
-		# This image pins an older Rocky 9 minor, so select the unversioned tree.
-		sed -i 's|/rhel-\$releasever_major\.\$releasever_minor-|/rhel-$releasever_major-|' \
-			/etc/yum.repos.d/pgdg-redhat-all.repo
-		grep --quiet '/rhel-\$releasever_major-' /etc/yum.repos.d/pgdg-redhat-all.repo
-		dnf -qy module disable postgresql
 		dnf install --assumeyes dnf-plugins-core
 		dnf config-manager --set-enabled crb
 		dnf install --assumeyes $common_packages \

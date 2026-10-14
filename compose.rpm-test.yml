@@ -41,20 +41,20 @@ services:
       - verify-dev
       - packagecheck
 
-  rocky9:
-    image: pg-oauth-validator-rpm-test:rocky9
+  rocky10:
+    image: pg-oauth-validator-rpm-test:rocky10
     platform: linux/amd64
     build:
       context: .
       dockerfile: tools/rpm/Containerfile
       args:
-        BASE_IMAGE: rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
-        RPM_PLATFORM: el9
+        BASE_IMAGE: rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
+        RPM_PLATFORM: el10
         PG_CONFIG_PATH: /usr/pgsql-18/bin/pg_config
     working_dir: /workspace
     volumes:
       - .:/workspace:ro
-      - rocky9-build:/build
+      - rocky10-build:/build
     tmpfs:
       - /source:exec
     command:
@@ -64,4 +64,4 @@ services:
 volumes:
   fedora43-build:
   fedora44-build:
-  rocky9-build:
+  rocky10-build:
