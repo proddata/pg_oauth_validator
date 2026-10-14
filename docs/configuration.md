@@ -172,6 +172,23 @@ not followed.
 empty value uses the system trust store. `allow_insecure_http` exists only for
 isolated development and is disabled by default.
 
+Metadata and JWKS fetches use bounded libcurl multi-interface waits. The
+backend checks for PostgreSQL interrupts between waits so authentication
+timeouts and shutdown can stop an in-progress fetch after releasing its HTTP
+resources and failing any owned cache refresh. The build and runtime libcurl
+must support `CURLOPT_QUICK_EXIT` (7.87.0 or newer), and runtime libcurl must
+report asynchronous DNS support; a fetch fails closed otherwise. During
+authentication cancellation, quick exit avoids waiting for a threaded resolver
+lookup to finish. The backend exits after the authentication interrupt, so any
+resolver resources abandoned by libcurl are process bounded. Use bounded,
+reliable DNS for the trusted issuer and verify timeout and shutdown behavior
+on the deployed libcurl build.
+Run `make check-libcurl-runtime PG_CONFIG=/path/to/pg_config` in the deployment
+environment to record the linked libcurl version and resolver backend. The
+automated tests inject a DNS failure and a delayed threaded DNS lookup, but
+cannot guarantee cancellation latency for every operating-system resolver
+configuration.
+
 Do not place credentials, bearer tokens, or other secrets in `ca_file` paths or
 any validator GUC. PostgreSQL core can include changed setting names and values
 in configuration-reload diagnostics; GUC values are therefore operator-visible

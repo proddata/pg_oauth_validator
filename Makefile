@@ -15,6 +15,7 @@ CLAIMS_TEST_BIN = tests/claims_test
 IDENTITY_TEST_BIN = tests/identity_test
 METADATA_TEST_BIN = tests/metadata_test
 HTTP_TRANSPORT_TEST_BIN = tests/http_transport_test
+LIBCURL_RUNTIME_TEST_BIN = tests/libcurl_runtime_test
 ISSUER_KEY_TEST_BIN = tests/issuer_key_test
 VALIDATOR_TEST_BIN = tests/validator_test
 CACHE_STATE_TEST_BIN = tests/cache_state_test
@@ -53,6 +54,7 @@ EXTRA_CLEAN = $(TEST_BIN) $(POLICY_TEST_BIN) $(JWT_ENVELOPE_TEST_BIN) \
 	$(IDENTITY_TEST_BIN) \
 	$(METADATA_TEST_BIN) \
 	$(HTTP_TRANSPORT_TEST_BIN) \
+	$(LIBCURL_RUNTIME_TEST_BIN) \
 	$(ISSUER_KEY_TEST_BIN) \
 	$(VALIDATOR_TEST_BIN) \
 	$(CACHE_STATE_TEST_BIN) \
@@ -92,7 +94,7 @@ include $(PGXS)
 
 .PHONY: build-pg18 build-pg19 check-cache-key check-cache-state check-fail-closed check-http-freshness check-jwks check-jwt-envelope \
 	check-signature \
-	check-claims check-http-transport check-identity check-issuer-key check-metadata \
+	check-claims check-http-transport check-libcurl-runtime check-identity check-issuer-key check-metadata \
 	check-validator \
 	check-release-artifacts \
 	check-dependency-installers \
@@ -328,6 +330,13 @@ check-http-transport: $(HTTP_TRANSPORT_TEST_BIN)
 	python3 "$(srcdir)/tests/http_transport_driver.py" \
 		"$(CURDIR)/$(HTTP_TRANSPORT_TEST_BIN)"
 
+$(LIBCURL_RUNTIME_TEST_BIN): tests/libcurl_runtime_test.c
+	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
+		$$(pkg-config --cflags libcurl) -o $@ $< $$(pkg-config --libs libcurl)
+
+check-libcurl-runtime: $(LIBCURL_RUNTIME_TEST_BIN)
+	./$(LIBCURL_RUNTIME_TEST_BIN)
+
 $(ISSUER_KEY_TEST_BIN): tests/issuer_key_test.c src/issuer_key.c \
 		src/http_transport.c src/http_freshness.c src/cache_key.c \
 		src/cache_state.c src/metadata.c src/jwks.c src/base64url.c
@@ -428,13 +437,13 @@ installedcheck: packagecheck
 interop-keycloak:
 	sh "$(srcdir)/scripts/interop/keycloak.sh"
 
-verify: check-release-artifacts check-dependency-installers check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
+verify: check-release-artifacts check-dependency-installers check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-libcurl-runtime check-jwt-envelope \
 	check-jwks check-signature check-claims check-identity check-metadata \
 	check-http-transport check-issuer-key check-validator
 
 # Fast local gate. CI and release preparation continue to use `verify`, which
 # additionally checks reproducible release artifacts.
-verify-dev: check-dependency-installers check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-jwt-envelope \
+verify-dev: check-dependency-installers check-symbols check-fail-closed check-policy check-cache-state check-cache-key check-http-freshness check-libcurl-runtime check-jwt-envelope \
 	check-jwks check-signature check-claims check-identity check-metadata \
 	check-http-transport check-issuer-key check-validator
 

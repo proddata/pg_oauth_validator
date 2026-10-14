@@ -200,6 +200,62 @@ def test_valid_token_uses_normal_pg_ident_mapping(integration_environment):
                 os.environ["SSL_CERT_FILE"] = previous_ca
 
 
+def test_invalid_access_tokens_are_denied_by_postgres(integration_environment):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-invalid-token-") as directory:
+        idp = LocalIdp(pathlib.Path(directory))
+        cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            identity_map=("principal", "appuser"), ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+        try:
+            cluster.start()
+            psql(cluster, "CREATE ROLE appuser LOGIN")
+            valid = idp.sign()
+            signed_prefix, signature = valid.rsplit(".", 1)
+            tampered = signed_prefix + "." + (
+                "A" if signature[0] != "A" else "B"
+            ) + signature[1:]
+            invalid_tokens = {
+                "expired": idp.sign(expiry=int(time.time()) - 120),
+                "wrong audience": idp.sign(audience="postgres://other"),
+                "wrong issuer": idp.sign(
+                    extra_claims={"iss": "https://wrong.example/"}
+                ),
+                "insufficient scope": idp.sign(scope="read:metadata"),
+                "non-string scope": idp.sign(extra_claims={"scope": None}),
+                "ID token": idp.sign(token_type="JWT"),
+                "tampered signature": tampered,
+                "malformed token": "not-a-jwt",
+            }
+
+            def connect(token):
+                return attempt_oauth(
+                    cluster, client, token=token, user="appuser",
+                    issuer=idp.issuer, sslmode="require",
+                )
+
+            assert connect(valid).returncode == 0, cluster.logs()
+            for reason, token in invalid_tokens.items():
+                rejected = connect(token)
+                assert rejected.returncode != 0, f"{reason} was accepted"
+                assert token not in rejected.stderr
+            assert connect(valid).returncode == 0, cluster.logs()
+            logs = cluster.logs()
+            for token in (valid, *invalid_tokens.values()):
+                assert token not in logs
+        finally:
+            cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
 def test_direct_identity_and_delegated_roles(integration_environment):
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-roles-") as directory:
@@ -633,6 +689,171 @@ def test_local_idp_rotation_outage_and_recovery(integration_environment):
                 assert token not in logs
                 assert token not in retired.stderr
                 assert token not in expired_during_outage.stderr
+        finally:
+            cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group(name="timing")
+def test_expired_jwks_refetch_and_outage_denies_all_tokens(integration_environment):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-jwks-expiry-") as directory:
+        idp = LocalIdp(pathlib.Path(directory), cache_max_age=120,
+                       jwks_cache_max_age=1)
+        cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            identity_map=("principal", "appuser"), ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+
+        def connect(token):
+            return attempt_oauth(
+                cluster, client, token=token, user="appuser",
+                issuer=idp.issuer, sslmode="require",
+            )
+
+        try:
+            cluster.start()
+            psql(cluster, "CREATE ROLE appuser LOGIN")
+            first_token = idp.sign()
+            second_token = idp.sign(extra_claims={"jti": "second-token"})
+            assert connect(first_token).returncode == 0, cluster.logs()
+            initial_requests = idp.request_counts()
+            assert initial_requests == {"metadata": 1, "jwks": 1}
+
+            time.sleep(1.2)
+            assert connect(first_token).returncode == 0, cluster.logs()
+            refetched = idp.request_counts()
+            assert refetched == {"metadata": 1, "jwks": 2}
+
+            idp.set_fault("jwks", "http_error")
+            time.sleep(1.2)
+            for token in (first_token, second_token):
+                rejected = connect(token)
+                assert rejected.returncode != 0, "expired JWKS survived fetch failure"
+                assert token not in rejected.stderr
+            failed_requests = idp.request_counts()
+            assert failed_requests["metadata"] == 1
+            assert failed_requests["jwks"] > refetched["jwks"]
+
+            idp.set_fault("jwks", None)
+            assert connect(first_token).returncode == 0, cluster.logs()
+            assert idp.request_counts()["jwks"] > failed_requests["jwks"]
+            logs = cluster.logs()
+            assert first_token not in logs and second_token not in logs
+        finally:
+            cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group(name="timing")
+def test_authentication_timeout_interrupts_provider_fetch(integration_environment):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-interrupt-") as directory:
+        idp = LocalIdp(pathlib.Path(directory), cache_max_age=120)
+        cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            identity_map=("principal", "appuser"), ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+            extra_config=(
+                "authentication_timeout = '1s'\n"
+                "pg_oauth_validator.unknown_kid_refresh_cooldown = '1s'\n"
+            ),
+        )
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+
+        def connect(token):
+            return attempt_oauth(
+                cluster, client, token=token, user="appuser",
+                issuer=idp.issuer, sslmode="require",
+            )
+
+        try:
+            cluster.start()
+            psql(cluster, "CREATE ROLE appuser LOGIN")
+            token = idp.sign()
+            idp.set_delay("metadata", 2.5)
+            started = time.monotonic()
+            rejected = connect(token)
+            assert rejected.returncode != 0
+            assert time.monotonic() - started < 2.2, cluster.logs()
+            idp.set_delay("metadata", 0)
+            assert connect(token).returncode == 0
+
+            idp.rotate("interrupt-jwks-key")
+            rotated = idp.sign()
+            idp.set_delay("jwks", 2.5)
+            started = time.monotonic()
+            rejected_jwks = connect(rotated)
+            assert rejected_jwks.returncode != 0
+            assert time.monotonic() - started < 2.2, cluster.logs()
+            idp.set_delay("jwks", 0)
+            time.sleep(1.1)  # The aborted unknown-key refresh still starts cooldown.
+            assert connect(rotated).returncode == 0
+            logs = cluster.logs()
+            assert token not in logs and rotated not in logs
+            assert token not in rejected.stderr
+            assert rotated not in rejected_jwks.stderr
+        finally:
+            cluster.stop()
+            idp.close()
+            if previous_ca is None:
+                os.environ.pop("SSL_CERT_FILE", None)
+            else:
+                os.environ["SSL_CERT_FILE"] = previous_ca
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group(name="timing")
+def test_fast_shutdown_interrupts_provider_fetch(integration_environment):
+    pg_config, validator_library, client = integration_environment
+    with tempfile.TemporaryDirectory(prefix="pg-oauth-shutdown-") as directory:
+        idp = LocalIdp(pathlib.Path(directory))
+        cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        previous_ca = os.environ.get("SSL_CERT_FILE")
+        os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
+        try:
+            cluster.start()
+            token = idp.sign(subject="postgres")
+            idp.set_delay("metadata", 5.5)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                connection = pool.submit(
+                    attempt_oauth, cluster, client, token=token,
+                    user="postgres", issuer=idp.issuer, sslmode="require",
+                )
+                deadline = time.monotonic() + 3
+                while idp.request_counts()["metadata"] == 0:
+                    assert time.monotonic() < deadline, "metadata fetch did not begin"
+                    time.sleep(0.01)
+                started = time.monotonic()
+                stopped = subprocess.run(
+                    ["runuser", "-u", "postgres", "--",
+                     str(cluster.bindir / "pg_ctl"), "-D", str(cluster.data),
+                     "-m", "fast", "-w", "stop"],
+                    capture_output=True, text=True, timeout=4,
+                )
+                elapsed = time.monotonic() - started
+                assert stopped.returncode == 0, stopped.stderr
+                assert elapsed < 2.5, "shutdown waited for the provider response"
+                assert connection.result(timeout=4).returncode != 0
+            assert token not in cluster.logs()
         finally:
             cluster.stop()
             idp.close()

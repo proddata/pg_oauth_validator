@@ -12,6 +12,7 @@ typedef enum PgOAuthHttpError
 	PG_OAUTH_HTTP_INSECURE_URL,
 	PG_OAUTH_HTTP_HOST_NOT_ALLOWED,
 	PG_OAUTH_HTTP_TIMEOUT,
+	PG_OAUTH_HTTP_INTERRUPTED,
 	PG_OAUTH_HTTP_TLS_FAILURE,
 	PG_OAUTH_HTTP_RESPONSE_TOO_LARGE,
 	PG_OAUTH_HTTP_STATUS,
@@ -30,6 +31,9 @@ typedef struct PgOAuthHttpPolicy
 	const char *additional_allowed_hosts;
 	const char *ca_file;
 	bool		allow_insecure_http;
+	/* Optional host callback; called between bounded nonblocking I/O waits. */
+	bool		(*cancel_requested) (void *context);
+	void	   *cancel_context;
 } PgOAuthHttpPolicy;
 
 typedef struct PgOAuthHttpResponse

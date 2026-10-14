@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <curl/curl.h>
+
 #include "http_transport.h"
 
 static void
@@ -9,6 +11,21 @@ fail(const char *message)
 {
 	fprintf(stderr, "http_transport_test: %s\n", message);
 	exit(EXIT_FAILURE);
+}
+
+static bool
+cancel_after_checks(void *context)
+{
+	int		   *checks = context;
+
+	return ++* checks >= 3;
+}
+
+static bool
+never_cancel(void *context)
+{
+	(void) context;
+	return false;
 }
 
 static void
@@ -38,6 +55,41 @@ main(int argc, char **argv)
 	};
 	PgOAuthHttpResponse response;
 	char		url[4096];
+
+	if (argc == 2 &&
+		(strcmp(argv[1], "--dns-failure") == 0 ||
+		 strcmp(argv[1], "--dns-cancel") == 0))
+	{
+		const curl_version_info_data *info;
+
+		if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK)
+			fail("libcurl initialization failed");
+		info = curl_version_info(CURLVERSION_NOW);
+		if (info != NULL && info->ares != NULL)
+			return 77;
+		policy.allowed_host = "resolver-probe.invalid";
+		if (strcmp(argv[1], "--dns-cancel") == 0)
+		{
+			int			checks = 0;
+
+			policy.connect_timeout_ms = 5000;
+			policy.total_timeout_ms = 5000;
+			policy.cancel_requested = cancel_after_checks;
+			policy.cancel_context = &checks;
+			expect("http://resolver-probe.invalid/jwks", &policy,
+				   PG_OAUTH_HTTP_INTERRUPTED,
+				   "DNS lookup cancellation did not deny the request");
+		}
+		else
+		{
+			policy.cancel_requested = never_cancel;
+			expect("http://resolver-probe.invalid/jwks", &policy,
+				   PG_OAUTH_HTTP_NETWORK_FAILURE,
+				   "DNS lookup failure did not deny the request");
+		}
+		curl_global_cleanup();
+		return EXIT_SUCCESS;
+	}
 
 	if (argc != 4)
 		fail("expected HTTP base URL, HTTPS base URL, and CA file");
@@ -84,6 +136,19 @@ main(int argc, char **argv)
 	policy.connect_timeout_ms = 50;
 	policy.total_timeout_ms = 100;
 	expect(url, &policy, PG_OAUTH_HTTP_TIMEOUT, "request timeout was ignored");
+	{
+		int			checks = 0;
+
+		policy.total_timeout_ms = 500;
+		policy.cancel_requested = cancel_after_checks;
+		policy.cancel_context = &checks;
+		expect(url, &policy, PG_OAUTH_HTTP_INTERRUPTED,
+			   "cancelled request did not stop and release its response");
+		if (checks < 3)
+			fail("cancel callback was not polled during a stalled request");
+		policy.cancel_requested = NULL;
+		policy.cancel_context = NULL;
+	}
 	policy.connect_timeout_ms = 500;
 	policy.total_timeout_ms = 500;
 

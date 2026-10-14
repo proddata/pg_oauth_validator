@@ -325,10 +325,13 @@ pg_oauth_http_get_json(const char *url, const PgOAuthHttpPolicy *policy,
 {
 	CURLU	   *validated_url = NULL;
 	CURL	   *handle = NULL;
+	CURLM	   *multi = NULL;
+	bool		added_to_multi = false;
 	struct curl_slist *headers = NULL;
 	ResponseBuffer buffer = {0};
 	HeaderBuffer header_buffer;
 	CURLcode	result;
+	const curl_version_info_data *curl_info;
 	char	   *content_type = NULL;
 	PgOAuthHttpError error;
 
@@ -354,6 +357,23 @@ pg_oauth_http_get_json(const char *url, const PgOAuthHttpPolicy *policy,
 		error = PG_OAUTH_HTTP_OUT_OF_MEMORY;
 		goto done;
 	}
+	/* Synchronous DNS or unbounded resolver cleanup can outlive auth timeout. */
+	curl_info = curl_version_info(CURLVERSION_NOW);
+	if (policy->cancel_requested != NULL &&
+		(curl_info == NULL ||
+		 (curl_info->features & CURL_VERSION_ASYNCHDNS) == 0 ||
+		 curl_info->version_num < 0x075700))
+	{
+		error = PG_OAUTH_HTTP_NETWORK_FAILURE;
+		goto done;
+	}
+#if LIBCURL_VERSION_NUM < 0x075700
+	if (policy->cancel_requested != NULL)
+	{
+		error = PG_OAUTH_HTTP_NETWORK_FAILURE;
+		goto done;
+	}
+#endif
 	headers = curl_slist_append(NULL, "Accept: application/json");
 	if (headers == NULL)
 	{
@@ -387,6 +407,15 @@ pg_oauth_http_get_json(const char *url, const PgOAuthHttpPolicy *policy,
 	SETOPT(CURLOPT_SSL_VERIFYHOST, 2L);
 	SETOPT(CURLOPT_SSLVERSION, (long) CURL_SSLVERSION_TLSv1_2);
 	SETOPT(CURLOPT_NOSIGNAL, 1L);
+#if LIBCURL_VERSION_NUM >= 0x075700
+
+	/*
+	 * Authentication failure ends this backend; avoid waiting for DNS
+	 * cleanup.
+	 */
+	if (policy->cancel_requested != NULL)
+		SETOPT(CURLOPT_QUICK_EXIT, 1L);
+#endif
 	SETOPT(CURLOPT_NETRC, (long) CURL_NETRC_IGNORED);
 	SETOPT(CURLOPT_PROXY, "");
 	SETOPT(CURLOPT_CONNECTTIMEOUT_MS, policy->connect_timeout_ms);
@@ -399,7 +428,65 @@ pg_oauth_http_get_json(const char *url, const PgOAuthHttpPolicy *policy,
 	if (policy->ca_file != NULL)
 		SETOPT(CURLOPT_CAINFO, policy->ca_file);
 #undef SETOPT
-	result = curl_easy_perform(handle);
+
+	/*
+	 * curl_multi_poll bounds each wait so the backend can notice an
+	 * interrupt. Keep the callback free of PostgreSQL error unwinding: the
+	 * caller checks interrupts only after this function and the cache owner
+	 * have cleaned up.
+	 */
+	multi = curl_multi_init();
+	if (multi == NULL)
+	{
+		error = PG_OAUTH_HTTP_OUT_OF_MEMORY;
+		goto done;
+	}
+	if (curl_multi_add_handle(multi, handle) != CURLM_OK)
+	{
+		error = PG_OAUTH_HTTP_NETWORK_FAILURE;
+		goto done;
+	}
+	added_to_multi = true;
+	{
+		int			running = 0;
+		CURLMsg    *message;
+		int			messages_left;
+
+		for (;;)
+		{
+			if (policy->cancel_requested != NULL &&
+				policy->cancel_requested(policy->cancel_context))
+			{
+				error = PG_OAUTH_HTTP_INTERRUPTED;
+				goto done;
+			}
+			if (curl_multi_perform(multi, &running) != CURLM_OK)
+			{
+				error = PG_OAUTH_HTTP_NETWORK_FAILURE;
+				goto done;
+			}
+			if (running == 0)
+				break;
+			if (curl_multi_poll(multi, NULL, 0, 50, NULL) != CURLM_OK)
+			{
+				error = PG_OAUTH_HTTP_NETWORK_FAILURE;
+				goto done;
+			}
+		}
+		if (policy->cancel_requested != NULL &&
+			policy->cancel_requested(policy->cancel_context))
+		{
+			error = PG_OAUTH_HTTP_INTERRUPTED;
+			goto done;
+		}
+		message = curl_multi_info_read(multi, &messages_left);
+		if (message == NULL || message->msg != CURLMSG_DONE)
+		{
+			error = PG_OAUTH_HTTP_NETWORK_FAILURE;
+			goto done;
+		}
+		result = message->data.result;
+	}
 	if (result != CURLE_OK)
 	{
 		if (buffer.too_large || header_buffer.too_large ||
@@ -450,6 +537,10 @@ done:
 	if (error != PG_OAUTH_HTTP_OK)
 		pg_oauth_http_response_clear(response);
 	curl_slist_free_all(headers);
+	if (added_to_multi)
+		(void) curl_multi_remove_handle(multi, handle);
+	if (multi != NULL)
+		curl_multi_cleanup(multi);
 	curl_easy_cleanup(handle);
 	curl_url_cleanup(validated_url);
 	return error;
@@ -472,6 +563,8 @@ pg_oauth_http_error_code(PgOAuthHttpError error)
 			return "http_host_not_allowed";
 		case PG_OAUTH_HTTP_TIMEOUT:
 			return "http_timeout";
+		case PG_OAUTH_HTTP_INTERRUPTED:
+			return "http_interrupted";
 		case PG_OAUTH_HTTP_TLS_FAILURE:
 			return "http_tls_failure";
 		case PG_OAUTH_HTTP_RESPONSE_TOO_LARGE:

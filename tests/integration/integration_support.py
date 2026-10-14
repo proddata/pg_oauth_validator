@@ -234,11 +234,13 @@ def b64(value):
 
 
 class LocalIdp:
-    def __init__(self, root, cache_max_age=60):
+    def __init__(self, root, cache_max_age=60, jwks_cache_max_age=None):
         self.root = root
         self.tls_key = root / "idp-tls-key.pem"
         self.tls_certificate = root / "idp-tls-certificate.pem"
         self.cache_max_age = cache_max_age
+        self.jwks_cache_max_age = (cache_max_age if jwks_cache_max_age is None
+                                   else jwks_cache_max_age)
         self.outage = False
         self.faults = {"metadata": None, "jwks": None}
         self.delays = {"metadata": 0, "jwks": 0}
@@ -306,7 +308,9 @@ class LocalIdp:
                                 else "application/json")
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)
-                self.send_header("Cache-Control", f"max-age={idp.cache_max_age}")
+                max_age = (idp.jwks_cache_max_age if resource == "jwks"
+                           else idp.cache_max_age)
+                self.send_header("Cache-Control", f"max-age={max_age}")
                 content_length = len(body) + 100 if fault == "truncated" else len(body)
                 self.send_header("Content-Length", str(content_length))
                 self.end_headers()

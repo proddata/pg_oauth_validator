@@ -92,6 +92,9 @@ Callback outputs must begin denied. Success at an earlier stage never compensate
 - Complete bearer tokens, signatures, secrets, and sensitive claim sets are never logged or returned to clients.
 - Detailed diagnostics remain in protected server logs; client-facing errors are generic.
 - Network or internal failures cannot produce authorization success.
+- Authentication-time HTTP fetches require libcurl 7.87.0 or newer with
+  asynchronous DNS and quick-exit support so timeout and shutdown interrupts
+  can release an in-progress resolver lookup without waiting for it to finish.
 
 ## Identity and role mapping
 
@@ -205,7 +208,7 @@ The implementation is ready for an initial security review only when:
 
 - The first release uses the strict JWT profile described above. Named provider
   profiles require a reviewed specification and provider-specific evidence.
-- The reviewed release environment is Debian/PGDG. Fedora 44 and Rocky Linux
+- The reviewed release environment is Debian/PGDG. Fedora 43/44 and Rocky Linux
   9/PGDG PostgreSQL 18 are experimental build-compatibility targets, not
   supported production platforms. Support requires reviewed offline RPMs,
   installed-runtime evidence, and SELinux-enforcing integration coverage.

@@ -1,6 +1,8 @@
 import http.server
 import os
 import pathlib
+import platform
+import shlex
 import ssl
 import subprocess
 import sys
@@ -100,6 +102,42 @@ def main():
                 [binary, f"http://localhost:{http_server.server_port}",
                  f"https://localhost:{https_server.server_port}", cert],
                 check=True, env=environment)
+            if platform.system() == "Linux":
+                shim = temp / "dns_failure_shim.so"
+                source = pathlib.Path(__file__).with_name("dns_failure_shim.c")
+                subprocess.run(
+                    [*shlex.split(os.environ.get("CC", "cc")), "-std=c17",
+                     "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
+                     "-o", shim, source, "-ldl"],
+                    check=True,
+                )
+                marker = temp / "dns-failure-marker"
+                dns_environment = environment.copy()
+                dns_environment["LD_PRELOAD"] = str(shim)
+                dns_environment["DNS_FAILURE_SHIM_MARKER"] = str(marker)
+                result = subprocess.run(
+                    [binary, "--dns-failure"], env=dns_environment,
+                    check=False,
+                )
+                if result.returncode not in (0, 77):
+                    raise RuntimeError("DNS failure was not denied")
+                if result.returncode == 0 and not marker.exists():
+                    raise RuntimeError("DNS failure shim was not exercised")
+                if result.returncode == 0:
+                    marker.unlink()
+                    dns_environment["DNS_FAILURE_SHIM_DELAY"] = "1"
+                    started = time.monotonic()
+                    subprocess.run(
+                        [binary, "--dns-cancel"], env=dns_environment,
+                        check=True, timeout=5,
+                    )
+                    elapsed = time.monotonic() - started
+                    if elapsed >= 1.5:
+                        raise RuntimeError(
+                            f"DNS cancellation cleanup took {elapsed:.2f}s"
+                        )
+                    if not marker.exists():
+                        raise RuntimeError("delayed DNS failure shim was not exercised")
         finally:
             http_server.shutdown()
             https_server.shutdown()

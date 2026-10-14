@@ -24,9 +24,9 @@ policy(const char *issuer, int64_t current_time)
 			.required_token_type = "at+jwt",
 		},
 		.issuer_key = {
-			.metadata_http = {2048, 65536, 500, 1000, "localhost", NULL, NULL, true},
+			.metadata_http = {2048, 65536, 500, 1000, "localhost", NULL, NULL, true, NULL, NULL},
 			.metadata = {65536, 2048, true},
-			.jwks_http = {2048, 65536, 500, 1000, "localhost", NULL, NULL, true},
+			.jwks_http = {2048, 65536, 500, 1000, "localhost", NULL, NULL, true, NULL, NULL},
 			.jwks = {65536, 16, 1024, PG_OAUTH_ALGORITHM_RS256, 2048, 8192},
 		},
 		.claims = {

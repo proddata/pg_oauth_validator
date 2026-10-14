@@ -4,7 +4,7 @@ set -eu
 
 usage()
 {
-	echo "usage: $0 fedora44|el9" >&2
+	echo "usage: $0 fedora43|fedora44|el9" >&2
 	exit 2
 }
 
@@ -21,7 +21,7 @@ openssl openssl-devel libcurl-devel pkgconf-pkg-config python3 tar binutils
 krb5-devel redhat-rpm-config'
 
 case "$platform" in
-	fedora44)
+	fedora43|fedora44)
 		# Fedora packages the server-side PGXS selector separately from libpq's
 		# pg_config. The project must build against pg_server_config.
 		dnf install --assumeyes $common_packages \

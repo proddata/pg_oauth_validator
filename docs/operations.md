@@ -18,7 +18,9 @@ installed module dynamically uses the operating system's libcurl and OpenSSL.
 The reviewed libjwt and Jansson builds are linked into the module as
 position-independent static archives. Production packages must use
 vendor-supported libcurl and OpenSSL releases and be rebuilt after relevant
-security updates.
+security updates. The linked libcurl must be at least 7.87.0 and report
+asynchronous DNS support. Run `make check-libcurl-runtime` with the deployment
+`pg_config` to record the runtime version and resolver backend.
 
 The validator does not require `shared_preload_libraries`. PostgreSQL loads it
 through `oauth_validator_libraries` when OAuth authentication is configured.

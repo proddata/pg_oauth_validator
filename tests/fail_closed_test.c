@@ -27,9 +27,16 @@
 #undef fprintf
 
 PGDLLEXPORT Port *MyProcPort;
+PGDLLEXPORT volatile sig_atomic_t InterruptPending;
 static int	registered_gucs;
 static bool cache_gucs_have_expected_contract;
 static int	cache_gucs_checked;
+
+PGDLLEXPORT void
+ProcessInterrupts(void)
+{
+	/* This loader test has no PostgreSQL signal handlers. */
+}
 
 PGDLLEXPORT const char *
 GetConfigOption(const char *name, bool missing_ok, bool restrict_privileged)

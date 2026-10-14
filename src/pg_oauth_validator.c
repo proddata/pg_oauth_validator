@@ -16,6 +16,7 @@
 
 #include "fmgr.h"
 #include "libpq/oauth.h"
+#include "miscadmin.h"
 
 #include "config.h"
 #include "hba_policy.h"
@@ -37,6 +38,7 @@ PG_MODULE_MAGIC;
 
 static char *pg_oauth_metadata_url(const char *issuer);
 static bool pg_oauth_monotonic_ms(int64 *value);
+static bool pg_oauth_cancel_requested(void *context);
 
 static bool pg_oauth_validator_validate(const ValidatorModuleState *state,
 										const char *token, const char *role,
@@ -130,7 +132,8 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 			PG_OAUTH_HTTP_CONNECT_TIMEOUT_MS, PG_OAUTH_HTTP_TOTAL_TIMEOUT_MS,
 			metadata_host, NULL,
 			policy.ca_file[0] != '\0' ? policy.ca_file : NULL,
-			policy.allow_insecure_http
+			policy.allow_insecure_http,
+			pg_oauth_cancel_requested, NULL
 	};
 	validator_policy.issuer_key.metadata = (PgOAuthMetadataPolicy)
 	{
@@ -143,7 +146,8 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 			PG_OAUTH_HTTP_CONNECT_TIMEOUT_MS, PG_OAUTH_HTTP_TOTAL_TIMEOUT_MS,
 			metadata_host, policy.allowed_jwks_hosts,
 			policy.ca_file[0] != '\0' ? policy.ca_file : NULL,
-			policy.allow_insecure_http
+			policy.allow_insecure_http,
+			pg_oauth_cancel_requested, NULL
 	};
 	validator_policy.issuer_key.jwks = (PgOAuthJwksPolicy)
 	{
@@ -227,6 +231,15 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 	validation_error = pg_oauth_validate_access_token_cached(token,
 															 token_length, metadata_url, &validator_policy, &cache_policy,
 															 monotonic_ms, (int64) wall_time, &validation);
+	if (InterruptPending)
+	{
+		/* Leave no transport, cache refresh, or identity allocation behind. */
+		pg_oauth_validator_result_clear(&validation);
+		free(metadata_host);
+		pfree(metadata_url);
+		CHECK_FOR_INTERRUPTS();
+		return false;
+	}
 	if (validation_error != PG_OAUTH_VALIDATOR_OK)
 	{
 		ereport(DEBUG1,
@@ -283,6 +296,13 @@ pg_oauth_metadata_url(const char *issuer)
 	if (strlen(suffix) > PG_OAUTH_MAX_URL_SIZE - length)
 		return NULL;
 	return psprintf("%s%s", issuer, suffix);
+}
+
+static bool
+pg_oauth_cancel_requested(void *context)
+{
+	(void) context;
+	return InterruptPending;
 }
 
 static bool

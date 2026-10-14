@@ -9,6 +9,7 @@ build does not make an RPM-family platform a supported production target.
 
 | Environment | PostgreSQL | Architecture | Current gate |
 | --- | --- | --- | --- |
+| Fedora 43 | Fedora PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
 | Fedora 44 | Fedora PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
 | Rocky Linux 9 | PGDG PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
 
@@ -29,7 +30,7 @@ the minimal BaseOS/AppStream repository set. The PGDG repository bootstrap RPM
 is versioned and SHA-256 verified before installation; repository and package
 metadata signatures remain enforced.
 
-Run both compatibility builds with:
+Run the compatibility builds with:
 
 ```sh
 docker compose -f compose.rpm-test.yml build
@@ -40,6 +41,11 @@ The base-image manifests are pinned. Package repositories are not yet
 snapshot-pinned, so these jobs are compatibility signals rather than
 reproducible release builders. `/etc/pg-oauth-build-inputs` in each image
 records the selected compiler, PostgreSQL, OpenSSL, and libcurl packages.
+
+Fedora 42 reached end of life in May 2026 and its distribution PostgreSQL is
+older than the supported majors. It is not a continuous CI target; any
+historical build against archived PGDG PostgreSQL 18 packages is a separate,
+opt-in compatibility investigation and cannot establish current support.
 
 The Jansson and libjwt installers accept pre-fetched archives through
 `JANSSON_SOURCE_ARCHIVE` and `LIBJWT_SOURCE_ARCHIVE`. They verify the same
