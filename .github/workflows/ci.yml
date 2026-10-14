@@ -35,18 +35,18 @@ jobs:
             compiler: Clang
             cc: clang
             image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
-          - pg: "19 beta 3"
+          - pg: "19 beta 4"
             package: "19"
             target: "test-pg19"
             compiler: GCC
             cc: gcc
-            image: postgres:19beta3-bookworm@sha256:c2f9db76caf60eda17be053e222349f4f3921b514b30a660c74dd9d9b976806f
-          - pg: "19 beta 3"
+            image: postgres:19beta4-bookworm@sha256:4c618d9a30e0b88078b9371a0499d7055da9ab7f5afe386a460758eac9857f06
+          - pg: "19 beta 4"
             package: "19"
             target: "test-pg19"
             compiler: Clang
             cc: clang
-            image: postgres:19beta3-bookworm@sha256:c2f9db76caf60eda17be053e222349f4f3921b514b30a660c74dd9d9b976806f
+            image: postgres:19beta4-bookworm@sha256:4c618d9a30e0b88078b9371a0499d7055da9ab7f5afe386a460758eac9857f06
     container:
       image: ${{ matrix.image }}
 
@@ -64,7 +64,7 @@ jobs:
         run: CC=${{ matrix.cc }} ./scripts/ci/install-libjwt.sh
 
       - name: Validate libjwt behavior under sanitizers
-        if: matrix.pg == '19 beta 3' && matrix.compiler == 'Clang'
+        if: matrix.pg == '19 beta 4' && matrix.compiler == 'Clang'
         run: |
           make sanitizercheck
           make fuzz-smoke
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     container:
-      image: postgres:19beta3-bookworm@sha256:c2f9db76caf60eda17be053e222349f4f3921b514b30a660c74dd9d9b976806f
+      image: postgres:19beta4-bookworm@sha256:4c618d9a30e0b88078b9371a0499d7055da9ab7f5afe386a460758eac9857f06
 
     steps:
       - name: Check out repository

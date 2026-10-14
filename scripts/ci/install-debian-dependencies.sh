@@ -11,15 +11,22 @@ usage()
 test "$#" -eq 1 || usage
 pg_major=$1
 case "$pg_major" in
-	18) pg_dev_version=18.6-1.pgdg12+2 ;;
-	19) pg_dev_version=19~beta3-1.pgdg12+1 ;;
+	18)
+		pg_dev_version=18.6-1.pgdg12+2
+		debian_snapshot=20260803T000000Z
+		ssl_version=3.0.20-1~deb12u2
+		;;
+	19)
+		pg_dev_version=19~beta4-1.pgdg12+1
+		debian_snapshot=20261005T000000Z
+		ssl_version=3.0.22-1~deb12u1
+		;;
 	*) usage ;;
 esac
 
 # This is the Debian snapshot recorded by the pinned postgres:*-bookworm base
 # images. Keep it immutable and update it deliberately with the image digests
 # and the reviewed package versions below.
-debian_snapshot=20260803T000000Z
 debian_sources=/etc/apt/sources.list.d/debian.sources
 
 test "$(id -u)" -eq 0 || {
@@ -61,8 +68,8 @@ DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
 	libclang-rt-dev=1:14.0-55.7~deb12u1 \
 	libcurl4-openssl-dev=7.88.1-10+deb12u15 \
 	libkrb5-dev=1.20.1-2+deb12u5 \
-	libssl-dev=3.0.20-1~deb12u2 \
-	openssl=3.0.20-1~deb12u2 \
+	libssl-dev=$ssl_version \
+	openssl=$ssl_version \
 	pkg-config=1.8.1-1 \
 	libpq-dev=$pg_dev_version \
 	postgresql-server-dev-$pg_major=$pg_dev_version \
@@ -83,7 +90,7 @@ check_version()
 }
 
 check_version libcurl4-openssl-dev 7.88.1-10+deb12u15
-check_version libssl-dev 3.0.20-1~deb12u2
+check_version libssl-dev "$ssl_version"
 check_version bison 2:3.8.2+dfsg-1+b1
 check_version flex 2.6.4-8.2
 check_version libpq-dev "$pg_dev_version"

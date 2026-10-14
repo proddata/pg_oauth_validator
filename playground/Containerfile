@@ -8,7 +8,7 @@ COPY . .
 RUN ./scripts/ci/install-debian-dependencies.sh "$PG_MAJOR" \
     && case "$PG_MAJOR" in \
          18) oauth_package_version=18.6-1.pgdg12+2 ;; \
-         19) oauth_package_version=19~beta3-1.pgdg12+1 ;; \
+         19) oauth_package_version=19~beta4-1.pgdg12+1 ;; \
        esac \
     && apt-get install --yes --no-install-recommends \
          "libpq-oauth=$oauth_package_version" \

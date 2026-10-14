@@ -14,7 +14,7 @@ integration tests, robustness tests, and local provider fixtures. These are
 part of the current strict JWT release scope rather than a reason to
 broaden its authorization model.
 
-The repository also has pinned PostgreSQL 18 and PostgreSQL 19 beta 3 build
+The repository also has pinned PostgreSQL 18 and PostgreSQL 19 beta 4 build
 environments, GCC and Clang jobs, static analysis, sanitizers, deterministic
 fuzz smoke, formatting checks, staged and installed-path verification,
 Keycloak interoperability, dependency/license records, and reproducible
