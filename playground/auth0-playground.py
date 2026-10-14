@@ -2,7 +2,6 @@
 """Create and run named Auth0 interoperability playground profiles."""
 
 import argparse
-import base64
 import json
 import os
 from pathlib import Path
@@ -14,7 +13,7 @@ import sys
 ROOT = Path(__file__).resolve().parent
 EXAMPLES = ROOT / "providers" / "auth0" / "examples"
 PROFILES = Path(os.environ.get("PLAYGROUND_PROFILES_DIR", ROOT / ".generated" / "auth0"))
-MODES = ("direct", "issuer-qualified", "claim-roles")
+MODES = ("direct", "usermap", "delegated")
 CLIENT_MODES = ("node", "psql", "both")
 ROLE_RE = re.compile(r"[a-z_][a-z0-9_]{0,62}\Z")
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}\Z")
@@ -59,10 +58,6 @@ def parse_roles(value):
     return roles
 
 
-def base64url(value):
-    return base64.urlsafe_b64encode(value.encode()).decode().rstrip("=")
-
-
 def render(template, replacements):
     rendered = template.read_text(encoding="utf-8")
     for key, value in replacements.items():
@@ -80,8 +75,8 @@ def create(args):
         "Identity and authorization mode",
         (
             ("direct", "Direct claim-to-role matching"),
-            ("issuer-qualified", "Issuer-qualified identity through pg_ident.conf"),
-            ("claim-roles", "Delegated authorization using a roles claim"),
+            ("usermap", "Subject identity through pg_ident.conf"),
+            ("delegated", "Delegated authorization using a role claim"),
         ),
     )
     if mode not in MODES:
@@ -121,8 +116,8 @@ def create(args):
 
     subject = None
     identity_claim = "sub"
-    roles_claim = "roles"
-    if mode == "issuer-qualified":
+    role_claim = "roles"
+    if mode == "usermap":
         subject = safe_config_value("subject", args.subject or prompt("Auth0 test user's exact sub"))
     elif mode == "direct":
         identity_claim = safe_config_value(
@@ -131,10 +126,10 @@ def create(args):
             or prompt("Scalar Auth0 claim containing the requested PostgreSQL role", "https://company.example/postgres_role"),
         )
     else:
-        roles_claim = safe_config_value(
-            "roles claim",
-            args.roles_claim
-            or prompt("Array Auth0 claim containing allowed PostgreSQL roles", "https://company.example/postgres_roles"),
+        role_claim = safe_config_value(
+            "role claim",
+            args.role_claim
+            or prompt("Auth0 claim containing allowed PostgreSQL roles", "https://company.example/postgres_roles"),
         )
 
     profile = PROFILES / args.name
@@ -144,7 +139,7 @@ def create(args):
 
     identity = ""
     if subject is not None:
-        identity = f"v1.{base64url(issuer)}.{base64url(subject)}"
+        identity = subject
     replacements = {
         "OAUTH_ISSUER": issuer,
         "OAUTH_AUDIENCE": audience,
@@ -152,7 +147,7 @@ def create(args):
         "OAUTH_IDENTITY": identity,
         "DATABASE_ROLES": ",".join(roles),
         "IDENTITY_CLAIM": identity_claim,
-        "ROLES_CLAIM": roles_claim,
+        "ROLE_CLAIM": role_claim,
         "IDENT_MAP_ROWS": "\n".join(f"oauthmap  {identity}  {role}" for role in roles),
         "CREATE_ROLES": "\n".join(f"CREATE ROLE {role} LOGIN;" for role in roles),
         "GRANT_ROLES": ", ".join(roles),
@@ -188,7 +183,7 @@ def create(args):
         "audience": audience,
         "scope": scope,
         "identityClaim": identity_claim,
-        "rolesClaim": roles_claim,
+        "roleClaim": role_claim,
         "roles": roles,
         "hostPort": port,
         "postgresDatabase": postgres_database,
@@ -309,7 +304,7 @@ def parser():
     create_parser.add_argument("--port", type=int)
     create_parser.add_argument("--subject")
     create_parser.add_argument("--identity-claim")
-    create_parser.add_argument("--roles-claim")
+    create_parser.add_argument("--role-claim")
     create_parser.add_argument("--force", action="store_true")
     create_parser.set_defaults(function=create)
 

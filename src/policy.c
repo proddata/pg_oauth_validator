@@ -210,33 +210,12 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 		return PG_OAUTH_POLICY_INVALID_TOKEN_TYPE;
 	if (!validate_claim_name(config->identity_claim))
 		return PG_OAUTH_POLICY_INVALID_AUTHN_CLAIM;
-	if (config->identity_format == NULL)
-		return PG_OAUTH_POLICY_INVALID_IDENTITY_FORMAT;
-	if (strcmp(config->identity_format, "direct") == 0)
-		policy->identity_format = PG_OAUTH_IDENTITY_FORMAT_DIRECT;
-	else if (strcmp(config->identity_format, "issuer_qualified") == 0)
-		policy->identity_format = PG_OAUTH_IDENTITY_FORMAT_ISSUER_QUALIFIED;
-	else
-		return PG_OAUTH_POLICY_INVALID_IDENTITY_FORMAT;
-	if (config->authorization_mode == NULL)
-		return PG_OAUTH_POLICY_INVALID_AUTHORIZATION_MODE;
-	if (strcmp(config->authorization_mode, "identity") == 0)
-		policy->authorization_mode = PG_OAUTH_AUTHORIZATION_IDENTITY;
-	else if (strcmp(config->authorization_mode, "claim_roles") == 0)
-		policy->authorization_mode = PG_OAUTH_AUTHORIZATION_CLAIM_ROLES;
-	else
-		return PG_OAUTH_POLICY_INVALID_AUTHORIZATION_MODE;
-	if (!validate_claim_name(config->roles_claim))
-		return PG_OAUTH_POLICY_INVALID_ROLES_CLAIM;
-
-	/*
-	 * Delegated role authorization must be enabled on both sides at once: the
-	 * HBA rule hands role mapping to the validator, and the validator must be
-	 * configured to enforce the roles claim. Either alone would leave the
-	 * requested role unchecked or unmappable.
-	 */
-	if (hba->delegate_ident_mapping !=
-		(policy->authorization_mode == PG_OAUTH_AUTHORIZATION_CLAIM_ROLES))
+	if (config->role_claim == NULL ||
+		(config->role_claim[0] != '\0' &&
+		 !validate_claim_name(config->role_claim)))
+		return PG_OAUTH_POLICY_INVALID_ROLE_CLAIM;
+	/* Delegated mapping and the validator's role check must agree. */
+	if (hba->delegate_ident_mapping != (config->role_claim[0] != '\0'))
 		return PG_OAUTH_POLICY_DELEGATION_MISMATCH;
 	if (!validate_jwks_hosts(config->allowed_jwks_hosts))
 		return PG_OAUTH_POLICY_INVALID_JWKS_HOSTS;
@@ -274,7 +253,7 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 	policy->audiences = config->audiences;
 	policy->required_token_type = config->required_token_type;
 	policy->identity_claim = config->identity_claim;
-	policy->roles_claim = config->roles_claim;
+	policy->role_claim = config->role_claim;
 	policy->allowed_jwks_hosts = config->allowed_jwks_hosts;
 	policy->ca_file = config->ca_file;
 	policy->allowed_algorithms = algorithms;

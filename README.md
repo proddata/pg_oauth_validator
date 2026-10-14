@@ -12,8 +12,9 @@ role-mapping rules.
 OAuth access token  ->  validate token and identity  ->  PostgreSQL role mapping
 ```
 
-The validator accepts signed JWT access tokens from an explicitly configured
-issuer. It checks the token's signature, issuer, audience, expiry, type,
+The validator accepts signed JWT access tokens with `iss` and `sub` from an
+explicitly configured issuer. It checks the token's signature, issuer,
+audience, expiry, type,
 required scopes, and stable identity before allowing PostgreSQL to continue
 authentication.
 
@@ -21,67 +22,65 @@ By default, PostgreSQL decides which database role that external identity may
 use: either its name must match the requested role, or a normal
 `pg_ident.conf` usermap makes the decision.
 
-### How a token becomes a PostgreSQL role
+### How identity and role selection work
 
-Every mode first validates the token completely. What differs is the final
-role-authorization decision.
-
-Let's assume a user requests the `app_reader` role in the `appdb` database.
+The client requests a PostgreSQL role with `-U`; the token does not select it.
+For the examples below, the client requests `app_reader` in `appdb`:
 
 ```sh
 psql "service=postgres-oauth" -U app_reader -d appdb
 ```
 
-#### Option 1: Direct identity
+The validator verifies the entire access token first. Every accepted token
+must have `iss` and `sub`. By default, `identity_claim = 'sub'`, so the
+validated `sub` becomes PostgreSQL's authenticated identity (`authn_id`).
+`role_claim` is empty by default. The two settings have different jobs:
 
-When the sub claim of the validated token is the same as the requested PostgreSQL role, the validator allows the connection.
+| Setting | What it means |
+| --- | --- |
+| `identity_claim` | Which validated string claim identifies the caller. PostgreSQL uses this value for direct matching or `pg_ident.conf` mapping, and records it as the authenticated identity. |
+| `role_claim` | Which claim lists roles the caller may request when `delegate_ident_mapping=1`. It may contain one role string or an array of distinct role strings. It does not change the authenticated identity. |
 
+Choose the mapping appropriate for your issuer and database roles:
 
-```text
-token: { "sub": "app_reader" }
-                    v
-requested role: app_reader
-                    v
-PostgreSQL allows the connection
+| Mapping | Token claims shown | Who checks `app_reader`? | Authenticated identity |
+| --- | --- | --- | --- |
+| Direct | `"sub": "app_reader"` | PostgreSQL requires identity = requested role. | `app_reader` |
+| PostgreSQL usermap | `"sub": "principal-123"` | PostgreSQL applies `map=oauthmap` and `pg_ident.conf`. | `principal-123` |
+| Delegated roles | `"sub": "principal-123", "roles": ["app_reader", "reporting"]` | Validator requires an exact `app_reader` member; HBA must also allow that role. | `principal-123` |
+
+**Direct:** Leave `role_claim` empty and use no `map=` or
+`delegate_ident_mapping`. With the default identity claim, the token's `sub`
+must equal the requested role:
+
+```conf
+# pg_hba.conf
+hostssl appdb app_reader 10.0.0.0/8 oauth \
+    issuer="https://idp.example/" scope="connect:postgres" \
+    validator=pg_oauth_validator
 ```
 
-#### Option 2: Identity mapped by PostgreSQL
+**PostgreSQL usermap:** Leave `role_claim` empty and add `map=oauthmap` to the
+HBA rule. PostgreSQL maps the authenticated identity to the requested role:
 
-When a usermap is used and an external identity should connect as a different local
-role (e.g. `app_reader`) `pg_ident.conf` decides which PostgreSQL role that identity may use.
+```conf
+# pg_hba.conf
+hostssl appdb app_reader 10.0.0.0/8 oauth \
+    issuer="https://idp.example/" scope="connect:postgres" \
+    validator=pg_oauth_validator map=oauthmap
 
-```text
-token: { "sub": "248289761001" }
-                 v
-     validated external identity (248289761001)
-                 v
-pg_ident.conf: external identity (248289761001)  ->  app_reader
-                                                        v
-                                     requested role: app_reader
+# pg_ident.conf: map-name  authenticated-identity  PostgreSQL-role
+oauthmap principal-123 app_reader
 ```
 
-#### Option 3: Delegated role claims
-
-When the identity provider is intentionally the source of PostgreSQL role membership, the validator can check a configured claim for an exact role match. The validated token must contain the exact role the client requests, and the HBA rule must independently list that
-role.
-
-```text
-token: { "sub": "alice", "roles": ["reporting", "app_reader"] }
-                                             |
-                                             v
- requested role: app_reader  <- exact member of roles claim; order does not matter
-                 |
-                 v
-HBA allows app_reader  ->  PostgreSQL allows the connection
-```
-
-Configure both the validator and the
-HBA rule:
+**Delegated roles:** Configure both `role_claim` and HBA delegation. The
+validator checks that the claim contains the exact requested role; PostgreSQL
+skips its normal identity comparison and `pg_ident.conf` mapping. The HBA
+`USER` field independently limits which roles may be requested:
 
 ```conf
 # postgresql.conf
-pg_oauth_validator.authorization_mode = 'claim_roles'
-pg_oauth_validator.roles_claim = 'roles'
+pg_oauth_validator.role_claim = 'roles'
 
 # pg_hba.conf
 hostssl appdb app_reader,reporting 10.0.0.0/8 oauth \
@@ -91,11 +90,22 @@ hostssl appdb app_reader,reporting 10.0.0.0/8 oauth \
     delegate_ident_mapping=1
 ```
 
-For that connection to succeed, the access token must contain `"app_reader"`
-in its configured `roles` claim, and the HBA rule above must allow
-`app_reader`. Requesting `reporting` instead requires both the same HBA
-permission and `"reporting"` in the token's roles array.
+For this delegated rule, either `"roles": "app_reader"` or
+`"roles": ["app_reader", "reporting"]` permits an `app_reader` request.
+Requesting `reporting` requires that exact role in the claim and HBA `USER`
+field. A `role_claim` without delegation, or delegation without a
+`role_claim`, denies authentication. Delegation cannot be combined with
+`map=`. The requested PostgreSQL role must exist with `LOGIN`. Keep the HBA
+role list narrow, especially for privileged roles.
 
+To identify callers by another stable, issuer-controlled string claim, set
+`pg_oauth_validator.identity_claim = 'employee_id'` in `postgresql.conf`.
+The token must still contain `sub`. With that setting, direct matching
+compares `employee_id` to the requested role, a usermap maps
+`employee_id`, and delegated mode still checks `roles` while returning
+`employee_id` as the authenticated identity. PostgreSQL records that identity
+in its OAuth connection log and exposes `system_user` as `oauth:<identity>`;
+the requested database role remains separate.
 
 ## Quick start
 
@@ -132,7 +142,7 @@ CREATE ROLE app_reader LOGIN;
 Reload PostgreSQL after changing configuration. PostgreSQL 18 uses the same
 configuration except that it must omit `validator.policy=default`.
 
-For a complete, production-ready mapping example, including a `pg_ident.conf`
+For a complete mapping example, including a `pg_ident.conf`
 usermap, see the [configuration guide](docs/configuration.md).
 
 ## Secure production checklist

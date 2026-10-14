@@ -39,10 +39,9 @@ class TemporaryPostgres:
     def __init__(self, pg_config, validator_library, policy=None, audience=AUDIENCE,
                  issuer=ISSUER, identity_map=None, allow_insecure_http=False,
                  ca_file="", server_certificate=None, server_key=None,
-                 identity_claim="sub", identity_format="issuer_qualified",
-                 authorization_mode="identity", roles_claim="roles",
+                 identity_claim="sub", role_claim="",
                  delegate_ident_mapping=False, hba_users="all",
-                 refresh_wait_timeout="5s"):
+                 refresh_wait_timeout="5s", extra_config=""):
         self.pg_config = pathlib.Path(pg_config)
         self.bindir = pathlib.Path(
             command(self.pg_config, "--bindir").stdout.strip()
@@ -62,12 +61,11 @@ class TemporaryPostgres:
         self.server_certificate = server_certificate
         self.server_key = server_key
         self.identity_claim = identity_claim
-        self.identity_format = identity_format
-        self.authorization_mode = authorization_mode
-        self.roles_claim = roles_claim
+        self.role_claim = role_claim
         self.delegate_ident_mapping = delegate_ident_mapping
         self.hba_users = hba_users
         self.refresh_wait_timeout = refresh_wait_timeout
+        self.extra_config = extra_config
         self.port = unused_port()
         self.root = pathlib.Path(tempfile.mkdtemp(prefix="pg-oauth-validator-"))
         self.data = self.root / "data"
@@ -123,14 +121,13 @@ class TemporaryPostgres:
                 "oauth_validator_libraries = 'pg_oauth_validator'\n"
                 f"pg_oauth_validator.audiences = '{audience}'\n"
                 f"pg_oauth_validator.identity_claim = '{self.identity_claim}'\n"
-                f"pg_oauth_validator.identity_format = '{self.identity_format}'\n"
-                f"pg_oauth_validator.authorization_mode = '{self.authorization_mode}'\n"
-                f"pg_oauth_validator.roles_claim = '{self.roles_claim}'\n"
+                f"pg_oauth_validator.role_claim = '{self.role_claim}'\n"
                 f"pg_oauth_validator.refresh_wait_timeout = "
                 f"'{self.refresh_wait_timeout}'\n"
                 f"pg_oauth_validator.allow_insecure_http = "
                 f"{'on' if self.allow_insecure_http else 'off'}\n"
                 f"pg_oauth_validator.ca_file = '{ca_file}'\n"
+                f"{self.extra_config}"
                 f"{ssl_configuration}"
                 "log_connections = on\n"
                 "log_min_messages = debug1\n"

@@ -16,6 +16,29 @@ json_string_equals(const json_t *value, const char *expected)
 		memcmp(json_string_value(value), expected, length) == 0;
 }
 
+/* Jansson validates UTF-8; reject ASCII and Unicode C1 controls in identities. */
+static bool
+valid_identity_string(const json_t *value, size_t maximum)
+{
+	const char *text;
+	size_t		length;
+
+	if (!json_is_string(value) ||
+		(length = json_string_length(value)) == 0 || length > maximum)
+		return false;
+	text = json_string_value(value);
+
+	for (size_t i = 0; i < length; i++)
+	{
+		if (iscntrl((unsigned char) text[i]) ||
+			((unsigned char) text[i] == 0xc2 && i + 1 < length &&
+			 (unsigned char) text[i + 1] >= 0x80 &&
+			 (unsigned char) text[i + 1] <= 0x9f))
+			return false;
+	}
+	return true;
+}
+
 static bool
 valid_policy(const PgOAuthClaimsPolicy *policy)
 {
@@ -23,13 +46,13 @@ valid_policy(const PgOAuthClaimsPolicy *policy)
 		policy->issuer[0] != '\0' && policy->audiences != NULL &&
 		policy->audiences[0] != '\0' && policy->required_scopes != NULL &&
 		policy->required_scopes[0] != '\0' && policy->identity_claim != NULL &&
-		policy->identity_claim[0] != '\0' && policy->current_time >= 0 &&
+		policy->identity_claim[0] != '\0' && policy->role_claim != NULL && policy->current_time >= 0 &&
 		policy->clock_skew_seconds <= 300 && policy->max_identity_size > 0 &&
+		policy->max_subject_size > 0 && policy->max_subject_size <= 1024 &&
 		policy->max_audiences > 0 && policy->max_audiences <= 64 &&
 		policy->max_scopes > 0 && policy->max_scopes <= 256 &&
-		(!policy->require_requested_role ||
-		 (policy->roles_claim != NULL && policy->roles_claim[0] != '\0' &&
-		  policy->requested_role != NULL && policy->requested_role[0] != '\0' &&
+		(policy->role_claim[0] == '\0' ||
+		 (policy->requested_role != NULL && policy->requested_role[0] != '\0' &&
 		  policy->max_roles > 0 && policy->max_roles <= 256 &&
 		  policy->max_role_size > 0));
 }
@@ -42,15 +65,30 @@ validate_requested_role(const json_t *payload,
 	size_t		requested_length;
 	bool		found = false;
 
-	if (!policy->require_requested_role)
+	if (policy->role_claim[0] == '\0')
 		return PG_OAUTH_CLAIMS_OK;
-	roles = json_object_get(payload, policy->roles_claim);
-	if (!json_is_array(roles) || json_array_size(roles) == 0 ||
-		json_array_size(roles) > policy->max_roles)
-		return PG_OAUTH_CLAIMS_INVALID_ROLES;
+	roles = json_object_get(payload, policy->role_claim);
 	requested_length = strlen(policy->requested_role);
 	if (requested_length == 0 || requested_length > policy->max_role_size)
 		return PG_OAUTH_CLAIMS_INVALID_ARGUMENT;
+	if (json_is_string(roles))
+	{
+		size_t		length = json_string_length(roles);
+
+		if (length == 0 || length > policy->max_role_size)
+			return PG_OAUTH_CLAIMS_INVALID_ROLES;
+		for (size_t i = 0; i < length; i++)
+		{
+			if (iscntrl((unsigned char) json_string_value(roles)[i]))
+				return PG_OAUTH_CLAIMS_INVALID_ROLES;
+		}
+		return length == requested_length &&
+			memcmp(json_string_value(roles), policy->requested_role, length) == 0 ?
+			PG_OAUTH_CLAIMS_OK : PG_OAUTH_CLAIMS_UNAUTHORIZED_ROLE;
+	}
+	if (!json_is_array(roles) || json_array_size(roles) == 0 ||
+		json_array_size(roles) > policy->max_roles)
+		return PG_OAUTH_CLAIMS_INVALID_ROLES;
 	for (size_t i = 0; i < json_array_size(roles); i++)
 	{
 		json_t	   *entry = json_array_get(roles, i);
@@ -337,15 +375,13 @@ pg_oauth_claims_validate(const json_t *verified_payload,
 			return PG_OAUTH_CLAIMS_ISSUED_IN_FUTURE;
 	}
 
+	value = json_object_get(verified_payload, "sub");
+	if (!valid_identity_string(value, policy->max_subject_size))
+		return PG_OAUTH_CLAIMS_INVALID_SUBJECT;
+
 	value = json_object_get(verified_payload, policy->identity_claim);
-	if (!json_is_string(value) || json_string_length(value) == 0 ||
-		json_string_length(value) > policy->max_identity_size)
+	if (!valid_identity_string(value, policy->max_identity_size))
 		return PG_OAUTH_CLAIMS_INVALID_IDENTITY;
-	for (size_t i = 0; i < json_string_length(value); i++)
-	{
-		if (iscntrl((unsigned char) json_string_value(value)[i]))
-			return PG_OAUTH_CLAIMS_INVALID_IDENTITY;
-	}
 
 	scope_error = validate_scopes(verified_payload, policy);
 	if (scope_error != PG_OAUTH_CLAIMS_OK)
@@ -365,7 +401,7 @@ pg_oauth_claims_error_code(PgOAuthClaimsError error)
 		"ok", "invalid_argument", "invalid_issuer", "invalid_audience",
 		"missing_expiry", "invalid_expiry", "expired", "invalid_not_before",
 		"not_yet_valid", "invalid_issued_at", "issued_in_future",
-		"invalid_identity", "invalid_scope", "insufficient_scope",
+		"invalid_subject", "invalid_identity", "invalid_scope", "insufficient_scope",
 		"invalid_roles", "unauthorized_role"
 	};
 

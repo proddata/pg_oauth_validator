@@ -16,7 +16,6 @@ from integration_support import (
     LocalIdp,
     TemporaryPostgres,
     attempt_oauth,
-    b64,
     psql,
     psql_argv,
     reload_setting,
@@ -86,11 +85,32 @@ def test_missing_audience_fails_closed(integration_environment):
         cluster.stop()
 
 
+@pytest.mark.parametrize("setting,value", [
+    ("identity_format", "issuer_qualified"),
+    ("authorization_mode", "claim_roles"),
+    ("roles_claim", "roles"),
+])
+def test_removed_setting_fails_closed(integration_environment, setting, value):
+    pg_config, validator_library, client = integration_environment
+    cluster = TemporaryPostgres(
+        pg_config, validator_library,
+        extra_config=f"pg_oauth_validator.{setting} = '{value}'\n",
+    )
+    try:
+        cluster.start()
+        result = attempt_oauth(cluster, client)
+        assert result.returncode != 0
+        assert f"removed OAuth validator setting is configured: pg_oauth_validator.{setting}" in cluster.logs()
+        assert TOKEN not in cluster.logs() + result.stderr
+    finally:
+        cluster.stop()
+
+
 def test_valid_token_uses_normal_pg_ident_mapping(integration_environment):
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-") as directory:
         idp = LocalIdp(pathlib.Path(directory))
-        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        identity = "principal"
         cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
             identity_map=(identity, "appuser"), ca_file=idp.tls_certificate,
@@ -109,6 +129,8 @@ def test_valid_token_uses_normal_pg_ident_mapping(integration_environment):
                 sslmode="require",
             )
             assert accepted.returncode == 0, accepted.stderr + "\n" + cluster.logs()
+            assert accepted.stdout.strip() == "appuser|oauth:principal"
+            assert 'identity="principal" method=oauth' in cluster.logs()
 
             psql(cluster, "ALTER SYSTEM SET pg_oauth_validator.audiences "
                           "TO 'https://other-resource.example/'")
@@ -184,25 +206,30 @@ def test_direct_identity_and_delegated_roles(integration_environment):
         idp = LocalIdp(pathlib.Path(directory))
         direct_cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
-            identity_format="direct", ca_file=idp.tls_certificate,
+            ca_file=idp.tls_certificate,
             server_certificate=idp.tls_certificate, server_key=idp.tls_key,
         )
         delegated_cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
-            identity_format="issuer_qualified",
-            authorization_mode="claim_roles", delegate_ident_mapping=True,
+            role_claim="roles", delegate_ident_mapping=True,
             hba_users="app_reader,reporting,postgres", ca_file=idp.tls_certificate,
             server_certificate=idp.tls_certificate, server_key=idp.tls_key,
         )
         policy_only_cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
-            authorization_mode="claim_roles", delegate_ident_mapping=False,
+            role_claim="roles", delegate_ident_mapping=False,
             hba_users="reporting", ca_file=idp.tls_certificate,
             server_certificate=idp.tls_certificate, server_key=idp.tls_key,
         )
         hba_only_cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
-            authorization_mode="identity", delegate_ident_mapping=True,
+            delegate_ident_mapping=True,
+            hba_users="reporting", ca_file=idp.tls_certificate,
+            server_certificate=idp.tls_certificate, server_key=idp.tls_key,
+        )
+        hba_capped_cluster = TemporaryPostgres(
+            pg_config, validator_library, issuer=idp.issuer,
+            role_claim="roles", delegate_ident_mapping=True,
             hba_users="reporting", ca_file=idp.tls_certificate,
             server_certificate=idp.tls_certificate, server_key=idp.tls_key,
         )
@@ -231,6 +258,8 @@ def test_direct_identity_and_delegated_roles(integration_environment):
             assert accepted_direct.returncode == 0, (
                 accepted_direct.stderr + "\n" + direct_cluster.logs()
             )
+            assert accepted_direct.stdout.strip() == "provider-subject|oauth:provider-subject"
+            assert 'identity="provider-subject" method=oauth' in direct_cluster.logs()
             assert attempt_oauth(
                 direct_cluster, client, token=direct_token,
                 user="postgres", issuer=idp.issuer, sslmode="require",
@@ -246,6 +275,19 @@ def test_direct_identity_and_delegated_roles(integration_environment):
             assert accepted_delegated.returncode == 0, (
                 accepted_delegated.stderr + "\n" + delegated_cluster.logs()
             )
+            assert accepted_delegated.stdout.strip() == "reporting|oauth:principal"
+            assert 'identity="principal" method=oauth' in delegated_cluster.logs()
+            scalar_role = idp.sign(extra_claims={"roles": "app_reader"})
+            accepted_scalar = attempt_oauth(
+                delegated_cluster, client, token=scalar_role,
+                user="app_reader", issuer=idp.issuer, sslmode="require",
+            )
+            assert accepted_scalar.returncode == 0, accepted_scalar.stderr
+            assert accepted_scalar.stdout.strip() == "app_reader|oauth:principal"
+            assert attempt_oauth(
+                delegated_cluster, client, token=scalar_role,
+                user="reporting", issuer=idp.issuer, sslmode="require",
+            ).returncode != 0
             assert attempt_oauth(
                 delegated_cluster, client, token=delegated_token,
                 user="postgres", issuer=idp.issuer, sslmode="require",
@@ -257,6 +299,7 @@ def test_direct_identity_and_delegated_roles(integration_environment):
             assert accepted_privileged.returncode == 0, (
                 accepted_privileged.stderr + "\n" + delegated_cluster.logs()
             )
+            assert accepted_privileged.stdout.strip() == "postgres|oauth:principal"
             assert attempt_oauth(
                 delegated_cluster, client, token=insufficient_roles,
                 user="reporting", issuer=idp.issuer, sslmode="require",
@@ -279,11 +322,18 @@ def test_direct_identity_and_delegated_roles(integration_environment):
                 hba_only_cluster, client, token=delegated_token,
                 user="reporting", issuer=idp.issuer, sslmode="require",
             ).returncode != 0
+
+            hba_capped_cluster.start()
+            assert attempt_oauth(
+                hba_capped_cluster, client, token=privileged_token,
+                user="postgres", issuer=idp.issuer, sslmode="require",
+            ).returncode != 0
         finally:
             direct_cluster.stop()
             delegated_cluster.stop()
             policy_only_cluster.stop()
             hba_only_cluster.stop()
+            hba_capped_cluster.stop()
             idp.close()
             if previous_ca is None:
                 os.environ.pop("SSL_CERT_FILE", None)
@@ -296,9 +346,9 @@ def test_reload_separates_trust_policy_cache_entries(integration_environment):
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-reload-") as directory:
         idp = LocalIdp(pathlib.Path(directory), cache_max_age=120)
         default_identity = (
-            "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+            "principal"
         )
-        uid_identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"stable-1")
+        uid_identity = "stable-1"
         cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
             identity_map=(default_identity, "appuser"), ca_file=idp.tls_certificate,
@@ -363,6 +413,13 @@ def test_reload_separates_trust_policy_cache_entries(integration_environment):
             )
             accepted_uid = connect(uid_alternate_type_token, user="uiduser")
             assert accepted_uid.returncode == 0
+            assert accepted_uid.stdout.strip() == "uiduser|oauth:stable-1"
+            assert 'identity="stable-1" method=oauth' in cluster.logs()
+            no_subject = idp.sign(
+                token_type="application/at+jwt",
+                extra_claims={"sub": None, "uid": "stable-1"},
+            )
+            assert connect(no_subject, user="uiduser").returncode != 0
 
             reload_setting(
                 cluster, "pg_oauth_validator.allowed_jwks_hosts", "localhost",
@@ -446,7 +503,7 @@ def test_eddsa_requires_administrator_allowance_and_binds_key_type(
         # A mixed key set is what an issuer with per-client algorithms
         # publishes; only the kid-matched key may be considered.
         idp.rotate("eddsa-key", retain_previous=True, algorithm="EdDSA")
-        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        identity = "principal"
         cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
             identity_map=(identity, "appuser"), ca_file=idp.tls_certificate,
@@ -523,7 +580,7 @@ def test_local_idp_rotation_outage_and_recovery(integration_environment):
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-lifecycle-") as directory:
         idp = LocalIdp(pathlib.Path(directory), cache_max_age=3)
-        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        identity = "principal"
         cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
             identity_map=(identity, "appuser"), ca_file=idp.tls_certificate,
@@ -591,7 +648,7 @@ def test_local_idp_transport_failures_deny_and_recover(integration_environment):
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-transport-") as directory:
         idp = LocalIdp(pathlib.Path(directory), cache_max_age=0)
-        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        identity = "principal"
         cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
             identity_map=(identity, "appuser"), ca_file=idp.tls_certificate,
@@ -677,7 +734,7 @@ def test_unknown_kid_refresh_is_suppressed_across_backends(
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-idp-unknown-kid-") as directory:
         idp = LocalIdp(pathlib.Path(directory), cache_max_age=120)
-        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        identity = "principal"
         cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
             identity_map=(identity, "appuser"), ca_file=idp.tls_certificate,
@@ -744,7 +801,6 @@ def test_cold_cache_concurrent_authentications_wait_for_refresh(
             pg_config, validator_library, issuer=idp.issuer,
             ca_file=idp.tls_certificate,
             server_certificate=idp.tls_certificate, server_key=idp.tls_key,
-            identity_format="direct",
         )
         token = idp.sign(subject="postgres")
         previous_ca = os.environ.get("SSL_CERT_FILE")
@@ -786,7 +842,7 @@ def test_zero_refresh_wait_timeout_retains_fail_fast_behavior(
             pg_config, validator_library, issuer=idp.issuer,
             ca_file=idp.tls_certificate,
             server_certificate=idp.tls_certificate, server_key=idp.tls_key,
-            identity_format="direct", refresh_wait_timeout="0",
+            refresh_wait_timeout="0",
         )
         token = idp.sign(subject="postgres")
         previous_ca = os.environ.get("SSL_CERT_FILE")
@@ -836,7 +892,7 @@ def test_refresh_wait_timeout_fails_closed_at_deadline(integration_environment):
             pg_config, validator_library, issuer=idp.issuer,
             ca_file=idp.tls_certificate,
             server_certificate=idp.tls_certificate, server_key=idp.tls_key,
-            identity_format="direct", refresh_wait_timeout="100ms",
+            refresh_wait_timeout="100ms",
         )
         token = idp.sign(subject="postgres")
         previous_ca = os.environ.get("SSL_CERT_FILE")

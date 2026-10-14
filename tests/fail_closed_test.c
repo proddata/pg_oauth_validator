@@ -31,12 +31,27 @@ static int	registered_gucs;
 static bool cache_gucs_have_expected_contract;
 static int	cache_gucs_checked;
 
+PGDLLEXPORT const char *
+GetConfigOption(const char *name, bool missing_ok, bool restrict_privileged)
+{
+	(void) name;
+	(void) missing_ok;
+	(void) restrict_privileged;
+	return NULL;
+}
+
 PGDLLEXPORT bool
 errstart(int elevel, const char *domain)
 {
 	(void) elevel;
 	(void) domain;
 	return true;
+}
+
+PGDLLEXPORT bool
+errstart_cold(int elevel, const char *domain)
+{
+	return errstart(elevel, domain);
 }
 
 PGDLLEXPORT void
@@ -49,6 +64,13 @@ errfinish(const char *filename, int lineno, const char *funcname)
 
 PGDLLEXPORT int
 errmsg_internal(const char *fmt, ...)
+{
+	(void) fmt;
+	return 0;
+}
+
+PGDLLEXPORT int
+errmsg(const char *fmt, ...)
 {
 	(void) fmt;
 	return 0;
@@ -372,7 +394,7 @@ main(int argc, char **argv)
 		fail("PostgreSQL module initialization symbol is unavailable");
 	memcpy(&module_init, &symbol, sizeof(module_init));
 	module_init();
-	if (registered_gucs != 19)
+	if (registered_gucs != 17)
 		fail("module did not register all configuration variables");
 	if (!cache_gucs_have_expected_contract)
 		fail("cache GUC defaults, bounds, or reload contexts changed");

@@ -23,9 +23,7 @@ valid_config(void)
 		.allowed_algorithms = "RS256,ES256",
 		.required_token_type = "at+jwt",
 		.identity_claim = "sub",
-		.identity_format = "direct",
-		.authorization_mode = "identity",
-		.roles_claim = "roles",
+		.role_claim = "",
 		.allowed_jwks_hosts = "",
 		.ca_file = "",
 		.clock_skew_ms = 60000,
@@ -143,19 +141,9 @@ main(void)
 				 "unsafe identity claim name was accepted");
 
 	config = valid_config();
-	config.identity_format = "encoded";
-	expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_IDENTITY_FORMAT,
-				 "unknown identity format was accepted");
-
-	config = valid_config();
-	config.authorization_mode = "roles";
-	expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_AUTHORIZATION_MODE,
-				 "unknown authorization mode was accepted");
-
-	config = valid_config();
-	config.roles_claim = "role list";
-	expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_ROLES_CLAIM,
-				 "unsafe roles claim name was accepted");
+	config.role_claim = "role list";
+	expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_ROLE_CLAIM,
+				 "unsafe role claim name was accepted");
 
 	config = valid_config();
 	config.allowed_jwks_hosts = "keys.example, cdn.example";
@@ -244,14 +232,13 @@ main(void)
 				 "HBA delegation without claim-roles policy was accepted");
 
 	config = valid_config();
-	config.authorization_mode = "claim_roles";
+	config.role_claim = "roles";
 	hba = valid_hba();
 	expect_error(&config, &hba, PG_OAUTH_POLICY_DELEGATION_MISMATCH,
 				 "claim-roles policy without HBA delegation was accepted");
 	hba.delegate_ident_mapping = true;
 	if (pg_oauth_policy_build(&config, &hba, &policy) != PG_OAUTH_POLICY_OK ||
-		policy.authorization_mode != PG_OAUTH_AUTHORIZATION_CLAIM_ROLES ||
-		strcmp(policy.roles_claim, "roles") != 0)
+		strcmp(policy.role_claim, "roles") != 0)
 		fail("explicit delegated role policy was rejected");
 
 	return EXIT_SUCCESS;

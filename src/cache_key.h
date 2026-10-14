@@ -31,9 +31,7 @@ typedef struct PgOAuthCacheKeyPolicy
 	const char *audiences;
 	const char *required_token_type;
 	const char *identity_claim;
-	const char *identity_format;
-	const char *authorization_mode;
-	const char *roles_claim;
+	const char *role_claim;
 	const char *allowed_jwks_hosts;
 	const char *ca_file;
 	uint32_t	allowed_algorithms;

@@ -292,14 +292,14 @@ fuzz-claims: $(CLAIMS_FUZZ_BIN)
 	@cp "$(srcdir)"/tests/fuzz/corpus/* "$(CLAIMS_FUZZ_CORPUS)/"
 	./$(CLAIMS_FUZZ_BIN) -runs=2000 -max_len=16384 "$(CLAIMS_FUZZ_CORPUS)"
 
-$(IDENTITY_TEST_BIN): tests/identity_test.c src/identity.c src/base64url.c
+$(IDENTITY_TEST_BIN): tests/identity_test.c src/identity.c
 	$(CC) -std=c17 -Wall -Wextra -Werror -Wshadow \
 		$(DEPENDENCY_SANITIZER_FLAGS) -I$(srcdir)/src -o $@ $^
 
 check-identity: $(IDENTITY_TEST_BIN)
 	./$(IDENTITY_TEST_BIN)
 
-$(IDENTITY_FUZZ_BIN): tests/fuzz/identity_fuzz.c src/identity.c src/base64url.c
+$(IDENTITY_FUZZ_BIN): tests/fuzz/identity_fuzz.c src/identity.c
 	clang -std=c17 -Wall -Wextra -Werror -Wshadow \
 		-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer \
 		-I$(srcdir)/src -o $@ $^

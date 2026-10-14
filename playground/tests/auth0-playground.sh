@@ -12,17 +12,17 @@ common_args="--issuer https://issuer.example/ --discovery-uri https://issuer.exa
 # shellcheck disable=SC2086
 PLAYGROUND_PROFILES_DIR=$profiles python3 "$playground_dir/auth0-playground.py" create direct --mode direct $common_args --identity-claim https://company.example/postgres_role >/dev/null
 # shellcheck disable=SC2086
-PLAYGROUND_PROFILES_DIR=$profiles python3 "$playground_dir/auth0-playground.py" create mapped --mode issuer-qualified $common_args --subject 'auth0|alice' >/dev/null
+PLAYGROUND_PROFILES_DIR=$profiles python3 "$playground_dir/auth0-playground.py" create mapped --mode usermap $common_args --subject 'auth0|alice' >/dev/null
 # shellcheck disable=SC2086
-PLAYGROUND_PROFILES_DIR=$profiles python3 "$playground_dir/auth0-playground.py" create roles --mode claim-roles $common_args --roles-claim https://company.example/postgres_roles >/dev/null
+PLAYGROUND_PROFILES_DIR=$profiles python3 "$playground_dir/auth0-playground.py" create roles --mode delegated $common_args --role-claim https://company.example/postgres_roles >/dev/null
 
-grep -F "identity_format = 'direct'" "$profiles/direct/postgresql.conf" >/dev/null
+grep -F "identity_claim = 'https://company.example/postgres_role'" "$profiles/direct/postgresql.conf" >/dev/null
 grep -F 'hostssl playground  app_reader,app_writer' "$profiles/direct/pg_hba.conf" >/dev/null
 grep -F 'CREATE ROLE app_writer LOGIN;' "$profiles/direct/init.sql" >/dev/null
-grep -F 'oauthmap  v1.aHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZS8.YXV0aDB8YWxpY2U  app_reader' "$profiles/mapped/pg_ident.conf" >/dev/null
-grep -F "authorization_mode = 'claim_roles'" "$profiles/roles/postgresql.conf" >/dev/null
+grep -F 'oauthmap  auth0|alice  app_reader' "$profiles/mapped/pg_ident.conf" >/dev/null
+grep -F "role_claim = 'https://company.example/postgres_roles'" "$profiles/roles/postgresql.conf" >/dev/null
 grep -F 'delegate_ident_mapping=1' "$profiles/roles/pg_hba.pg19.conf" >/dev/null
-grep -F '"mappingMode": "claim-roles"' "$profiles/roles/profile.json" >/dev/null
+grep -F '"mappingMode": "delegated"' "$profiles/roles/profile.json" >/dev/null
 grep -F '"postgresRole": "app_writer"' "$profiles/roles/profile.json" >/dev/null
 grep -F '"postgresDatabase": "playground"' "$profiles/roles/profile.json" >/dev/null
 grep -F '"testClients": [' "$profiles/roles/profile.json" >/dev/null

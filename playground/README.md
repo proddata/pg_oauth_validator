@@ -22,7 +22,7 @@ From this directory:
 
 Numbered menus select:
 
-- direct identity, issuer-qualified usermap, or delegated claim roles;
+- exact identity, subject usermap, or delegated token roles;
 - the PostgreSQL role requested by the clients;
 - Node.js, psql, or both clients.
 

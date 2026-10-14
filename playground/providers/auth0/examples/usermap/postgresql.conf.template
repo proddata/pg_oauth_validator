@@ -13,8 +13,6 @@ pg_oauth_validator.allowed_algorithms = 'RS256'
 pg_oauth_validator.required_token_type = 'at+jwt'
 
 pg_oauth_validator.identity_claim = 'sub'
-pg_oauth_validator.identity_format = 'issuer_qualified'
-pg_oauth_validator.authorization_mode = 'identity'
 
 log_connections = on
 log_disconnections = on

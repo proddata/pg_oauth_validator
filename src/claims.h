@@ -20,6 +20,7 @@ typedef enum PgOAuthClaimsError
 	PG_OAUTH_CLAIMS_NOT_YET_VALID,
 	PG_OAUTH_CLAIMS_INVALID_ISSUED_AT,
 	PG_OAUTH_CLAIMS_ISSUED_IN_FUTURE,
+	PG_OAUTH_CLAIMS_INVALID_SUBJECT,
 	PG_OAUTH_CLAIMS_INVALID_IDENTITY,
 	PG_OAUTH_CLAIMS_INVALID_SCOPE,
 	PG_OAUTH_CLAIMS_INSUFFICIENT_SCOPE,
@@ -33,16 +34,16 @@ typedef struct PgOAuthClaimsPolicy
 	const char *audiences;
 	const char *required_scopes;
 	const char *identity_claim;
-	const char *roles_claim;
+	const char *role_claim;
 	const char *requested_role;
 	int64_t		current_time;
 	uint32_t	clock_skew_seconds;
 	size_t		max_identity_size;
+	size_t		max_subject_size;
 	size_t		max_audiences;
 	size_t		max_scopes;
 	size_t		max_roles;
 	size_t		max_role_size;
-	bool		require_requested_role;
 } PgOAuthClaimsPolicy;
 
 typedef struct PgOAuthValidatedClaims

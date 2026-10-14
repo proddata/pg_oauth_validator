@@ -13,9 +13,7 @@ static char *oauth_audiences;
 static char *oauth_allowed_algorithms;
 static char *oauth_required_token_type;
 static char *oauth_identity_claim;
-static char *oauth_identity_format;
-static char *oauth_authorization_mode;
-static char *oauth_roles_claim;
+static char *oauth_role_claim;
 static char *oauth_allowed_jwks_hosts;
 static char *oauth_ca_file;
 static int	oauth_clock_skew_ms;
@@ -34,6 +32,20 @@ PGDLLEXPORT void _PG_init(void);
 void
 _PG_init(void)
 {
+	/* Old placeholders must not silently survive a configuration upgrade. */
+	static const char *const removed_settings[] = {
+		"pg_oauth_validator.identity_format",
+		"pg_oauth_validator.authorization_mode",
+		"pg_oauth_validator.roles_claim"
+	};
+
+	for (size_t i = 0; i < lengthof(removed_settings); i++)
+	{
+		if (GetConfigOption(removed_settings[i], true, false) != NULL)
+			ereport(ERROR,
+					(errmsg("removed OAuth validator setting is configured: %s",
+							removed_settings[i])));
+	}
 	DefineCustomStringVariable("pg_oauth_validator.audiences",
 							   "PostgreSQL resource audiences accepted in access tokens.",
 							   "Required comma-separated list; no audience is inferred.",
@@ -51,19 +63,10 @@ _PG_init(void)
 							   "Stable token claim used for authenticated identity.", NULL,
 							   &oauth_identity_claim, "sub", PGC_SIGHUP, 0,
 							   NULL, NULL, NULL);
-	DefineCustomStringVariable("pg_oauth_validator.identity_format",
-							   "Representation returned as the authenticated identity.",
-							   "Accepted values are direct and issuer_qualified.",
-							   &oauth_identity_format, "direct", PGC_SIGHUP, 0,
-							   NULL, NULL, NULL);
-	DefineCustomStringVariable("pg_oauth_validator.authorization_mode",
-							   "Policy used to authorize the requested PostgreSQL role.",
-							   "Accepted values are identity and claim_roles.",
-							   &oauth_authorization_mode, "identity", PGC_SIGHUP, 0,
-							   NULL, NULL, NULL);
-	DefineCustomStringVariable("pg_oauth_validator.roles_claim",
-							   "String-array token claim used by claim_roles authorization.",
-							   NULL, &oauth_roles_claim, "roles", PGC_SIGHUP, 0,
+	DefineCustomStringVariable("pg_oauth_validator.role_claim",
+							   "Token claim authorizing the requested PostgreSQL role.",
+							   "Empty uses PostgreSQL identity matching or a usermap.",
+							   &oauth_role_claim, "", PGC_SIGHUP, 0,
 							   NULL, NULL, NULL);
 	DefineCustomStringVariable("pg_oauth_validator.allowed_jwks_hosts",
 							   "Additional exact hostnames permitted for JWKS retrieval.",
@@ -128,9 +131,7 @@ pg_oauth_config_snapshot(PgOAuthPolicyConfig *config)
 	config->allowed_algorithms = oauth_allowed_algorithms;
 	config->required_token_type = oauth_required_token_type;
 	config->identity_claim = oauth_identity_claim;
-	config->identity_format = oauth_identity_format;
-	config->authorization_mode = oauth_authorization_mode;
-	config->roles_claim = oauth_roles_claim;
+	config->role_claim = oauth_role_claim;
 	config->allowed_jwks_hosts = oauth_allowed_jwks_hosts;
 	config->ca_file = oauth_ca_file;
 	config->clock_skew_ms = oauth_clock_skew_ms;

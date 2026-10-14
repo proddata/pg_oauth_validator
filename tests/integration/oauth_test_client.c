@@ -108,6 +108,16 @@ main(int argc, char **argv)
 	result = PQstatus(connection) == CONNECTION_OK ? EXIT_SUCCESS : EXIT_FAILURE;
 	if (result != EXIT_SUCCESS)
 		fprintf(stderr, "connection failed: %s", PQerrorMessage(connection));
+	else
+	{
+		PGresult   *query = PQexec(connection, "SELECT current_user, system_user");
+
+		if (PQresultStatus(query) != PGRES_TUPLES_OK || PQntuples(query) != 1)
+			result = EXIT_FAILURE;
+		else
+			printf("%s|%s\n", PQgetvalue(query, 0, 0), PQgetvalue(query, 0, 1));
+		PQclear(query);
+	}
 
 	PQfinish(connection);
 	clear_token();

@@ -99,15 +99,10 @@ stable identity claim, and every required HBA scope. The strict default uses
 the `scope` claim; provider-specific alternatives such as `scp` require a
 future exact-issuer profile.
 
-The final PostgreSQL identity is:
-
-```text
-v1.<base64url(issuer)>.<base64url(configured-stable-claim)>
-```
-
-Both components use canonical unpadded Base64URL. The complete identity is
-limited to 1024 ASCII bytes, and encoding performs no Unicode or URL
-normalization. Operational examples are in
+The final PostgreSQL identity is the validated selected identity claim,
+returned directly. Both `iss` and `sub` remain mandatory even when another
+claim is selected. The returned identity is limited to 63 bytes.
+Operational examples are in
 [`configuration.md`](configuration.md).
 
 ## Integration coverage

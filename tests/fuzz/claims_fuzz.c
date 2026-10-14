@@ -13,9 +13,11 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 		.audiences = "postgres://primary,postgres://secondary",
 		.required_scopes = "connect:postgres read:metadata",
 		.identity_claim = "sub",
+		.role_claim = "",
 		.current_time = 1000,
 		.clock_skew_seconds = 60,
 		.max_identity_size = 1024,
+		.max_subject_size = 1024,
 		.max_audiences = 16,
 		.max_scopes = 64,
 	};

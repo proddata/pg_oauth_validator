@@ -79,7 +79,7 @@ def main():
         expired = sign(key, Handler.issuer, now, temp, expiry=now - 60)
         id_token = sign(key, Handler.issuer, now, temp, typ="JWT")
         unknown_key = sign(key, Handler.issuer, now, temp, kid="unknown")
-        expected_identity = "v1." + b64(Handler.issuer.encode()) + "." + b64(b"principal")
+        expected_identity = "principal"
         environment = os.environ.copy()
         environment.update({"HTTP_PROXY": "http://127.0.0.1:1", "NO_PROXY": ""})
         try:

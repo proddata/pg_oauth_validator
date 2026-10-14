@@ -19,9 +19,11 @@ valid_policy(void)
 		.audiences = "postgres://primary, postgres://secondary",
 		.required_scopes = "connect:postgres read:metadata",
 		.identity_claim = "sub",
+		.role_claim = "",
 		.current_time = 1000,
 		.clock_skew_seconds = 60,
 		.max_identity_size = 1024,
+		.max_subject_size = 1024,
 		.max_audiences = 16,
 		.max_scopes = 64,
 	};
@@ -187,30 +189,72 @@ main(void)
 	expect_error(
 				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
 				 "\"exp\":1100,\"scope\":\"connect:postgres read:metadata\"}",
-				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SUBJECT,
 				 "missing configured identity was accepted");
 	expect_error(
 				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
 				 "\"exp\":1100,\"sub\":1,\"scope\":\"connect:postgres read:metadata\"}",
-				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SUBJECT,
 				 "non-string identity was accepted");
 	expect_error(
 				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
 				 "\"exp\":1100,\"sub\":\"line\\nfeed\","
 				 "\"scope\":\"connect:postgres read:metadata\"}",
-				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SUBJECT,
 				 "control character in identity was accepted");
 
 	policy = valid_policy();
 	policy.identity_claim = "uid";
 	policy.max_identity_size = 1;
+	policy.max_subject_size = 1;
 	payload = parse_payload(
 							"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-							"\"exp\":1100,\"uid\":\"u\","
+							"\"exp\":1100,\"sub\":\"u\",\"uid\":\"u\","
 							"\"scope\":\"connect:postgres read:metadata\"}");
 	if (pg_oauth_claims_validate(payload, &policy, &claims) != PG_OAUTH_CLAIMS_OK)
 		fail("configured identity at the size boundary was rejected");
 	json_decref(payload);
+	policy.max_subject_size = 1024;
+	payload = parse_payload(
+							"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+							"\"exp\":1100,\"sub\":\"long-stable-subject\",\"uid\":\"u\","
+							"\"scope\":\"connect:postgres read:metadata\"}");
+	if (pg_oauth_claims_validate(payload, &policy, &claims) != PG_OAUTH_CLAIMS_OK)
+		fail("valid sub longer than selected identity was rejected");
+	json_decref(payload);
+	policy.max_subject_size = 1;
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"uid\":\"u\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SUBJECT,
+				 "missing sub with custom identity was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":7,\"uid\":\"u\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SUBJECT,
+				 "wrong-type sub with custom identity was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"xx\",\"uid\":\"u\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SUBJECT,
+				 "oversized sub with custom identity was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"\",\"uid\":\"u\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SUBJECT,
+				 "empty sub with custom identity was accepted");
+	policy.max_subject_size = 1024;
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"\\u0085\",\"uid\":\"u\","
+				 "\"scope\":\"connect:postgres read:metadata\"}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_SUBJECT,
+				 "Unicode control in sub with custom identity was accepted");
+	policy.max_subject_size = 1;
 	expect_error(
 				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
 				 "\"exp\":1100,\"sub\":\"u\","
@@ -219,13 +263,13 @@ main(void)
 				 "missing custom identity claim was accepted");
 	expect_error(
 				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-				 "\"exp\":1100,\"uid\":[\"u\"],"
+				 "\"exp\":1100,\"sub\":\"u\",\"uid\":[\"u\"],"
 				 "\"scope\":\"connect:postgres read:metadata\"}",
 				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
 				 "wrong-type custom identity claim was accepted");
 	expect_error(
 				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
-				 "\"exp\":1100,\"uid\":\"uu\","
+				 "\"exp\":1100,\"sub\":\"u\",\"uid\":\"uu\","
 				 "\"scope\":\"connect:postgres read:metadata\"}",
 				 &policy, PG_OAUTH_CLAIMS_INVALID_IDENTITY,
 				 "identity beyond the size boundary was accepted");
@@ -263,11 +307,10 @@ main(void)
 		fail("claims error code exposed claim material");
 
 	policy = valid_policy();
-	policy.roles_claim = "roles";
+	policy.role_claim = "roles";
 	policy.requested_role = "reporting";
 	policy.max_roles = 4;
 	policy.max_role_size = 63;
-	policy.require_requested_role = true;
 	payload = parse_payload(
 							"{\"iss\":\"https://issuer.example/\","
 							"\"aud\":\"postgres://primary\",\"exp\":1100,"
@@ -283,12 +326,31 @@ main(void)
 				 "\"roles\":[\"app_reader\"]}",
 				 &policy, PG_OAUTH_CLAIMS_UNAUTHORIZED_ROLE,
 				 "role absent from delegated claim was accepted");
+	payload = parse_payload(
+							"{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+							"\"exp\":1100,\"sub\":\"p\","
+							"\"scope\":\"connect:postgres read:metadata\",\"roles\":\"reporting\"}");
+	if (pg_oauth_claims_validate(payload, &policy, &claims) != PG_OAUTH_CLAIMS_OK)
+		fail("scalar delegated role was rejected");
+	json_decref(payload);
 	expect_error(
 				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
 				 "\"exp\":1100,\"sub\":\"p\","
-				 "\"scope\":\"connect:postgres read:metadata\",\"roles\":\"reporting\"}",
+				 "\"scope\":\"connect:postgres read:metadata\",\"roles\":\"\"}",
 				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
-				 "scalar delegated roles claim was accepted");
+				 "empty scalar role was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\",\"roles\":7}",
+				 &policy, PG_OAUTH_CLAIMS_INVALID_ROLES,
+				 "wrong-type scalar role was accepted");
+	expect_error(
+				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
+				 "\"exp\":1100,\"sub\":\"p\","
+				 "\"scope\":\"connect:postgres read:metadata\",\"roles\":\"Reporting\"}",
+				 &policy, PG_OAUTH_CLAIMS_UNAUTHORIZED_ROLE,
+				 "scalar role comparison was not case-sensitive");
 	expect_error(
 				 "{\"iss\":\"https://issuer.example/\",\"aud\":\"postgres://primary\","
 				 "\"exp\":1100,\"sub\":\"p\","
@@ -350,7 +412,7 @@ main(void)
 				 &policy, PG_OAUTH_CLAIMS_UNAUTHORIZED_ROLE,
 				 "delegated role comparison was not case-sensitive");
 
-	policy.roles_claim = "https://company.example/postgres_roles";
+	policy.role_claim = "https://company.example/postgres_roles";
 	payload = parse_payload(
 							"{\"iss\":\"https://issuer.example/\","
 							"\"aud\":\"postgres://primary\",\"exp\":1100,"

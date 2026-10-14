@@ -34,14 +34,15 @@ policy(const char *issuer, int64_t current_time)
 			.audiences = "postgres://primary",
 			.required_scopes = "connect:postgres",
 			.identity_claim = "sub",
+			.role_claim = "",
 			.current_time = current_time,
 			.clock_skew_seconds = 60,
 			.max_identity_size = 1024,
+			.max_subject_size = 1024,
 			.max_audiences = 16,
 			.max_scopes = 64,
 		},
-		.identity = {2048, 1024, 1024},
-		.issuer_qualified_identity = true,
+		.identity = {1024, 1024},
 	};
 
 	return value;

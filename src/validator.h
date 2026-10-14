@@ -27,7 +27,6 @@ typedef struct PgOAuthValidatorPolicy
 	PgOAuthIssuerKeyPolicy issuer_key;
 	PgOAuthClaimsPolicy claims;
 	PgOAuthIdentityPolicy identity;
-	bool		issuer_qualified_identity;
 } PgOAuthValidatorPolicy;
 
 typedef struct PgOAuthValidatorResult

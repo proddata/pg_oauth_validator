@@ -58,7 +58,7 @@ function readConfig() {
   const config = JSON.parse(contents)
   for (const name of [
     'issuer', 'discoveryUri', 'clientId', 'audience', 'scope',
-    'mappingMode', 'identityClaim', 'rolesClaim',
+    'mappingMode', 'identityClaim', 'roleClaim',
   ]) {
     if (typeof config[name] !== 'string' || config[name].length === 0) fail(`invalid or missing ${name}`)
   }

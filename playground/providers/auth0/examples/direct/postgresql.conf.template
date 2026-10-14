@@ -14,8 +14,6 @@ pg_oauth_validator.required_token_type = 'at+jwt'
 
 # Auth0 Action sets this scalar claim to app_reader or app_writer.
 pg_oauth_validator.identity_claim = '@IDENTITY_CLAIM@'
-pg_oauth_validator.identity_format = 'direct'
-pg_oauth_validator.authorization_mode = 'identity'
 
 log_connections = on
 log_disconnections = on

@@ -125,7 +125,7 @@ def create_expired_server_certificate(root, name):
 
 def configured_cluster(environment, idp, *, provider_ca=None):
     pg_config, validator_library, _client = environment
-    identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+    identity = "principal"
     return TemporaryPostgres(
         pg_config,
         validator_library,
@@ -182,7 +182,7 @@ def test_postgresql_expired_certificate_is_bounded_and_redacted(
         root = pathlib.Path(directory)
         idp = LocalIdp(root)
         certificate, key, ca = create_expired_server_certificate(root, "postgres")
-        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        identity = "principal"
         cluster = TemporaryPostgres(
             pg_config,
             validator_library,

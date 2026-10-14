@@ -47,8 +47,8 @@ The policy builder currently enforces:
 - `pg_oauth_validator.required_token_type = 'at+jwt'` only;
 - `RS256` and/or `ES256` by default, plus Ed25519 `EdDSA` when the administrator opts in (ADR 0003);
 - `sub` as the default authenticated identity claim;
-- direct identity matching by default, with optional issuer-qualified usermaps;
-- opt-in exact string-array role authorization when HBA delegation is enabled;
+- direct identity matching by default, with optional PostgreSQL usermaps;
+- opt-in exact scalar or string-array role authorization when HBA delegation is enabled;
 - a nonempty required scope on every matching OAuth HBA rule;
 - only the unnamed/default policy (named provider profiles do not exist yet).
 
@@ -72,7 +72,6 @@ pg_oauth_validator.audiences = 'https://postgres.example.internal/'
 pg_oauth_validator.allowed_algorithms = 'RS256'
 pg_oauth_validator.required_token_type = 'at+jwt'
 pg_oauth_validator.identity_claim = 'sub'
-pg_oauth_validator.identity_format = 'issuer_qualified'
 pg_oauth_validator.clock_skew = '60s'
 pg_oauth_validator.max_token_size = '16kB'
 ```
@@ -88,13 +87,13 @@ hostssl appdb +oauth_login 10.0.0.0/8 oauth \
 ```
 
 ```conf
-# pg_ident.conf -- v1.Base64URL(issuer).Base64URL(stable claim)
-oauth  "<encoded-authenticated-identity>"  app_user
+# pg_ident.conf -- literal validated identity claim
+oauth  "<authenticated-identity>"  app_user
 ```
 
 Production rules should use `hostssl` and restrict database and role targets.
-Delegated mode accepts only an explicitly configured string-array claim with
-exact matching; provider group transformations remain unsupported.
+Delegated mode accepts an explicitly configured string or string-array claim
+with exact matching; provider group transformations remain unsupported.
 
 ## Compatibility summary
 
@@ -250,8 +249,8 @@ validator.policy="auth0-rfc9068"
 - Requesting `openid` with a custom API audience can make `aud` an array that
   also contains the `/userinfo` audience. Exact membership matching is needed.
 - The standard `sub` is stable within the tenant and may itself contain `|`.
-  The implemented versioned, component-wise Base64URL identity encoding is
-  unambiguous and does not rely on a delimiter appearing outside the encoding.
+  Use its literal value in a PostgreSQL usermap when it is the selected
+  identity claim; no delimiter parsing or issuer encoding is applied.
 - Auth0's default custom-API lifetime can be long. Operators should configure a
   short database-appropriate token lifetime; the validator still enforces only
   the signed `exp` unless a maximum-age policy is added.
@@ -600,9 +599,8 @@ these decisions prerequisites for provider implementation:
 5. **Audience request instructions:** RFC 8707 `resource`, Auth0 `audience`,
    Entra resource application scopes, Keycloak mappers, Cognito resource
    binding, and ZITADEL project audience scopes are not interchangeable.
-6. **Identity encoding:** an unescaped `issuer|sub` string is ambiguous because
-   valid provider subjects can contain `|`. Define a canonical, bounded encoding
-   before publishing `pg_ident.conf` examples as stable.
+6. **Identity mapping:** use the selected identity claim directly in
+   `pg_ident.conf`; review uniqueness and stability within each trusted issuer.
 7. **Issuer multiplicity:** Entra multitenancy and hosted/custom domains require
    multiple exact issuer configurations, never wildcards or hostname substring
    detection.

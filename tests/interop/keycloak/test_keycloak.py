@@ -13,7 +13,6 @@ from integration_support import (
     SCOPE,
     TemporaryPostgres,
     attempt_oauth,
-    b64,
     psql,
 )
 
@@ -209,9 +208,7 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
     assert wrong_audience_header["typ"] == "at+jwt"
     assert not has_audience(wrong_audience_claims, AUDIENCE)
 
-    identity = "v1." + b64(ISSUER.encode()) + "." + b64(
-        access_claims["sub"].encode()
-    )
+    identity = access_claims["sub"]
     cluster = TemporaryPostgres(
         pg_config,
         validator_library,
@@ -221,12 +218,13 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
         server_certificate=ca_file,
         server_key=tls_key,
     )
-    direct_cluster = TemporaryPostgres(
+    scalar_cluster = TemporaryPostgres(
         pg_config,
         validator_library,
         issuer=ISSUER,
-        identity_claim="postgres_role",
-        identity_format="direct",
+        role_claim="postgres_role",
+        delegate_ident_mapping=True,
+        hba_users="appuser",
         ca_file=ca_file,
         server_certificate=ca_file,
         server_key=tls_key,
@@ -235,9 +233,7 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
         pg_config,
         validator_library,
         issuer=ISSUER,
-        identity_format="issuer_qualified",
-        authorization_mode="claim_roles",
-        roles_claim="postgres_roles",
+        role_claim="postgres_roles",
         delegate_ident_mapping=True,
         hba_users="app_reader,reporting,postgres",
         ca_file=ca_file,
@@ -249,14 +245,14 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
         cluster.start()
         psql(cluster, "CREATE ROLE appuser LOGIN")
 
-        direct_cluster.start()
-        psql(direct_cluster, "CREATE ROLE appuser LOGIN")
-        direct_result = attempt_oauth(
-            direct_cluster, client, token=access_token, user="appuser",
+        scalar_cluster.start()
+        psql(scalar_cluster, "CREATE ROLE appuser LOGIN")
+        scalar_result = attempt_oauth(
+            scalar_cluster, client, token=access_token, user="appuser",
             issuer=ISSUER, sslmode="require",
         )
-        direct_wrong_role_result = attempt_oauth(
-            direct_cluster, client, token=access_token, user="postgres",
+        scalar_wrong_role_result = attempt_oauth(
+            scalar_cluster, client, token=access_token, user="postgres",
             issuer=ISSUER, sslmode="require",
         )
 
@@ -338,13 +334,15 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
         assert recovered_result.returncode == 0
 
         assert access_result.returncode == 0, access_result.stderr + "\n" + cluster.logs()
-        assert direct_result.returncode == 0, (
-            direct_result.stderr + "\n" + direct_cluster.logs()
+        assert scalar_result.returncode == 0, (
+            scalar_result.stderr + "\n" + scalar_cluster.logs()
         )
-        assert direct_wrong_role_result.returncode != 0
+        assert scalar_result.stdout.strip() == f"appuser|oauth:{identity}"
+        assert scalar_wrong_role_result.returncode != 0
         assert delegated_result.returncode == 0, (
             delegated_result.stderr + "\n" + delegated_cluster.logs()
         )
+        assert delegated_result.stdout.strip() == f"reporting|oauth:{identity}"
         assert delegated_absent_role_result.returncode != 0
         assert id_result.returncode != 0
         assert wrong_scope_result.returncode != 0
@@ -356,7 +354,7 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
             access_result, id_result, wrong_scope_result,
             wrong_audience_result, wrong_issuer_result, unmapped_role_result,
             rotated_result, old_key_result, outage_result, recovered_result,
-            direct_result, direct_wrong_role_result, delegated_result,
+            scalar_result, scalar_wrong_role_result, delegated_result,
             delegated_absent_role_result,
         )
         for token in (
@@ -368,5 +366,5 @@ def test_keycloak_26_5_rfc9068_access_token_and_rejections():
                 assert token not in result.stderr
     finally:
         cluster.stop()
-        direct_cluster.stop()
+        scalar_cluster.stop()
         delegated_cluster.stop()

@@ -50,7 +50,8 @@ The active release scope provides strict offline validation of signed JWT access
 - Required connection-scope validation using the strict `scope` claim and all
   scopes configured by the matched HBA rule.
 - Configurable authenticated-identity claim, defaulting to `sub`.
-- Direct or issuer-qualified authenticated-identity representation.
+- Direct authenticated-identity representation; every accepted token also has
+  a valid `sub`, even when another identity claim is selected.
 - Normal PostgreSQL exact-name/usermap authorization and opt-in delegated exact
   role-claim authorization.
 - Controlled single JWKS refresh for legitimate signing-key rotation.
@@ -77,13 +78,12 @@ Callback outputs must begin denied. Success at an earlier stage never compensate
 ## Security invariants
 
 - Only OAuth access tokens are accepted. ID tokens are rejected even when signed by the trusted issuer and key.
-- `iss`, `aud`, `exp`, and the configured stable identity claim are mandatory and correctly typed.
+- `iss`, `sub`, `aud`, `exp`, and the configured stable identity claim are mandatory and correctly typed.
 - Audience matching is exact and requires at least one configured PostgreSQL resource identifier.
 - Issuer matching is exact; no substring detection or silent trailing-slash normalization is allowed.
-- Direct identity returns the configured string claim unchanged. Issuer-qualified
-  identity returns `v1.<base64url(issuer)>.<base64url(configured-claim)>`.
+- The validator returns the configured identity string unchanged as `authn_id`.
 - Delegated authorization requires the exact requested PostgreSQL role in a
-  bounded configured string-array claim.
+  configured nonempty string or bounded array of distinct, nonempty strings.
 - `openid` alone is not sufficient authorization to connect to PostgreSQL.
 - Signing algorithms come from a local allowlist. `none`, algorithm confusion, and remote HMAC keys are rejected by default.
 - Key selection uses trusted JWKS data. Missing or ambiguous key identifiers are rejected.
@@ -109,12 +109,12 @@ In delegated roles mode:
 
 ```text
 authorized = valid token for PostgreSQL AND required connection privileges
-             AND requested role is an exact member of the configured roles claim
+             AND requested role exactly matches the configured role claim
 authn_id   = configured external identity for auditing
 ```
 
 Delegated mode requires `delegate_ident_mapping=1` in the matched HBA rule and
-an explicitly selected validator authorization mode. The HBA `USER` field
+a configured `role_claim`. Either setting without the other fails closed. The HBA `USER` field
 should independently allowlist reachable roles. It must not be combined with
 `map=`.
 
@@ -186,7 +186,7 @@ The implementation is ready for an initial security review only when:
 
 - a correctly signed token for another audience is rejected;
 - a trusted issuer's ID token is rejected as an access token;
-- tokens missing `iss`, `exp`, `aud`, or the configured identity are rejected;
+- tokens missing `iss`, `sub`, `exp`, `aud`, or the configured identity are rejected;
 - wrong-type and malformed security-sensitive claims are rejected;
 - only administrator-allowed asymmetric algorithms and valid keys are accepted;
 - rotated signing keys can be adopted without attacker-driven refresh storms;
@@ -195,7 +195,7 @@ The implementation is ready for an initial security review only when:
 - delegated mapping fails unless both HBA delegation and validator delegated
   policy are explicitly enabled;
 - malformed, duplicate, oversized, missing, and insufficient delegated role
-  claims are rejected;
+  claims are rejected for both scalar and array shapes;
 - no token or secret appears in normal, debug, or error logs;
 - network failures and cache behavior are deterministic and documented;
 - negative tests cover the documented threat model and run in CI;

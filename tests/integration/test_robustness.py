@@ -109,7 +109,7 @@ def test_valid_cached_authentication_remains_responsive_under_hostile_load(
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-robustness-") as directory:
         idp = LocalIdp(pathlib.Path(directory), cache_max_age=120)
-        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        identity = "principal"
         cluster = TemporaryPostgres(
             pg_config, validator_library, issuer=idp.issuer,
             identity_map=(identity, "appuser"), ca_file=idp.tls_certificate,

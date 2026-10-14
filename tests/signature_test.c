@@ -291,15 +291,16 @@ check_algorithm(const char *algorithm, uint32_t algorithm_flag,
 		.audiences = "postgres://primary",
 		.required_scopes = "connect:postgres",
 		.identity_claim = "sub",
+		.role_claim = "",
 		.current_time = 1000,
 		.clock_skew_seconds = 60,
 		.max_identity_size = 1024,
+		.max_subject_size = 1024,
 		.max_audiences = 16,
 		.max_scopes = 64,
 	};
 	PgOAuthValidatedClaims claims;
 	PgOAuthIdentityPolicy identity_policy = {
-		.max_issuer_size = 2048,
 		.max_subject_size = 1024,
 		.max_authn_id_size = 1024,
 	};
@@ -327,11 +328,10 @@ check_algorithm(const char *algorithm, uint32_t algorithm_flag,
 		claims.identity_length != strlen("principal") ||
 		memcmp(claims.identity, "principal", claims.identity_length) != 0)
 		fail("verified token claims were rejected");
-	if (pg_oauth_identity_build(claims_policy.issuer,
-								strlen(claims_policy.issuer), claims.identity, claims.identity_length,
+	if (pg_oauth_identity_build(claims.identity, claims.identity_length,
 								&identity_policy, &identity) != PG_OAUTH_IDENTITY_OK ||
-		strncmp(identity.value, "v1.", 3) != 0)
-		fail("validated claims identity could not be encoded");
+		strcmp(identity.value, "principal") != 0)
+		fail("validated claims identity could not be copied");
 	pg_oauth_identity_clear(&identity);
 	wrong_key = generate_key(algorithm);
 	wrong_jwks = public_jwks(wrong_key, algorithm, key_id);

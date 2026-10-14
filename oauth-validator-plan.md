@@ -101,49 +101,22 @@ In the default mode:
 4. Set `authorized` only after resource-level token authorization succeeds.
 5. Let PostgreSQL apply `map=`/`pg_ident.conf` to determine whether the identity may assume the requested role.
 
-The identity claim is configurable and defaults to `sub`. Direct format returns
-the validated claim unchanged, allowing PostgreSQL's normal exact-name check
-without a usermap. Issuer-qualified format encodes both UTF-8 components as
-canonical unpadded Base64URL:
-
-```text
-v1.<base64url(issuer)>.<base64url(stable-claim)>
-```
-
-For example, issuer `https://idp.example/realms/acme` and subject
-`248289761001` produce:
-
-```text
-v1.aHR0cHM6Ly9pZHAuZXhhbXBsZS9yZWFsbXMvYWNtZQ.MjQ4Mjg5NzYxMDAx
-```
-
-The final value is limited to 1024 ASCII bytes. This avoids issuer collisions
-and delimiter ambiguity while remaining reversible and safe to place literally
-in `pg_ident.conf`. A provider profile may recommend another claim. Direct
-claims used as role names must be provider-controlled; mutable or user-editable
-claims require an explicit operator decision.
+Every accepted token requires valid `iss` and `sub`. The identity claim is
+configurable and defaults to `sub`; its validated string value is returned
+directly as `authn_id`. Custom identity claims must be stable and controlled by
+the trusted issuer. The selected identity is limited to PostgreSQL's role-name
+length and can be used in a literal `pg_ident.conf` mapping.
 
 ### 5.3 Delegated exact role-claim mapping — opt-in
 
 When `delegate_ident_mapping` is enabled, PostgreSQL deliberately does not compare `authn_id` with `pg_ident.conf`. The validator must therefore use the callback's requested `role` argument and prove that the token holder may assume that exact role.
 
-Delegation must require all of the following:
-
-- an explicit validator setting enabling delegated authorization;
-- an explicit claim-to-role policy;
-- exact role matching or a configured transformation/mapping;
-- rejection of missing, malformed, or ambiguous role claims;
-- issuer-specific namespaces for groups, roles, and entitlements;
-- audit logging of subject, requested role, policy used, and decision;
-- tests proving that a user authorized for one role cannot request another.
-
-The initial supported policy is:
-
-- a configurable, bounded token claim contains an array of exact PostgreSQL
-  role names;
-- the requested role must be an exact, case-sensitive array member;
-- the HBA `USER` field provides an independent local allowlist of roles matched
-  by the delegated rule.
+Delegation requires both a configured `role_claim` and
+`delegate_ident_mapping=1` on the matched HBA rule. Either alone fails closed.
+The configured claim may be one nonempty role-name string or a nonempty,
+bounded array of distinct role-name strings. The requested role must match
+exactly, and the HBA `USER` field independently caps reachable roles. Missing,
+malformed, oversized, duplicate, and nonmatching values deny access.
 
 Current administrative-role decision: do not add a validator-owned denylist,
 second allowlist, or catalog privilege classifier. If HBA permits a requested
@@ -344,8 +317,8 @@ Configuration decisions:
   changed effective policy from reusing old entries. Shared-memory layout and
   capacity changes require restart. A CA bundle replaced at the same path also
   requires a versioned path plus reload or a restart.
-- Initial decision: all production identities use the versioned,
-  issuer-qualified Base64URL representation defined in section 5.2.
+- Identity is the selected claim returned directly; `sub` is always required.
+  Claim mapping and delegated roles are documented in section 5.2 and 5.3.
 - Initial decision: prohibit an empty required-scope set. Supporting an
   explicitly scopeless policy requires a named reviewed profile and must not
   be inferred from missing HBA configuration.
@@ -445,7 +418,7 @@ Cover at least:
 - missing, duplicate, unknown, and rotated `kid` values;
 - `typ` enforcement and ID-token substitution attempts;
 - scope string/array parsing and exact matching;
-- issuer-qualified identity construction and invalid characters;
+- direct authenticated identity, mandatory `sub`, and invalid characters;
 - normal and delegated authorization decisions;
 - provider-profile isolation;
 - cache expiration, refresh suppression, and stale-key policy.
@@ -566,11 +539,13 @@ The validator is ready for an initial security review when all of the following 
 
 - A correctly signed token for another audience is rejected.
 - An ID token signed by the trusted issuer is rejected as an access token.
-- Tokens missing `exp`, `aud`, or the configured identity are rejected.
+- Tokens missing `iss`, `sub`, `exp`, `aud`, or the configured identity are rejected.
 - Only administrator-allowed asymmetric algorithms are accepted.
 - A rotated signing key can be adopted without allowing attacker-driven refresh storms.
-- A valid token cannot assume a PostgreSQL role without a matching usermap entry.
-- Delegated mapping is rejected or documented as unsupported until role-aware policy exists.
+- A valid token cannot assume a PostgreSQL role without exact identity matching,
+  a matching usermap entry, or an exact delegated role-claim match.
+- Delegated mapping fails closed unless both the matched HBA rule and the
+  configured `role_claim` enable it.
 - No token or secret appears in normal, debug, or error logs.
 - Network failures and cache behavior are deterministic and documented.
 - Negative tests cover the threat model and run in continuous integration.
@@ -584,10 +559,11 @@ policy decisions below.
 
 1. Choose the canonical PostgreSQL audience identifier and how clients request it from each provider.
 2. Decide whether the first release is strict RFC 9068 only or includes explicit compatibility profiles.
-3. Initial decision: use
-   `v1.<base64url(issuer)>.<base64url(configured-stable-claim)>`, limited to
-   1024 ASCII bytes. Encoding-version changes require migration guidance for
-   every affected `pg_ident.conf` usermap.
+3. Decision: require `iss` and `sub` and return the validated selected
+   identity claim directly. Usermaps use this literal identity. A configured
+   `role_claim` enables scalar or array delegated roles only when the matched
+   HBA rule also enables delegation. The [configuration guide](docs/configuration.md)
+   records the pre-release manual transition.
 4. Decide whether an empty required-scope configuration is prohibited in production mode.
 5. Initial decision: support RS256 with an explicit minimum of at least 2048
    bits and a bounded deployment maximum, and ES256 only with a validated

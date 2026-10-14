@@ -41,7 +41,7 @@ def test_diagnostics_redact_token_signature_claim_and_response(
     pg_config, validator_library, client = integration_environment
     with tempfile.TemporaryDirectory(prefix="pg-oauth-redaction-") as directory:
         idp = LocalIdp(pathlib.Path(directory), cache_max_age=120)
-        identity = "v1." + b64(idp.issuer.encode()) + "." + b64(b"principal")
+        identity = "principal"
         cluster = TemporaryPostgres(
             pg_config,
             validator_library,

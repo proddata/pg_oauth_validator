@@ -57,7 +57,6 @@ oauth_validator_libraries = 'pg_oauth_validator'
 pg_oauth_validator.audiences = 'https://postgres.example.internal/'
 pg_oauth_validator.allowed_algorithms = 'RS256,ES256'
 pg_oauth_validator.required_token_type = 'at+jwt'
-pg_oauth_validator.identity_format = 'issuer_qualified'
 pg_oauth_validator.ca_file = '/etc/postgresql/oauth/provider-ca.pem'
 # Fail closed after provider-advertised key freshness expires.
 pg_oauth_validator.jwks_stale_grace = '0s'
@@ -77,11 +76,11 @@ hostssl appdb +oauth_login 10.0.0.0/8 oauth \
 
 ```conf
 # pg_ident.conf
-oauthmap  v1.<base64url-issuer>.<base64url-stable-subject>  app_user
+oauthmap  <validated-sub>  app_user
 ```
 
-Use `delegate_ident_mapping=1` only with the documented `claim_roles` validator
-mode and an explicit HBA `USER` role list. The validator does not separately
+Use `delegate_ident_mapping=1` only with a configured `role_claim` and an
+explicit HBA `USER` role list. The validator does not separately
 deny superusers or classify role privileges: a role named by both HBA and the
 validated token is reachable. Avoid `all` and broad `+group` matches unless
 that authority is intentional, and treat issuer-side role-claim mapping as
@@ -127,10 +126,11 @@ sleeping. A provider failure or expired wait still fails closed. Set the value
 to `0` only when immediate rejection is preferable to a bounded cold-start
 delay.
 
-Misspelled `pg_oauth_validator.*` settings are not silently ignored: the prefix
-is reserved, so PostgreSQL logs a warning naming the unknown setting each time
-a backend loads the validator. Treat that warning as a configuration error,
-because the intended setting is not in effect.
+Removed `identity_format`, `authorization_mode`, and `roles_claim` settings
+cause module initialization to fail with a named configuration error. Remove
+them before restart. Inspect `pg_settings` after configuration changes to
+catch other misspelled custom settings, which PostgreSQL may hold as
+placeholders until the module loads.
 
 ## Validation before rollout
 
