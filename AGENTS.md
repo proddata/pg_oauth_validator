@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This file defines how humans and coding agents work in this repository. Product behavior, supported features, security policy, and milestone scope belong in [`FEATURES.md`](FEATURES.md). Architectural background and the longer-term roadmap belong in [`oauth-validator-plan.md`](oauth-validator-plan.md).
+This file defines how humans and coding agents work in this repository. Product behavior, supported features, security policy, and deferred scope belong in [`FEATURES.md`](FEATURES.md). The current implementation is described in [`docs/architecture.md`](docs/architecture.md), and design decisions are recorded in [`docs/adr/`](docs/adr/).
 
-Read all three before making architectural, security-sensitive, or externally visible changes.
+Read the relevant specification, architecture, and decisions before making architectural, security-sensitive, or externally visible changes.
 
 ## Quality standard
 
@@ -31,13 +31,13 @@ Do not guess PostgreSQL APIs, OAuth/JOSE semantics, provider behavior, or librar
 - Verify third-party library behavior with its documentation and focused boundary tests.
 - Add concise source references in code comments when they explain a non-obvious constraint. Comments should explain why, not restate code.
 
-Record important architectural and security-policy decisions in a lightweight decision record once an ADR location is established. Until then, add them to the decision section of `oauth-validator-plan.md`.
+Record important architectural and security-policy decisions in [`docs/adr/`](docs/adr/).
 
 ## Change workflow
 
 Before editing:
 
-1. Read the relevant specification and plan sections.
+1. Read the relevant specification, architecture, and decision records.
 2. Inspect nearby implementation, tests, build definitions, and repository-local instructions.
 3. Identify the trust boundary, failure behavior, and milestone affected.
 4. Check the working tree and preserve unrelated user changes.

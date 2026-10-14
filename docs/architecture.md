@@ -1,10 +1,8 @@
 # Implemented architecture
 
 This document summarizes the implementation currently present in the tree. For
-the security contract, see [`../FEATURES.md`](../FEATURES.md). For design
-rationale and future work, see
-[`../oauth-validator-plan.md`](../oauth-validator-plan.md) and the
-[`ADR directory`](adr/).
+the security contract, see [`../FEATURES.md`](../FEATURES.md). Design
+decisions are in the [`ADR directory`](adr/).
 
 ## Validation path
 
@@ -21,12 +19,15 @@ validation callback. For every token and requested role, the callback:
 6. derives the standard OIDC discovery URL from the exact issuer;
 7. validates metadata, JWKS, signature, claims, audience, expiry, token type,
    scopes, and stable identity through the shared cache;
-8. authorizes the PostgreSQL resource and returns the encoded external
-   `authn_id` only after every stage succeeds.
+8. authorizes the PostgreSQL resource and returns the validated selected
+   identity claim as `authn_id` only after every stage succeeds.
 
-PostgreSQL then applies the HBA `map=` and `pg_ident.conf` entry to the
-requested role. The callback does not authorize requested roles itself and
-never enables delegated identity mapping.
+Without delegation, PostgreSQL compares `authn_id` to the requested role or
+applies the HBA `map=` and `pg_ident.conf` entry. With
+`delegate_ident_mapping=1` and a configured `role_claim`, the callback checks
+that the requested role exactly matches the claim's string value or an entry
+in its bounded array. PostgreSQL then trusts the validator's authorization
+decision. The HBA `USER` field also limits reachable roles.
 
 ## Parsing, transport, and key retrieval
 

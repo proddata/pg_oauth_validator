@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the intended product behavior and security contract of the PostgreSQL OAuth validator. [`AGENTS.md`](AGENTS.md) defines engineering and contribution practices. [`oauth-validator-plan.md`](oauth-validator-plan.md) contains the broader design rationale, threat model, roadmap, and unresolved decisions.
+This document defines the intended product behavior and security contract of the PostgreSQL OAuth validator. [`AGENTS.md`](AGENTS.md) defines engineering and contribution practices. The [architecture](docs/architecture.md) describes the implementation, and the [ADRs](docs/adr/) record design decisions.
 
 The specification is deliberately narrower than the full roadmap. Features not listed as active are unsupported unless this document is updated through review.
 

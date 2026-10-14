@@ -8,9 +8,7 @@
 - **Status:** preview-only compatibility
 
 The [PostgreSQL 19 Beta 4 announcement](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)
-identifies this as a preview release. The earlier
-[Beta 3 compatibility record](pg19-beta3-compatibility.md) remains historical
-evidence for that version.
+identifies this as a preview release.
 
 The pinned development image built with the exact PostgreSQL development
 package and Debian snapshot above. `docker compose -f compose.test.yml run

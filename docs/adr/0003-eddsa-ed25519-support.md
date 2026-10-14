@@ -1,14 +1,14 @@
 # ADR 0003: Opt-in EdDSA (Ed25519) access-token signatures
 
-- Status: Proposed — requires review before release
+- Status: Proposed decision; opt-in implementation exists, review required before release
 - Date: 2026-10-01
 - Scope: Strict offline JWT validation for PostgreSQL 18 and 19
 
 ## Context
 
-The validator accepts `RS256` and `ES256` only. ADR 0001 and
-`oauth-validator-plan.md` (decision 5) require that adding an algorithm go
-through a reviewed policy with negative tests.
+Before this opt-in change, the validator accepted `RS256` and `ES256` only.
+Adding an algorithm requires an explicit policy decision and negative tests
+under the security contract in [`FEATURES.md`](../../FEATURES.md).
 
 Some authorization servers sign access tokens with Ed25519 by default. A Go
 OIDC provider built on go-jose publishes `alg: "EdDSA"` JWKs of type `OKP` /
