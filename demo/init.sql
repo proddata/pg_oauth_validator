@@ -1,0 +1,2 @@
+CREATE ROLE app_reader LOGIN;
+GRANT CONNECT ON DATABASE demo TO app_reader;

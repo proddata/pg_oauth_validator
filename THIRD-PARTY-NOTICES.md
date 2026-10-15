@@ -99,18 +99,8 @@ considered.
 | --- | --- | --- |
 | `pgindent` and `pg_bsd_indent` from the PostgreSQL 19 beta 3 source tarball, fetched with a pinned SHA-256 by [`scripts/ci/install-pgindent.sh`](scripts/ci/install-pgindent.sh) | C formatting checks | PostgreSQL License |
 | CMake, GCC/Clang, and the Debian build toolchain | Building the module and its pinned static archives | Per operating system distribution |
-| `postgres` container images, pinned by digest in the CI workflows and in the `POSTGRES_IMAGE` base of [`tools/dev/Containerfile`](tools/dev/Containerfile) and [`playground/Containerfile`](playground/Containerfile) | Development and integration tests | PostgreSQL License, on a Debian base |
-| Keycloak 26.5.0, pinned by digest in [`tests/interop/keycloak/compose.yml`](tests/interop/keycloak/compose.yml) | Optional provider interoperability suite | Apache License 2.0 |
-| `node:24-bookworm-slim`, pinned by digest in [`playground/node-client/Containerfile`](playground/node-client/Containerfile) | Playground OAuth client image | MIT (Node.js), on a Debian base |
+| `postgres` container images, pinned by digest in the CI workflows and in the `POSTGRES_IMAGE` base of [`tools/dev/Containerfile`](tools/dev/Containerfile) and [`demo/Containerfile`](demo/Containerfile) | Development, integration tests, and local demo | PostgreSQL License, on a Debian base |
+| Keycloak 26.5.0, pinned by digest in [`tests/interop/keycloak/compose.yml`](tests/interop/keycloak/compose.yml) and [`compose.yml`](compose.yml) | Optional provider interoperability suite and local demo | Apache License 2.0 |
 
 `tools/pgindent/project.typedefs` is a project-authored list of type names used
 by the formatter and contains no third-party code.
-
-## Playground-only node-postgres snapshot
-
-The optional `playground` Node interoperability-client image downloads and
-builds the pure-JavaScript client from node-postgres pull request 3694 at commit
-`68d58096e99296776a08d9c4333f5d742a8d2675`, licensed under the MIT license.
-It is not linked into or distributed with the validator module. The image build
-pins the source archive SHA-256 and installs the dependency graph locked by that
-source revision.

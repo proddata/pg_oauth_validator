@@ -1,0 +1,82 @@
+{
+  "realm": "pg-oauth",
+  "enabled": true,
+  "sslRequired": "external",
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "postgres-demo",
+      "name": "PostgreSQL demo access",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "consentRequired": true,
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "oauth2.device.authorization.grant.enabled": "true"
+      },
+      "defaultClientScopes": [],
+      "optionalClientScopes": ["connect:postgres"],
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "postgres-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "https://postgres.example/",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "subject",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "connect:postgres",
+      "description": "Connect to the demo PostgreSQL database",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "username": "alice",
+      "firstName": "Alice",
+      "lastName": "Demo",
+      "email": "alice@example.invalid",
+      "enabled": true,
+      "emailVerified": true,
+      "realmRoles": ["default-roles-pg-oauth"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-alice-password",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

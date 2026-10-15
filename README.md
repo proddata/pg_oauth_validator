@@ -107,7 +107,44 @@ compares `employee_id` to the requested role, a usermap maps
 in its OAuth connection log and exposes `system_user` as `oauth:<identity>`;
 the requested database role remains separate.
 
-## Quick start
+## Quickstart: connect with Keycloak
+
+This runnable example starts PostgreSQL 18 with the validator and a local
+Keycloak realm. You need Docker with Compose; no local PostgreSQL installation
+or provider account is required. From the repository root:
+
+1. Start the services. The first build may take a few minutes.
+
+   ```sh
+   docker compose up --build -d
+   ```
+
+2. Connect with the bundled PostgreSQL 18 `psql` client and run a query:
+
+   ```sh
+   docker compose run --rm psql -c 'SELECT current_user, system_user;'
+   ```
+
+3. `psql` prints a device code and waits for authorization. In your browser,
+   open `https://localhost:8443/realms/pg-oauth/device?user_code=CODE`, replacing
+   `CODE` with the printed code. Sign in as **alice** with password
+   **demo-alice-password**, then approve **Connect to the demo PostgreSQL
+   database**. The locally generated HTTPS certificate may require you to trust
+   the demo CA; the [Keycloak quickstart guide](demo/README.md) shows how.
+
+4. Return to the terminal. The query should show `app_reader` as
+   `current_user` and `oauth:00000000-0000-0000-0000-000000000001` as
+   `system_user`. Run `docker compose run --rm psql` for an interactive session;
+   each new connection starts a new device authorization.
+
+Stop the services with `docker compose down`. To also delete the disposable
+database and generated certificates, run `docker compose down --volumes`. The
+[Keycloak quickstart guide](demo/README.md) explains the sample configuration
+and how to use [`compose.external.yml`](compose.external.yml) with your own
+issuer. This stack uses published demo credentials and is intended for local
+evaluation.
+
+## Configure your own PostgreSQL server
 
 Install the module built for the *same PostgreSQL major version* as your
 server. The [operations guide](docs/operations.md) covers packaging and
@@ -178,8 +215,8 @@ secrets in normal diagnostics.
   secure examples
 - [Installation and operations](docs/operations.md): packages, upgrades,
   rollout, and rollback
-- [Playground](playground/README.md): disposable Docker/Podman environment for
-  trying a real provider
+- [Keycloak quickstart](demo/README.md): follow the Compose tutorial and adapt
+  the sample for an external issuer
 - [Provider compatibility](PROVIDER-COMPATIBILITY.md): supported provider
   behavior and requirements
 
