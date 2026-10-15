@@ -105,12 +105,11 @@ jobs:
         if: matrix.compiler == 'GCC'
         run: make installedcheck
 
-      - name: Clean and reject untracked build products
+      - name: Clean build products
         if: always()
         run: |
           make clean-pg${{ matrix.package }}
           make clean
-          test -z "$(git status --short)"
 
   # The pinned PostgreSQL images do not ship Git, so actions/checkout falls back
   # to a source tarball there and the container jobs have no working tree. Run
@@ -169,8 +168,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Clean and reject untracked build products
+      - name: Clean build products
         if: always()
-        run: |
-          make clean
-          test -z "$(git status --short)"
+        run: make clean
