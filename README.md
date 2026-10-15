@@ -140,9 +140,9 @@ or provider account is required. From the repository root:
 Stop the services with `docker compose down`. To also delete the disposable
 database and generated certificates, run `docker compose down --volumes`. The
 [Keycloak quickstart guide](demo/README.md) explains the sample configuration
-and how to use [`compose.external.yml`](compose.external.yml) with your own
-issuer. This stack uses published demo credentials and is intended for local
-evaluation.
+and how to use [`compose.external.yml`](compose.external.yml) with a single
+ignored YAML profile for your own issuer. This stack uses published demo
+credentials and is intended for local evaluation.
 
 ## Configure your own PostgreSQL server
 

@@ -15,6 +15,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  external-profile:
+    name: External Compose profile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate Compose definition
+        run: docker compose -f compose.external.yml config --quiet
+
+      - name: Build pinned demo image
+        run: docker compose -f compose.external.yml build
+
+      - name: Test profile rendering in demo image
+        run: |
+          docker run --rm -v "$PWD:/source:ro" pg-oauth-validator-demo:pg18 \
+            /bin/sh -c 'cd /source && PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -p no:cacheprovider -q tests/demo_profile_test.py'
+
+      - name: Smoke-test external Compose stack
+        run: |
+          cp demo/provider.example.yml "$RUNNER_TEMP/provider.yml"
+          export OAUTH_PROFILE="$RUNNER_TEMP/provider.yml"
+          trap 'docker compose -p external-profile-ci -f compose.external.yml down --volumes --remove-orphans' EXIT
+          docker compose -p external-profile-ci -f compose.external.yml up -d --wait --wait-timeout 90
+          docker compose -p external-profile-ci -f compose.external.yml run --rm psql --version
+
   build:
     name: PostgreSQL ${{ matrix.pg }} / ${{ matrix.compiler }} / C17
     runs-on: ubuntu-24.04
