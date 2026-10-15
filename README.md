@@ -109,6 +109,19 @@ the requested database role remains separate.
 
 ## Quick start
 
+To try the validator with a local Keycloak realm and stock `psql`:
+
+```sh
+docker compose up --build -d
+docker compose run --rm psql
+```
+
+Follow the device authorization prompt and sign in as the demo user. See the
+[local demo guide](demo/README.md) for the credentials, configuration files,
+and cleanup steps. The guide also covers
+[`compose.external.yml`](compose.external.yml) for an external issuer without
+the bundled Keycloak service.
+
 Install the module built for the *same PostgreSQL major version* as your
 server. The [operations guide](docs/operations.md) covers packaging and
 installation.
@@ -178,8 +191,8 @@ secrets in normal diagnostics.
   secure examples
 - [Installation and operations](docs/operations.md): packages, upgrades,
   rollout, and rollback
-- [Playground](playground/README.md): disposable Docker/Podman environment for
-  trying a real provider
+- [Local Docker Compose demo](demo/README.md): start PostgreSQL and Keycloak,
+  then connect with stock `psql`
 - [Provider compatibility](PROVIDER-COMPATIBILITY.md): supported provider
   behavior and requirements
 

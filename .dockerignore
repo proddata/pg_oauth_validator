@@ -1,8 +1,14 @@
 .git
+.env
+**/*.env
+**/*.key
+**/*.pem
 .tools
 build
 dist
-playground/.state
+demo/local
+demo-ca.crt
+playground
 **/__pycache__
 **/*.bc
 **/*.o

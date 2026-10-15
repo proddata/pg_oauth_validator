@@ -1,0 +1,77 @@
+name: pg-oauth-validator-demo
+
+services:
+  certs:
+    build:
+      context: .
+      dockerfile: demo/Containerfile
+    image: pg-oauth-validator-demo:pg18
+    entrypoint: ["/bin/sh", "/demo/generate-certs.sh"]
+    volumes:
+      - demo-certs:/certs
+      - ./demo/generate-certs.sh:/demo/generate-certs.sh:ro
+    restart: "no"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.0@sha256:5fdd7cda82e58775ed124294c7e16fabc33166d38dfc4aabebda7d64e7a964bf
+    command:
+      - start-dev
+      - --import-realm
+      - --hostname=https://localhost:8443
+      - --https-certificate-file=/certs/keycloak.crt
+      - --https-certificate-key-file=/certs/keycloak.key
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: demo-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: demo-admin-password
+    ports:
+      - "127.0.0.1:8443:8443"
+      - "127.0.0.1:${DEMO_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - ./demo/keycloak-realm.json:/opt/keycloak/data/import/realm.json:ro
+      - demo-certs:/certs:ro
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+
+  postgres:
+    image: pg-oauth-validator-demo:pg18
+    command: ["postgres", "-c", "config_file=/demo/postgresql.conf"]
+    environment:
+      POSTGRES_DB: demo
+      POSTGRES_PASSWORD: demo-bootstrap-only
+    network_mode: service:keycloak
+    volumes:
+      - demo-data:/var/lib/postgresql
+      - demo-certs:/certs:ro
+      - ./demo/postgresql.conf:/demo/postgresql.conf:ro
+      - ./demo/pg_hba.conf:/demo/pg_hba.conf:ro
+      - ./demo/pg_ident.conf:/demo/pg_ident.conf:ro
+      - ./demo/init.sql:/docker-entrypoint-initdb.d/10-demo.sql:ro
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "runuser -u postgres -- psql -d demo -Atqc 'SELECT 1' | grep -qx 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  psql:
+    image: pg-oauth-validator-demo:pg18
+    profiles: ["client"]
+    entrypoint: ["/bin/sh", "/demo/psql.sh"]
+    stdin_open: true
+    tty: true
+    network_mode: service:keycloak
+    volumes:
+      - demo-certs:/certs:ro
+      - ./demo/psql.sh:/demo/psql.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  demo-data:
+  demo-certs:
