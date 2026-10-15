@@ -7,7 +7,9 @@ itself claim that the project or every deployment is production-ready.
 
 ## Version and tag policy
 
-- Use semantic versions of the form `MAJOR.MINOR.PATCH`. Use a SemVer
+- Use semantic versions of the form `MAJOR.MINOR.PATCH`. Versions in the
+  `0.x.y` initial-development series are marked as GitHub prereleases even
+  without a SemVer prerelease suffix. For later major versions, use a SemVer
   prerelease suffix such as `-rc.1` while the release is not approved for
   production. PostgreSQL 19 packages remain preview artifacts until the gates
   below are complete.

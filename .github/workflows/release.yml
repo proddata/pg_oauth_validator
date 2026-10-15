@@ -110,7 +110,9 @@ jobs:
         run: |
           set -euo pipefail
           prerelease=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+          # 0.x.y is initial development; publish its draft as a GitHub
+          # prerelease even without a SemVer prerelease suffix.
+          if [[ "$GITHUB_REF_NAME" == v0.* || "$GITHUB_REF_NAME" == *-* ]]; then
             prerelease=(--prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" dist/publish/* \
