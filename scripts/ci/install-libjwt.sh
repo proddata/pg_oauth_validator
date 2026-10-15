@@ -17,7 +17,9 @@ case "${CC:-cc}" in
 	*clang*) dependency_warning_flags= ;;
 	*) dependency_warning_flags=-Wno-stringop-truncation ;;
 esac
-dependency_cflags="$dependency_warning_flags ${CFLAGS:-}"
+# Static objects are embedded in the release module. Normalize both debug
+# paths and __FILE__ so mktemp names do not change the signed package.
+dependency_cflags="$dependency_warning_flags ${CFLAGS:-} -ffile-prefix-map=$work_dir=/usr/src/pg-oauth-libjwt"
 
 if test -n "${LIBJWT_SOURCE_ARCHIVE:-}"; then
 	test -f "$LIBJWT_SOURCE_ARCHIVE" && test -r "$LIBJWT_SOURCE_ARCHIVE" || {
