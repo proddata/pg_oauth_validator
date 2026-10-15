@@ -1,0 +1,120 @@
+name: Release draft
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-draft-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Validate signed release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      number: ${{ steps.check.outputs.number }}
+      tag_object: ${{ steps.check.outputs.tag_object }}
+    steps:
+      - name: Check out tagged source and tag objects
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - id: check
+        name: Verify tag, source commit, and signature
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD
+          tag_object=$(git rev-parse "refs/tags/$GITHUB_REF_NAME")
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object" --jq '.verification.verified')" = true
+          echo "number=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "tag_object=$tag_object" >> "$GITHUB_OUTPUT"
+
+  validation:
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  security-analysis:
+    needs: version
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/codeql.yml
+
+  packages:
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-candidate.yml
+    with:
+      version: ${{ needs.version.outputs.number }}
+
+  draft:
+    name: Prepare draft GitHub Release
+    needs: [version, validation, security-analysis, packages]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release scripts
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Download PostgreSQL 18 package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: pg-oauth-validator-${{ needs.version.outputs.number }}-pg18
+          path: dist/pg18
+
+      - name: Download PostgreSQL 19 preview package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: pg-oauth-validator-${{ needs.version.outputs.number }}-pg19
+          path: dist/pg19
+
+      - name: Verify complete artifact set and prepare checksums
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.number }}
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          sh ./scripts/ci/prepare-release-draft.sh \
+            "$RELEASE_VERSION" "$SOURCE_REVISION" dist
+
+      - name: Confirm release tag has not moved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_OBJECT: ${{ needs.version.outputs.tag_object }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.sha')" = "$TAG_OBJECT"
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          prerelease=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/publish/* \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            --latest=false "${prerelease[@]}" \
+            --title "$GITHUB_REF_NAME" \
+            --notes 'Draft build evidence only. Complete docs/release-readiness.md, add approved signatures, and obtain independent release approval before publishing.'

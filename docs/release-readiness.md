@@ -21,6 +21,30 @@ itself claim that the project or every deployment is production-ready.
   explicit compatibility and migration notes and may require a minor or major
   version increase according to impact.
 
+## Tag-triggered draft workflow
+
+After the source revision has passed review, create and push a signed,
+annotated `vMAJOR.MINOR.PATCH` tag (or a SemVer prerelease tag such as
+`v0.1.0-rc.1`) pointing to a commit on `main`. The `Release draft` workflow
+checks the tag name, annotated-tag type, target commit, main-branch ancestry,
+and GitHub's signature-verification result. A signature GitHub cannot verify
+blocks the workflow. The release owner must still confirm that the signer is
+an approved release key; GitHub's verification alone does not establish that.
+
+The workflow reuses the normal CI and CodeQL gates, builds the two PostgreSQL
+release-candidate packages, runs the pinned Keycloak interoperability suite,
+verifies the downloaded artifacts and their embedded manifests, and creates a
+**draft** GitHub Release with `SHA256SUMS`. PostgreSQL 19 remains a preview
+package. No tag-triggered job publishes the draft. The manually dispatched
+`Release candidate` workflow remains available for rehearsals before tagging.
+
+Before publishing the draft, complete the independent review, fresh-environment
+rebuild, dependency review, install/upgrade/rollback rehearsal, and approval
+steps below. Sign the final archives and checksum file with the approved release
+key, upload and verify the signatures, and record the release approver. Then
+publish the draft without replacing the reviewed tag or artifacts. A rejected
+candidate gets a new version and tag; do not move the existing tag.
+
 ## Release record
 
 Create an immutable release record containing:
@@ -86,8 +110,8 @@ compare both the archive digest and unpacked `BUILD-MANIFEST`. A mismatch blocks
 release until explained and either eliminated or explicitly incorporated into
 the reproducible input record. Sign the final archive and checksum file using
 the release signing process; checksum generation alone is not provenance.
-The release-candidate workflow provides an initial same-environment
-reproducibility gate with
+The release-candidate and tag-triggered draft workflows provide an initial
+same-environment reproducibility gate with
 `scripts/ci/check-release-artifacts.sh` and records the immutable build inputs
 in `RELEASE-EVIDENCE.md`. The separate fresh-environment rehearsal remains a
 release-approval requirement.

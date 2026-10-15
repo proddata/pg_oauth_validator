@@ -133,6 +133,7 @@ formatcheck:
 
 check-release-artifacts:
 	sh "$(srcdir)/tests/ci/test_release_artifacts.sh"
+	sh "$(srcdir)/tests/ci/test_prepare_release_draft.sh"
 
 check-dependency-installers:
 	sh "$(srcdir)/tests/ci/test_dependency_installers.sh"
