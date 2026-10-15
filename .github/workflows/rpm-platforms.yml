@@ -16,13 +16,13 @@ concurrency:
 
 jobs:
   build:
-    name: ${{ matrix.name }} / PostgreSQL 18
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.distribution.name }} / PostgreSQL 18${{ matrix.architecture.name_suffix }}
+    runs-on: ${{ matrix.architecture.runner }}
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        include:
+        distribution:
           - name: Fedora 43
             image_name: fedora43
             base_image: fedora:43@sha256:a651ddf48ea28a06ed4e1e6519f51c9f47e7a5a138722ade87369b8fbb7e5b42
@@ -38,6 +38,17 @@ jobs:
             base_image: rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
             rpm_platform: el10
             pg_config: /usr/pgsql-18/bin/pg_config
+        architecture:
+          - name_suffix: ''
+            runner: ubuntu-24.04
+            platform: linux/amd64
+            host_arch: x86_64
+            image_suffix: amd64
+          - name_suffix: ' / arm64'
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            host_arch: aarch64
+            image_suffix: arm64
 
     steps:
       - name: Check out repository
@@ -45,13 +56,16 @@ jobs:
 
       - name: Build compatibility image
         env:
-          BASE_IMAGE: ${{ matrix.base_image }}
-          IMAGE_NAME: ${{ matrix.image_name }}
-          PG_CONFIG_PATH: ${{ matrix.pg_config }}
-          RPM_PLATFORM: ${{ matrix.rpm_platform }}
+          BASE_IMAGE: ${{ matrix.distribution.base_image }}
+          IMAGE_NAME: ${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+          PG_CONFIG_PATH: ${{ matrix.distribution.pg_config }}
+          RPM_PLATFORM: ${{ matrix.distribution.rpm_platform }}
+          DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
+          EXPECTED_HOST_ARCH: ${{ matrix.architecture.host_arch }}
         run: |
+          test "$(uname -m)" = "$EXPECTED_HOST_ARCH"
           docker build \
-            --platform linux/amd64 \
+            --platform "$DOCKER_PLATFORM" \
             --file tools/rpm/Containerfile \
             --build-arg BASE_IMAGE="$BASE_IMAGE" \
             --build-arg RPM_PLATFORM="$RPM_PLATFORM" \
@@ -61,10 +75,11 @@ jobs:
 
       - name: Verify build and staged installation
         env:
-          IMAGE_NAME: ${{ matrix.image_name }}
+          IMAGE_NAME: ${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+          DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
         run: |
           docker run --rm --tmpfs /source:exec \
-            --platform linux/amd64 \
+            --platform "$DOCKER_PLATFORM" \
             --volume "$GITHUB_WORKSPACE:/workspace:ro" \
             "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
             verify-dev packagecheck

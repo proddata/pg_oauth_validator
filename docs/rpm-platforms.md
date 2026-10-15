@@ -5,18 +5,28 @@ contract remains the pinned Debian/PGDG environment documented in
 [`release-readiness.md`](release-readiness.md). A successful compatibility
 build does not make an RPM-family platform a supported production target.
 
-## Initial compatibility matrix
+## Compatibility matrix
 
 | Environment | PostgreSQL | Architecture | Current gate |
 | --- | --- | --- | --- |
 | Fedora 43 | Fedora PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
+| Fedora 43 | Fedora PostgreSQL 18 | arm64 | strict build, unit/component verification, staged installation |
 | Fedora 44 | Fedora PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
+| Fedora 44 | Fedora PostgreSQL 18 | arm64 | strict build, unit/component verification, staged installation |
 | Rocky Linux 10 | PGDG PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
+| Rocky Linux 10 | PGDG PostgreSQL 18 | arm64 | strict build, unit/component verification, staged installation |
+
+CI uses native `ubuntu-24.04` and `ubuntu-24.04-arm` runners for the respective
+architectures. The pinned Fedora and Rocky base-image indexes include both
+architectures. Every matrix job builds its own image and runs `verify-dev` and
+`packagecheck`; it does not run the real-server integration suite. The local
+Compose services use separate build volumes for x86-64 and arm64.
+The same arm architecture is called `aarch64` by RPM packages.
 
 Fedora uses `/usr/bin/pg_server_config` for server extension builds. The PGDG
 Enterprise Linux packages use `/usr/pgsql-18/bin/pg_config`. The same source
 build is exercised through the Makefile's explicit `PG_CONFIG` boundary, but
-artifacts are not interchangeable across the two environments.
+artifacts are not interchangeable across distributions or architectures.
 
 Fedora's PostgreSQL server-development package conflicts with the standalone
 `libpq-devel` package. The compatibility image intentionally installs the
@@ -28,8 +38,8 @@ Rocky Linux 9's libcurl 7.76.1 is below the required 7.87.0 runtime minimum.
 Rocky Linux 10 provides a current system libcurl; the runtime test still checks
 its version and asynchronous DNS capability. The Rocky build enables CRB for
 PGDG development dependencies. The PGDG repository bootstrap RPM is versioned
-and SHA-256 verified before installation; repository and package metadata
-signatures remain enforced.
+and SHA-256 verified for each architecture before installation; repository and
+package metadata signatures remain enforced.
 
 Run the compatibility builds with:
 
@@ -38,10 +48,22 @@ docker compose -f compose.rpm-test.yml build
 docker compose -f compose.rpm-test.yml up --abort-on-container-failure
 ```
 
+These default services build and test x86-64. On an arm64 host, use the native
+arm64 services instead:
+
+```sh
+docker compose -f compose.rpm-test.yml build fedora43-arm64 fedora44-arm64 rocky10-arm64
+docker compose -f compose.rpm-test.yml up --abort-on-container-failure fedora43-arm64 fedora44-arm64 rocky10-arm64
+```
+
+Running the arm64 services on an x86-64 host requires container emulation and
+does not provide the native-runner evidence used by CI.
+
 The base-image manifests are pinned. Package repositories are not yet
 snapshot-pinned, so these jobs are compatibility signals rather than
 reproducible release builders. `/etc/pg-oauth-build-inputs` in each image
-records the selected compiler, PostgreSQL, OpenSSL, and libcurl packages.
+records the RPM architecture and selected compiler, PostgreSQL, OpenSSL, and
+libcurl packages.
 
 Fedora 42 reached end of life in May 2026 and its distribution PostgreSQL is
 older than the supported majors. It is not a continuous CI target; any

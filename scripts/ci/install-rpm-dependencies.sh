@@ -29,8 +29,21 @@ case "$platform" in
 		pg_config=/usr/bin/pg_server_config
 		;;
 	el10)
-		pgdg_repo_url=https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-42.0-69.rhel10PGDG.noarch.rpm
-		pgdg_repo_sha256=6f6272b26ec3a26f2701ed47c69c580691affdf59ef26fa5a9c5a78f94f40a5d
+		case "$(rpm --eval '%{_arch}')" in
+			x86_64)
+				pgdg_repo_arch=x86_64
+				pgdg_repo_sha256=6f6272b26ec3a26f2701ed47c69c580691affdf59ef26fa5a9c5a78f94f40a5d
+				;;
+			aarch64)
+				pgdg_repo_arch=aarch64
+				pgdg_repo_sha256=494f3404ee8a3803d40a494d261c9da7b6d49fab65e7c5753946df8102553960
+				;;
+			*)
+				echo "error: unsupported PGDG repository architecture" >&2
+				exit 1
+				;;
+		esac
+		pgdg_repo_url="https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-$pgdg_repo_arch/pgdg-redhat-repo-42.0-69.rhel10PGDG.noarch.rpm"
 		work_dir=$(mktemp -d)
 		trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 		pgdg_repo=$work_dir/pgdg-redhat-repo.noarch.rpm
@@ -65,6 +78,7 @@ esac
 
 {
 	echo "rpm-platform: $platform"
+	echo "rpm-architecture: $(rpm --eval '%{_arch}')"
 	echo "postgresql-version: $($pg_config --version)"
 	echo "rpm-packages:"
 	rpm -q --qf '  %{NAME} %{VERSION}-%{RELEASE}.%{ARCH}\n' \
