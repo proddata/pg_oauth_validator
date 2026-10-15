@@ -11,7 +11,7 @@ build does not make an RPM-family platform a supported production target.
 | --- | --- | --- | --- |
 | Fedora 43 | Fedora PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
 | Fedora 44 | Fedora PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
-| Rocky Linux 9 | PGDG PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
+| Rocky Linux 10 | PGDG PostgreSQL 18 | x86-64 | strict build, unit/component verification, staged installation |
 
 Fedora uses `/usr/bin/pg_server_config` for server extension builds. The PGDG
 Enterprise Linux packages use `/usr/pgsql-18/bin/pg_config`. The same source
@@ -24,11 +24,12 @@ server-private development interface needed by PGXS and does not claim that
 the client-side OAuth integration suite is available there. Resolving that
 split belongs to the later installed-runtime test image.
 
-The Rocky build enables the distribution's CRB repository because PGDG's
-`postgresql18-devel` package requires `perl-IPC-Run`, which is not supplied by
-the minimal BaseOS/AppStream repository set. The PGDG repository bootstrap RPM
-is versioned and SHA-256 verified before installation; repository and package
-metadata signatures remain enforced.
+Rocky Linux 9's libcurl 7.76.1 is below the required 7.87.0 runtime minimum.
+Rocky Linux 10 provides a current system libcurl; the runtime test still checks
+its version and asynchronous DNS capability. The Rocky build enables CRB for
+PGDG development dependencies. The PGDG repository bootstrap RPM is versioned
+and SHA-256 verified before installation; repository and package metadata
+signatures remain enforced.
 
 Run the compatibility builds with:
 

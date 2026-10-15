@@ -33,10 +33,10 @@ jobs:
             base_image: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
             rpm_platform: fedora44
             pg_config: /usr/bin/pg_server_config
-          - name: Rocky Linux 9 / PGDG
-            image_name: rocky9
-            base_image: rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
-            rpm_platform: el9
+          - name: Rocky Linux 10 / PGDG
+            image_name: rocky10
+            base_image: rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
+            rpm_platform: el10
             pg_config: /usr/pgsql-18/bin/pg_config
 
     steps:
