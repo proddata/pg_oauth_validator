@@ -1,50 +1,71 @@
-# Local OAuth demo
+# Try PostgreSQL OAuth with Keycloak
 
-This Compose setup replaces the former `playground/` scripts and images. Use
-`compose.yml` for the bundled Keycloak example or `compose.external.yml` with
-your own reviewed issuer configuration. The former Auth0 helper and Node.js
-client are no longer part of the demo; use a PostgreSQL 18 client with libpq
-OAuth support for external providers.
+In this quickstart, you will connect to PostgreSQL as `app_reader` using an
+access token from a local Keycloak realm. The stack uses Docker Compose and
+includes PostgreSQL 18, the validator, Keycloak, and a matching `psql` client.
+You need Docker with Compose and a browser; you do not need a local PostgreSQL
+installation or a provider account.
 
-Run this disposable stack from the repository root:
+1. From the repository root, build and start the stack:
 
-```sh
-docker compose up --build -d
-docker compose run --rm psql
-```
+   ```sh
+   docker compose up --build -d
+   ```
 
-The second command starts stock PostgreSQL 18 `psql` with libpq's device
-authorization flow. Append `?user_code=` and the printed code to the URL it
-prints, then open that complete URL in a browser. For example, if `psql` prints
-`ABCD-EFGH`, open
-`https://localhost:8443/realms/pg-oauth/device?user_code=ABCD-EFGH`.
-This uses Keycloak's complete verification URL; the separate code-entry form
-in the pinned Keycloak version did not complete correctly in local testing.
-Sign in as **alice** with password **demo-alice-password** and approve the
-**Connect to the demo PostgreSQL database** scope. Once authorized, `psql`
-connects as the limited `app_reader` role. For a one-off query:
+   The first build may take a few minutes. Check `docker compose ps` for a
+   healthy `postgres` service if startup is still in progress.
 
-```sh
-docker compose run --rm psql -c 'select current_user, system_user;'
-```
+2. Start a connection and request a query:
 
-Keycloak's demo admin is `demo-admin` / `demo-admin-password` at
-<https://localhost:8443>. Your browser will warn about the locally generated
-certificate. Export the demo CA with
-`docker compose cp postgres:/certs/ca.crt ./demo-ca.crt` if you want to trust
-it explicitly in your browser; do not use it outside this demo. The PostgreSQL
-port is bound only to
-`127.0.0.1:55432` by default; set `DEMO_POSTGRES_PORT` to choose another host
-port. All credentials and certificates here are disposable test material.
+   ```sh
+   docker compose run --rm psql -c 'SELECT current_user, system_user;'
+   ```
+
+   Keep this terminal open. `psql` prints a device code and waits while you
+   authorize the connection in your browser.
+
+3. Open `https://localhost:8443/realms/pg-oauth/device?user_code=CODE`, replacing
+   `CODE` with the value printed by `psql`. For example, code `ABCD-EFGH`
+   gives `https://localhost:8443/realms/pg-oauth/device?user_code=ABCD-EFGH`.
+   Use the complete URL with `user_code`; the separate Keycloak code-entry form
+   did not complete correctly in local testing with the pinned version.
+
+4. Sign in as **alice** with password **demo-alice-password**. Approve the
+   **Connect to the demo PostgreSQL database** scope on the consent page. Return
+   to the terminal; the query should complete with `current_user` set to
+   `app_reader` and `system_user` set to
+   `oauth:00000000-0000-0000-0000-000000000001`.
+
+Run `docker compose run --rm psql` for an interactive SQL session. Each new
+connection starts another device authorization. `psql` obtains an access
+token and presents it to PostgreSQL. The validator checks its signature,
+issuer, audience, expiry, and required scope before PostgreSQL applies the
+usermap.
+
+Your browser may warn about the locally generated HTTPS certificate. To trust
+this test CA explicitly, export it with
+`docker compose cp postgres:/certs/ca.crt ./demo-ca.crt` and import that file
+into your browser or operating-system trust store. Do not use this CA outside
+the local stack. Keycloak's demo admin is `demo-admin` /
+`demo-admin-password` at <https://localhost:8443>.
+
+Stop the stack with `docker compose down`. To also delete its database and
+certificates, run `docker compose down --volumes`; that permanently deletes
+the disposable data. The certificates expire after seven days, so reset the
+volumes before using the stack again after that. PostgreSQL is published only
+on `127.0.0.1:55432` by default; set `DEMO_POSTGRES_PORT` before startup to
+choose another host port.
+
+## How the example is wired
 
 The Compose services share Keycloak's network namespace so the issuer is
 `https://localhost:8443/realms/pg-oauth` for the browser, validator, and
-`psql`. PostgreSQL still requires a TLS connection and verifies the access
-token against that exact issuer, the `https://postgres.example/` audience, the
-`connect:postgres` scope, and the Keycloak signing key. The fixed demo subject
-maps to `app_reader` through `pg_ident.conf`; other subjects and roles are
-rejected. The client is public because libpq's built-in device flow uses a
-public client; the requested scope is shown for user consent.
+`psql`. PostgreSQL requires TLS and checks the exact issuer, the
+`https://postgres.example/` audience, the `connect:postgres` scope, and the
+Keycloak signing key. The fixed sample subject maps to `app_reader` through
+`pg_ident.conf`; other subjects and roles are rejected. The client is public
+because libpq's device flow uses a public client, and the connection scope is
+shown for user consent.
 
 ## Configure it
 
@@ -60,11 +81,7 @@ public client; the requested scope is shown for user consent.
 
 The PostgreSQL configuration files are bind-mounted, so restart the PostgreSQL
 service after editing them. Keycloak imports the realm when its container is
-created. The `init.sql` file applies only to a new database volume. To discard
-the demo database and generated certificates, run
-`docker compose down --volumes`; this permanently deletes demo data. The
-certificates expire after seven days, so reset the demo volumes before using
-the stack again after that.
+created. The `init.sql` file applies only to a new database volume.
 
 ## Use an external provider
 
@@ -94,3 +111,9 @@ This stack is for local evaluation. It includes known demo credentials and
 should not be exposed on a shared network or reused as production
 configuration. In particular, the local peer recovery rule, fixed demo
 subject, and public device client are deliberate demo choices.
+
+This Compose setup replaces the former `playground/` scripts and images. Use
+`compose.yml` for the bundled Keycloak example or `compose.external.yml` with
+your own reviewed issuer configuration. The former Auth0 helper and Node.js
+client are no longer included; use a PostgreSQL 18 client with libpq OAuth
+support for an external provider.
