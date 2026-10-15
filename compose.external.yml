@@ -9,12 +9,11 @@ services:
     entrypoint: ["/bin/sh", "/demo/generate-certs.sh"]
     volumes:
       - external-certs:/certs
-      - ./demo/generate-certs.sh:/demo/generate-certs.sh:ro
     restart: "no"
 
   postgres:
     image: pg-oauth-validator-demo:pg18
-    command: ["postgres", "-c", "config_file=/demo/postgresql.conf"]
+    entrypoint: ["/bin/sh", "/demo/start-external-postgres.sh"]
     environment:
       POSTGRES_DB: demo
       POSTGRES_PASSWORD: demo-bootstrap-only
@@ -23,11 +22,14 @@ services:
     volumes:
       - external-data:/var/lib/postgresql
       - external-certs:/certs:ro
-      - ${OAUTH_CONFIG_DIR:?set OAUTH_CONFIG_DIR to a reviewed local config directory}:/demo/local:ro
-      - ${OAUTH_CONFIG_DIR:?set OAUTH_CONFIG_DIR to a reviewed local config directory}/postgresql.conf:/demo/postgresql.conf:ro
-      - ${OAUTH_CONFIG_DIR:?set OAUTH_CONFIG_DIR to a reviewed local config directory}/pg_hba.conf:/demo/pg_hba.conf:ro
-      - ${OAUTH_CONFIG_DIR:?set OAUTH_CONFIG_DIR to a reviewed local config directory}/pg_ident.conf:/demo/pg_ident.conf:ro
-      - ${OAUTH_CONFIG_DIR:?set OAUTH_CONFIG_DIR to a reviewed local config directory}/init.sql:/docker-entrypoint-initdb.d/10-demo.sql:ro
+      - type: bind
+        source: ${OAUTH_PROFILE:-./demo/local/provider.yml}
+        target: /demo/profile.yml
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /demo/runtime
     depends_on:
       certs:
         condition: service_completed_successfully
@@ -36,6 +38,27 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
+
+  psql:
+    image: pg-oauth-validator-demo:pg18
+    profiles: ["client"]
+    entrypoint: ["/bin/sh", "/demo/start-external-psql.sh"]
+    stdin_open: true
+    tty: true
+    network_mode: service:postgres
+    volumes:
+      - external-certs:/certs:ro
+      - type: bind
+        source: ${OAUTH_PROFILE:-./demo/local/provider.yml}
+        target: /demo/profile.yml
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /demo/runtime
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   external-data:

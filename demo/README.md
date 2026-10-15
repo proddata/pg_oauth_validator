@@ -86,26 +86,79 @@ created. The `init.sql` file applies only to a new database volume.
 ## Use an external provider
 
 The separate [`compose.external.yml`](../compose.external.yml) starts
-PostgreSQL without Keycloak. Copy the demo configuration into an ignored local
-directory, then edit its issuer, audience, scope, usermap, and role setup for
-your provider:
+PostgreSQL without Keycloak. Copy one profile into the ignored `demo/local/`
+directory, then edit its six required values for your provider:
 
 ```sh
 mkdir -p demo/local
-cp demo/postgresql.conf demo/pg_hba.conf demo/pg_ident.conf demo/init.sql demo/local/
-OAUTH_CONFIG_DIR=./demo/local docker compose -f compose.external.yml up --build -d
+cp demo/provider.example.yml demo/local/provider.yml
+# Edit demo/local/provider.yml
+docker compose -f compose.external.yml up --build -d
 ```
 
-Set `pg_oauth_validator.ca_file` to an appropriate trusted CA file for your
-provider, or to `''` when its certificate chains to the container's system
-trust store. A custom CA can be placed in `demo/local/` and referenced as
-`/demo/local/<filename>` in `postgresql.conf`. Use a PostgreSQL 18 client with
-libpq OAuth support and a connection string containing the same exact
-`oauth_issuer`, a client ID, and TLS verification of the demo PostgreSQL
-certificate. Export its CA with
-`OAUTH_CONFIG_DIR=./demo/local docker compose -f compose.external.yml cp postgres:/certs/ca.crt ./demo-ca.crt`.
-The external provider and client credentials remain yours to configure; the
-server denies access if those settings or token claims do not match.
+The fields are:
+
+| Field | Enter |
+| --- | --- |
+| `issuer` | Exact HTTPS `iss` value published by the provider. |
+| `audience` | Exact PostgreSQL resource value in the access token's `aud`. |
+| `scope` | One explicit database-access scope in the token's `scope` claim; `openid` alone is rejected. |
+| `client_id` | Public OAuth device-flow client ID for bundled `psql`. |
+| `identity_claim` | Stable claim for the authenticated ID, usually `sub`. |
+| `identity_value` | Exact value of that claim for the one user allowed to connect as `app_reader`. |
+| `ca_pem` | Optional inline PEM certificate for a private issuer CA. Omit for a publicly trusted CA. |
+
+The profile contains no bearer token, private key, or client secret. The
+renderer accepts a narrow flat YAML mapping, checks every field, and generates
+PostgreSQL configuration, the HBA rule, the one-user identity map, role setup,
+and matching libpq client settings at startup. A missing or invalid profile
+stops startup. The fixed database is `demo` and the fixed role is
+`app_reader`; the role is created only when the database volume is first
+initialized. For a different user, change `identity_value` and recreate the
+`postgres` container. Never use a display name or mutable email address as a
+stable identity unless your provider guarantees its suitability.
+If you used the former `OAUTH_CONFIG_DIR` setup, consolidate its issuer,
+audience, scope, client ID, identity claim, and mapped identity into this YAML;
+`OAUTH_CONFIG_DIR` no longer controls this Compose file. To roll back, use the
+earlier Compose file and restore its four configuration files.
+
+After the server is healthy, connect with the bundled client:
+
+```sh
+docker compose -f compose.external.yml run --rm psql -c 'SELECT current_user, system_user;'
+```
+
+The client prints a device authorization prompt. Complete it using the URL
+and code shown by your provider. The server's generated TLS CA is trusted by
+the bundled client. For a host client, export it with
+`docker compose -f compose.external.yml cp postgres:/certs/ca.crt ./demo-ca.crt`
+and use a PostgreSQL 18 libpq client with `sslmode=verify-full` plus the same
+issuer, client ID, and scope. If your issuer uses a private CA, put its PEM
+certificate in the optional `ca_pem: |` YAML block. The container trusts that
+CA for both token validation and the bundled device flow.
+
+To keep profiles for several providers, create another ignored YAML file and
+select it with `OAUTH_PROFILE`:
+
+```sh
+OAUTH_PROFILE=./demo/local/other-provider.yml docker compose -f compose.external.yml up --build -d
+OAUTH_PROFILE=./demo/local/other-provider.yml docker compose -f compose.external.yml run --rm psql
+```
+
+Stop one provider stack before starting another; both commands use the same
+Compose project and persistent database volume. Recreate `postgres` and use
+the matching `OAUTH_PROFILE` for `psql` after any profile edit. The validator
+still requires a signed `at+jwt` access token, exact issuer and audience,
+supported signing algorithm, valid expiry, and the configured `scope` claim.
+The bundled client additionally needs a public device authorization flow.
+Providers with opaque tokens, nonstandard scope claims, or other incompatible
+behavior need separately reviewed validator support; this YAML does not add
+provider-specific validation exceptions. The default `identity_value` is a
+placeholder and cannot authorize a real user until edited.
+
+Run `docker compose -f compose.external.yml down` to stop. Add `--volumes` to
+delete the disposable database and certificates. The local PostgreSQL
+certificate expires after seven days; recreate its volumes when it does.
 
 This stack is for local evaluation. It includes known demo credentials and
 should not be exposed on a shared network or reused as production
@@ -114,6 +167,4 @@ subject, and public device client are deliberate demo choices.
 
 This Compose setup replaces the former `playground/` scripts and images. Use
 `compose.yml` for the bundled Keycloak example or `compose.external.yml` with
-your own reviewed issuer configuration. The former Auth0 helper and Node.js
-client are no longer included; use a PostgreSQL 18 client with libpq OAuth
-support for an external provider.
+your own reviewed issuer profile.
