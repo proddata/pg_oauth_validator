@@ -23,6 +23,12 @@ architectures. Every matrix job builds its own image and runs `verify-dev` and
 Compose services use separate build volumes for x86-64 and arm64.
 The same arm architecture is called `aarch64` by RPM packages.
 
+Each matrix cell compiles against that distribution's PostgreSQL headers and
+system libraries on the target CPU. These builds detect compatibility problems;
+they do not produce release artifacts. Contributors can run one local cell while
+developing, then rely on CI for the full matrix. The source and real-server
+integration gates in the main CI workflow cover the supported Debian target.
+
 Fedora uses `/usr/bin/pg_server_config` for server extension builds. The PGDG
 Enterprise Linux packages use `/usr/pgsql-18/bin/pg_config`. The same source
 build is exercised through the Makefile's explicit `PG_CONFIG` boundary, but
