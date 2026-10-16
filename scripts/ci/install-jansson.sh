@@ -16,6 +16,9 @@ trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 archive="$work_dir/jansson.tar.gz"
 source_dir="$work_dir/source"
 build_dir="$work_dir/build"
+# The PIC archive is embedded in the release module; map the random build
+# directory out of debug information and __FILE__ before packaging.
+dependency_cflags="${CFLAGS:-} -ffile-prefix-map=$work_dir=/usr/src/pg-oauth-jansson"
 
 if test -n "${JANSSON_SOURCE_ARCHIVE:-}"; then
 	test -f "$JANSSON_SOURCE_ARCHIVE" && test -r "$JANSSON_SOURCE_ARCHIVE" || {
@@ -35,7 +38,7 @@ tar --extract --gzip --file "$archive" --directory "$source_dir" \
 
 cmake -S "$source_dir" -B "$build_dir" \
 	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	-DCMAKE_C_FLAGS="${CFLAGS:-}" \
+	-DCMAKE_C_FLAGS="$dependency_cflags" \
 	-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DJANSSON_BUILD_SHARED_LIBS=OFF \
