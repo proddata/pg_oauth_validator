@@ -115,6 +115,7 @@ def test_diagnostics_redact_token_signature_claim_and_response(
             # Protected server diagnostics remain useful without reproducing
             # hostile bytes. These codes cover parsing, crypto, claims, and I/O.
             assert "validator=validator_envelope" in logs
+            assert "envelope=invalid_compact_jws" in logs
             assert "validator=validator_signature" in logs
             assert "validator=validator_claims" in logs
             assert "validator=validator_issuer_key" in logs

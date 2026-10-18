@@ -87,7 +87,7 @@ created. The `init.sql` file applies only to a new database volume.
 
 The separate [`compose.external.yml`](../compose.external.yml) starts
 PostgreSQL without Keycloak. Copy one profile into the ignored `demo/local/`
-directory, then edit its required values for your provider:
+directory, then edit its required values and choose one authorization mode:
 
 ```sh
 mkdir -p demo/local
@@ -105,8 +105,8 @@ The fields are:
 | `scope` | One explicit database-access scope in the token's `scope` claim; `openid` alone is rejected. |
 | `client_id` | Public OAuth device-flow client ID for bundled `psql`. |
 | `identity_claim` | Stable claim for the authenticated ID, usually `sub`. |
-| `identity_value` | Exact value of that claim for the one user allowed to connect as `app_reader` through `pg_ident`. Omit when using `role_claim`. |
-| `role_claim` | Optional alternative to `identity_value`. The token must contain the exact requested role `app_reader` in this claim; the generated HBA rule uses `delegate_ident_mapping=1`. |
+| `role_claim` | Name of a signed token claim containing `app_reader` as a string or an array element. Delegates role authorization to the validator; use this or `pg_ident_map`. |
+| `pg_ident_map` | Exact value of `identity_claim` to map to the fixed `app_reader` role in the generated `pg_ident.conf`. Use this or `role_claim`. |
 | `allowed_token_types` | Optional allowlist of `at+jwt` and `application/at+jwt`; defaults to both. Other present types are rejected. |
 | `allow_missing_token_type` | Optional boolean, default `false`. Set `true` only for access tokens without a `typ` header when the audience and required database scope exclude ID and session tokens. |
 | `ca_pem` | Optional inline PEM certificate for a private issuer CA. Omit for a publicly trusted CA. |
@@ -117,14 +117,25 @@ PostgreSQL configuration, the HBA rule, an identity map or delegated role
 check, role setup, and matching libpq client settings at startup. A missing or invalid profile
 stops startup. The fixed database is `demo` and the fixed role is
 `app_reader`; the role is created only when the database volume is first
-initialized. For a different user, change `identity_value` and recreate the
-`postgres` container. Never use a display name or mutable email address as a
-stable identity unless your provider guarantees its suitability.
-To authorize by a token role claim, comment out `identity_value` and
-uncomment `role_claim` in the YAML. The renderer rejects profiles with both or
-neither. PostgreSQL still records the configured `identity_claim` for auditing.
+initialized. The example uses `role_claim: roles`; the signed claim must
+contain the exact string `app_reader`. Its HBA rule enables
+`delegate_ident_mapping=1` and limits connections to that role. The token
+still needs a stable `identity_claim`, recorded in `system_user` for auditing.
+Configure the role claim on the provider's access token, using a claim that
+clients cannot set themselves.
+
+For a one-user map, comment out `role_claim` and uncomment `pg_ident_map`.
+Replace its placeholder with the exact selected authenticated identity. The
+renderer writes `external <pg_ident_map> app_reader` to `pg_ident.conf` and
+adds `map=external` to the HBA rule. Profiles with both fields or neither
+fail startup. Existing profiles using `identity_value` must rename that field
+to `pg_ident_map`; the old name is rejected. Recreate `postgres` after an
+edit. Roll back by restoring the earlier profile key and Compose image. Avoid
+mutable display names or email addresses unless the provider guarantees their
+suitability for authorization.
 If you used the former `OAUTH_CONFIG_DIR` setup, consolidate its issuer,
-audience, scope, client ID, identity claim, and mapped identity into this YAML;
+audience, scope, client ID, identity claim, and either mapped identity or role
+claim into this YAML;
 `OAUTH_CONFIG_DIR` no longer controls this Compose file. To roll back, use the
 earlier Compose file and restore its four configuration files.
 
@@ -194,8 +205,8 @@ and the configured `scope` claim.
 The bundled client additionally needs a public device authorization flow.
 Providers with opaque tokens, nonstandard scope claims, or other incompatible
 behavior need separately reviewed validator support; this YAML does not add
-provider-specific validation exceptions. The generic example's
-`identity_value` is a placeholder and cannot authorize a real user until edited.
+provider-specific validation exceptions. The generic example requires a signed
+`roles` claim; its commented `pg_ident_map` value is only a placeholder.
 
 Run `docker compose -f compose.external.yml down` to stop. Add `--volumes` to
 delete the disposable database and certificates. The local PostgreSQL

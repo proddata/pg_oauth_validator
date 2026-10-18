@@ -5,12 +5,13 @@ audience: "https://postgres.example/"
 scope: "connect:postgres"
 client_id: "postgres-public-client"
 identity_claim: "sub"
-identity_value: "replace-with-stable-subject"
+# Choose exactly one authorization mode. This one accepts only a validated
+# token whose "roles" claim contains the exact PostgreSQL role "app_reader".
+role_claim: "roles"
 
-# Optional alternative to identity_value/pg_ident mapping: uncomment this
-# and comment out identity_value. The claim must contain exactly "app_reader"
-# (or include it in a string array); the audited identity still uses sub.
-# role_claim: "postgres_roles"
+# Alternatively, comment out role_claim and uncomment this mapping. The
+# selected authenticated identity maps to app_reader in pg_ident.conf.
+# pg_ident_map: "replace-with-stable-subject"
 
 # Defaults: accept both RFC 9068 spellings; reject a missing typ header.
 # Set allow_missing_token_type to true only when your issuer's access tokens

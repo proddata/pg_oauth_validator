@@ -11,7 +11,7 @@ import yaml
 
 
 REQUIRED = frozenset({"issuer", "audience", "scope", "client_id", "identity_claim"})
-OPTIONAL = frozenset({"identity_value", "role_claim", "ca_pem",
+OPTIONAL = frozenset({"pg_ident_map", "role_claim", "ca_pem",
                       "allowed_token_types", "allow_missing_token_type"})
 DEFAULT_TOKEN_TYPES = "at+jwt,application/at+jwt"
 ACCESS_TOKEN_TYPES = frozenset({"at+jwt", "application/at+jwt"})
@@ -68,7 +68,7 @@ def load_profile(path):
         values[name] = value.value
     if not REQUIRED.issubset(values):
         raise ProfileError("profile_missing")
-    if ("role_claim" in values) == ("identity_value" in values):
+    if ("role_claim" in values) == ("pg_ident_map" in values):
         raise ProfileError("profile_mapping")
     for name in REQUIRED:
         value = values[name]
@@ -104,10 +104,10 @@ def load_profile(path):
         raise ProfileError("profile_client_id")
     if not SAFE_CLAIM.fullmatch(values["identity_claim"]):
         raise ProfileError("profile_identity_claim")
-    if "identity_value" in values:
-        if (len(values["identity_value"].encode("utf-8")) > 63 or
-                not SAFE_IDENTITY.fullmatch(values["identity_value"])):
-            raise ProfileError("profile_identity_value")
+    if "pg_ident_map" in values:
+        if (len(values["pg_ident_map"].encode("utf-8")) > 63 or
+                not SAFE_IDENTITY.fullmatch(values["pg_ident_map"])):
+            raise ProfileError("profile_pg_ident_map")
     if "role_claim" in values:
         if (len(values["role_claim"]) > 128 or
                 not SAFE_CLAIM.fullmatch(values["role_claim"])):
@@ -158,7 +158,7 @@ def render(profile, output):
         ),
         "pg_ident.conf": ("# delegated role authorization; no identity map\n"
                           if delegated else
-                          f"external {profile['identity_value']} app_reader\n"),
+                          f"external {profile['pg_ident_map']} app_reader\n"),
         "init.sql": "CREATE ROLE app_reader LOGIN;\nGRANT CONNECT ON DATABASE demo TO app_reader;\n",
         "pg_service.conf": (
             "[external]\n"
