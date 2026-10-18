@@ -23,8 +23,8 @@ The integration suite additionally requires Python 3, pytest, `initdb`,
 PostgreSQL major version.
 
 PostgreSQL 18 is the stable production target. PostgreSQL 19 is supported as a
-preview while it remains in beta. The build rejects headers from other major
-versions.
+preview while it remains a prerelease. The build rejects headers from other
+major versions.
 
 Experimental Fedora and Enterprise Linux compatibility builds are documented
 in [`rpm-platforms.md`](rpm-platforms.md). They are build and staged-install

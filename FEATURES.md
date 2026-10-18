@@ -24,7 +24,7 @@ validation and an authenticated identity.
 
 - The PostgreSQL module and validator callbacks are implemented in C17.
 - PostgreSQL 18 is the stable production target.
-- PostgreSQL 19 is a preview target during its beta period and will become a production target only after its stable release and final compatibility verification.
+- PostgreSQL 19 is a preview target during its prerelease period and will become a production target only after its stable release and final compatibility verification.
 - Each PostgreSQL major version receives a separately compiled module and its own CI job because PostgreSQL does not provide cross-major ABI compatibility.
 - The shared library uses PostgreSQL's native C ABI and PGXS build infrastructure.
 - Protocol parsing and cryptographic primitives will come from reviewed, established libraries rather than bespoke implementations.

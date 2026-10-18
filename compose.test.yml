@@ -32,7 +32,7 @@ services:
       dockerfile: tools/dev/Containerfile
       args:
         PG_MAJOR: "19"
-        POSTGRES_IMAGE: postgres:19beta4-bookworm@sha256:4c618d9a30e0b88078b9371a0499d7055da9ab7f5afe386a460758eac9857f06
+        POSTGRES_IMAGE: postgres:19rc1-bookworm@sha256:228dc3e5a9bd18343efeecc7ae3f52aee9b6cf3a9dca5159ece1eef254a80f06
     working_dir: /workspace
     environment:
       BUILD_ROOT: /build
