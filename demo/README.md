@@ -105,8 +105,8 @@ The fields are:
 | `scope` | One explicit database-access scope in the token's `scope` claim; `openid` alone is rejected. |
 | `client_id` | Public OAuth device-flow client ID for bundled `psql`. |
 | `identity_claim` | Stable claim for the authenticated ID, usually `sub`. |
-| `identity_value` | Exact value of that claim for the one user allowed to connect as `app_reader` through `pg_ident.conf`. Use this or `role_claim`. |
-| `role_claim` | Name of a signed token claim containing `app_reader` as a string or an array element. Delegates role authorization to the validator; use this or `identity_value`. |
+| `role_claim` | Name of a signed token claim containing `app_reader` as a string or an array element. Delegates role authorization to the validator; use this or `pg_ident_map`. |
+| `pg_ident_map` | Exact value of `identity_claim` to map to the fixed `app_reader` role in the generated `pg_ident.conf`. Use this or `role_claim`. |
 | `ca_pem` | Optional inline PEM certificate for a private issuer CA. Omit for a publicly trusted CA. |
 
 The profile contains no bearer token, private key, or client secret. The
@@ -115,21 +115,27 @@ PostgreSQL configuration, the HBA rule, role setup,
 and matching libpq client settings at startup. A missing or invalid profile
 stops startup. The fixed database is `demo` and the fixed role is
 `app_reader`; the role is created only when the database volume is first
-initialized. With `identity_value`, a `pg_ident.conf` map allows only that
-exact identity. For a different user, change `identity_value` and recreate the
-`postgres` container. The example value is a placeholder and cannot authorize
-a real user. Never use a display name or mutable email address as a stable
-identity unless your provider guarantees its suitability.
-
-To allow tokens carrying the fixed role instead, delete the `identity_value`
-line and add `role_claim: roles` (or your provider's actual claim name). The
-signed claim must contain the exact string `app_reader`. The generated HBA rule
+initialized. The example selects `role_claim: roles`: the signed claim must
+contain the exact string `app_reader`. The generated HBA rule
 allows only that PostgreSQL role and enables `delegate_ident_mapping=1`; it
 does not use a usermap. The token must still contain a valid stable identity
 claim, usually `sub`, which PostgreSQL records as `system_user` for auditing.
 Changing `identity_claim` chooses the recorded ID; it does not grant a role.
 Issuers must configure the role claim for the access token used by this device
 flow. Do not enable this mode with a claim that clients can set themselves.
+
+To use a one-user `pg_ident.conf` map instead, comment out `role_claim` and
+uncomment `pg_ident_map` in the example. Replace its placeholder with the
+exact authenticated identity, such as the token's `sub` when
+`identity_claim: sub`. The renderer writes `external <pg_ident_map> app_reader`
+to `pg_ident.conf` and adds `map=external` to the HBA rule. For a different
+user, change `pg_ident_map` and recreate `postgres`. Never use a display name
+or mutable email address as a stable identity unless your provider guarantees
+its suitability. A profile with both fields, or neither, fails startup.
+
+Profiles created with the earlier `identity_value` field must rename it to
+`pg_ident_map`; the old name is rejected. Recreate `postgres` after editing
+the profile. To roll back, restore the earlier profile key and Compose image.
 If you used the former `OAUTH_CONFIG_DIR` setup, consolidate its issuer,
 audience, scope, client ID, identity claim, and either mapped identity or role
 claim into this YAML;
@@ -172,7 +178,7 @@ provider-specific validation exceptions.
 If the browser flow completes but `psql` reports an OAuth authentication
 failure, check that the issued *access token* has the configured `aud`, scope,
 and (for delegated mode) exact `app_reader` role claim. In mapping mode, check
-that `identity_value` equals the token's selected identity claim. The token
+that `pg_ident_map` equals the token's selected identity claim. The token
 must also satisfy the validator's JWT type and signing requirements. Avoid
 putting complete tokens or their claims in shared logs or issue reports.
 
@@ -190,7 +196,7 @@ device-flow token was rejected as `envelope=invalid_token_type`, before claims
 or role mapping were checked. The provider's Connect documentation does not
 specify the header type for every user token, so treat interoperability as
 unconfirmed. There is no YAML override for the required `at+jwt` token type;
-changing `role_claim`, audience, or `identity_value` cannot resolve that error.
+changing `role_claim`, audience, or `pg_ident_map` cannot resolve that error.
 
 Run `docker compose -f compose.external.yml down` to stop. Add `--volumes` to
 delete the disposable database and certificates. The local PostgreSQL

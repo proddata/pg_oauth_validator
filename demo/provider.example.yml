@@ -5,10 +5,15 @@ audience: https://postgres.example/
 scope: connect:postgres
 client_id: postgres-public-client
 identity_claim: sub
-# Choose exactly one authorization mode. To authorize users whose validated
-# token contains "app_reader" in a role claim, replace identity_value with:
-# role_claim: roles
-identity_value: replace-with-stable-subject
+
+# Choose exactly one authorization mode. This one accepts only a validated
+# token whose "roles" claim contains the exact PostgreSQL role "app_reader".
+role_claim: roles
+
+# Alternatively, comment out role_claim above and uncomment this mapping.
+# The authenticated identity selected by identity_claim maps to app_reader
+# through the generated pg_ident.conf file.
+# pg_ident_map: replace-with-stable-subject
 
 # For a private issuer CA, uncomment and paste ONE PEM certificate here.
 # ca_pem: |

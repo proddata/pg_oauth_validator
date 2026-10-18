@@ -11,7 +11,7 @@ import yaml
 
 
 REQUIRED = frozenset({"issuer", "audience", "scope", "client_id", "identity_claim"})
-OPTIONAL = frozenset({"identity_value", "role_claim", "ca_pem"})
+OPTIONAL = frozenset({"pg_ident_map", "role_claim", "ca_pem"})
 SAFE_VALUE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._~:/?&=%+@|-]*\Z", re.ASCII)
 SAFE_TOKEN = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:/-]*\Z", re.ASCII)
 SAFE_IDENTITY = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:@|/-]*\Z", re.ASCII)
@@ -58,10 +58,10 @@ def load_profile(path):
         values[name] = value.value
     if not REQUIRED <= values.keys():
         raise ProfileError("profile_missing")
-    if ("identity_value" in values) == ("role_claim" in values):
+    if ("pg_ident_map" in values) == ("role_claim" in values):
         raise ProfileError("profile_mapping")
     for name, value in values.items():
-        limit = 63 if name == "identity_value" else (16384 if name == "ca_pem" else 1024)
+        limit = 63 if name == "pg_ident_map" else (16384 if name == "ca_pem" else 1024)
         if not value or len(value.encode("utf-8")) > limit:
             raise ProfileError("profile_value")
     issuer = values["issuer"]
@@ -87,8 +87,8 @@ def load_profile(path):
         raise ProfileError("profile_client_id")
     if not SAFE_CLAIM.fullmatch(values["identity_claim"]):
         raise ProfileError("profile_identity_claim")
-    if "identity_value" in values and not SAFE_IDENTITY.fullmatch(values["identity_value"]):
-        raise ProfileError("profile_identity_value")
+    if "pg_ident_map" in values and not SAFE_IDENTITY.fullmatch(values["pg_ident_map"]):
+        raise ProfileError("profile_pg_ident_map")
     if "role_claim" in values and not SAFE_CLAIM.fullmatch(values["role_claim"]):
         raise ProfileError("profile_role_claim")
     if "ca_pem" in values:
@@ -135,7 +135,7 @@ def render(profile, output):
             f"scope=\"{profile['scope']}\" validator=pg_oauth_validator {mapping_option}\n"
             "host all all all reject\n"
         ),
-        "pg_ident.conf": "" if delegated else f"external {profile['identity_value']} app_reader\n",
+        "pg_ident.conf": "" if delegated else f"external {profile['pg_ident_map']} app_reader\n",
         "init.sql": "CREATE ROLE app_reader LOGIN;\nGRANT CONNECT ON DATABASE demo TO app_reader;\n",
         "pg_service.conf": (
             "[external]\n"

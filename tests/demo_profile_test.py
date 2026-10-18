@@ -28,9 +28,10 @@ def test_example_renders_aligned_server_and_client(tmp_path):
     assert f"pg_oauth_validator.identity_claim = '{config['identity_claim']}'" in server
     assert f'issuer="{config["issuer"]}"' in hba
     assert f'scope="{config["scope"]}"' in hba
-    assert f"external {config['identity_value']} app_reader" in ident
-    assert "delegate_ident_mapping" not in hba
-    assert "pg_oauth_validator.role_claim" not in server
+    assert "pg_oauth_validator.role_claim = 'roles'" in server
+    assert "delegate_ident_mapping=1" in hba
+    assert "map=" not in hba
+    assert ident == ""
     assert f"oauth_issuer={config['issuer']}" in client
     assert f"oauth_client_id={config['client_id']}" in client
     assert f"oauth_scope={config['scope']}" in client
@@ -39,9 +40,9 @@ def test_example_renders_aligned_server_and_client(tmp_path):
     assert "host all all all reject" in hba
 
 
-def test_role_claim_delegates_only_the_fixed_role(tmp_path):
+def test_pg_ident_maps_only_the_named_identity_to_the_fixed_role(tmp_path):
     source = EXAMPLE.read_text().replace(
-        "identity_value: replace-with-stable-subject", "role_claim: roles"
+        "role_claim: roles", "pg_ident_map: replace-with-stable-subject"
     )
     profile = tmp_path / "profile.yml"
     profile.write_text(source)
@@ -50,12 +51,14 @@ def test_role_claim_delegates_only_the_fixed_role(tmp_path):
     PROFILE.render(config, output)
     server = (output / "postgresql.conf").read_text()
     hba = (output / "pg_hba.conf").read_text()
-    assert "pg_oauth_validator.role_claim = 'roles'" in server
+    assert "pg_oauth_validator.role_claim" not in server
     assert "pg_oauth_validator.identity_claim = 'sub'" in server
     assert "hostssl demo app_reader all oauth" in hba
-    assert "delegate_ident_mapping=1" in hba
-    assert "map=" not in hba
-    assert (output / "pg_ident.conf").read_text() == ""
+    assert "delegate_ident_mapping" not in hba
+    assert "map=external" in hba
+    assert (output / "pg_ident.conf").read_text() == (
+        "external replace-with-stable-subject app_reader\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -69,8 +72,8 @@ def test_role_claim_delegates_only_the_fixed_role(tmp_path):
         ("issuer: http://issuer.example/\n", "profile_issuer"),
         ("issuer: https://user@issuer.example/\n", "profile_issuer"),
         ("issuer: https://issuer.example/?x=y\n", "profile_issuer"),
-        ("identity_value: /regex\n", "profile_identity_value"),
-        ("identity_value: 'a\\nrole'\n", "profile_identity_value"),
+        ("pg_ident_map: /regex\n", "profile_pg_ident_map"),
+        ("pg_ident_map: 'a\\nrole'\n", "profile_pg_ident_map"),
         ("unexpected: value\n", "profile_key"),
         ("scope: &shared connect:postgres\n", "profile_yaml_feature"),
         ("scope: *shared\n", "profile_yaml_feature"),
@@ -79,8 +82,10 @@ def test_role_claim_delegates_only_the_fixed_role(tmp_path):
 def test_rejects_bad_profile_without_output(tmp_path, change, code):
     source = EXAMPLE.read_text()
     key = change.split(":", 1)[0]
-    if key in ("issuer", "audience", "scope", "identity_value") and code != "profile_key":
+    if key in ("issuer", "audience", "scope") and code != "profile_key":
         source = re.sub(rf"^{key}:.*$", change.rstrip("\n"), source, flags=re.M)
+    elif key == "pg_ident_map":
+        source = source.replace("role_claim: roles", change.rstrip("\n"), 1)
     else:
         source += change
     profile = tmp_path / "profile.yml"
@@ -109,13 +114,14 @@ def test_missing_profile_and_oversize_fail_closed(tmp_path):
     [
         (lambda s: s.replace("client_id: postgres-public-client\n", ""), "profile_missing"),
         (lambda s: s.replace("identity_claim: sub", "identity_claim: 17"), "profile_value"),
-        (lambda s: s.replace("identity_value: replace-with-stable-subject", "identity_value: " + "a" * 64), "profile_value"),
-        (lambda s: s.replace("identity_value: replace-with-stable-subject\n", ""), "profile_mapping"),
-        (lambda s: s + "role_claim: roles\n", "profile_mapping"),
-        (lambda s: s.replace("identity_value: replace-with-stable-subject", "role_claim: [roles]"), "profile_value"),
-        (lambda s: s.replace("identity_value: replace-with-stable-subject", "role_claim: 17"), "profile_value"),
-        (lambda s: s.replace("identity_value: replace-with-stable-subject", "role_claim: 'roles;all'"), "profile_role_claim"),
-        (lambda s: s.replace("identity_value: replace-with-stable-subject", "role_claim: ''"), "profile_value"),
+        (lambda s: s.replace("role_claim: roles", "pg_ident_map: " + "a" * 64, 1), "profile_value"),
+        (lambda s: s.replace("role_claim: roles\n", "", 1), "profile_mapping"),
+        (lambda s: s + "pg_ident_map: replace-with-stable-subject\n", "profile_mapping"),
+        (lambda s: s.replace("role_claim: roles", "role_claim: [roles]", 1), "profile_value"),
+        (lambda s: s.replace("role_claim: roles", "role_claim: 17", 1), "profile_value"),
+        (lambda s: s.replace("role_claim: roles", "role_claim: 'roles;all'", 1), "profile_role_claim"),
+        (lambda s: s.replace("role_claim: roles", "role_claim: ''", 1), "profile_value"),
+        (lambda s: s + "identity_value: replace-with-stable-subject\n", "profile_key"),
         (lambda s: s + "ca_pem: 'not a certificate'\n", "profile_ca"),
         (lambda s: s.replace("audience: https://postgres.example/", "audience: [bad"), "profile_yaml"),
     ],
@@ -129,7 +135,7 @@ def test_other_invalid_shapes(tmp_path, edit, code):
 
 def test_auth0_style_subject_is_literal(tmp_path):
     source = EXAMPLE.read_text().replace(
-        "replace-with-stable-subject", "auth0|stable-123"
+        "role_claim: roles", "pg_ident_map: auth0|stable-123", 1
     )
     profile = tmp_path / "profile.yml"
     profile.write_text(source)
