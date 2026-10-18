@@ -66,7 +66,8 @@ must equal the requested role:
 ```conf
 # pg_hba.conf
 hostssl appdb app_reader 10.0.0.0/8 oauth \
-    issuer="https://idp.example/" scope="connect:postgres" \
+    issuer="https://idp.example/" \
+    scope="connect:postgres" \
     validator=pg_oauth_validator
 ```
 
@@ -76,7 +77,8 @@ HBA rule. PostgreSQL maps the authenticated identity to the requested role:
 ```conf
 # pg_hba.conf
 hostssl appdb app_reader 10.0.0.0/8 oauth \
-    issuer="https://idp.example/" scope="connect:postgres" \
+    issuer="https://idp.example/" \
+    scope="connect:postgres" \
     validator=pg_oauth_validator map=oauthmap
 
 # pg_ident.conf: map-name  authenticated-identity  PostgreSQL-role
@@ -89,15 +91,15 @@ skips its normal identity comparison and `pg_ident.conf` mapping. The HBA
 `USER` field independently limits which roles may be requested:
 
 ```conf
-# postgresql.conf
-pg_oauth_validator.role_claim = 'roles'
-
 # pg_hba.conf
 hostssl appdb app_reader,reporting 10.0.0.0/8 oauth \
     issuer="https://idp.example/" \
     scope="connect:postgres" \
     validator=pg_oauth_validator \
     delegate_ident_mapping=1
+
+# postgresql.conf
+pg_oauth_validator.role_claim = 'roles'
 ```
 
 For this delegated rule, either `"roles": "app_reader"` or
