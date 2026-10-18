@@ -185,8 +185,12 @@ in Connect tokens by default. To use `role_claim: roles`, configure the
 environment's [JWT template](https://workos.com/docs/authkit/jwt-templates)
 to add `"roles": {{ organization_membership.roles }}`, and ensure an
 organization membership grants the exact slug `app_reader`. The validator
-still requires the token header and claims described above; completing the
-browser consent step alone does not establish compatibility.
+still requires the token header and claims described above. A tested AuthKit
+device-flow token was rejected as `envelope=invalid_token_type`, before claims
+or role mapping were checked. The provider's Connect documentation does not
+specify the header type for every user token, so treat interoperability as
+unconfirmed. There is no YAML override for the required `at+jwt` token type;
+changing `role_claim`, audience, or `identity_value` cannot resolve that error.
 
 Run `docker compose -f compose.external.yml down` to stop. Add `--volumes` to
 delete the disposable database and certificates. The local PostgreSQL
