@@ -178,19 +178,19 @@ Do not recover by weakening issuer, audience, algorithm, token-type, scope,
 TLS, or usermap policy. Keep OAuth authentication failed closed until the
 package or configuration is restored and verified.
 
-## PostgreSQL 19 beta-to-final gates
+## PostgreSQL 19 prerelease-to-final gates
 
 PostgreSQL 19 support is preview-only while PostgreSQL 19 is prerelease. After
 the final PostgreSQL 19 source and packages are published, all of the following
 must happen before removing the preview label:
 
-- replace beta image/package pins with the exact final release and record their
-  immutable digests;
+- replace prerelease image/package pins with the exact final release and
+  record their immutable digests;
 - rebuild from clean state against final server and libpq headers and verify
   the exact `pg_config --version` in the package manifest;
 - review the final OAuth validator callback, custom HBA option, memory/error,
   shared-memory, and PGXS contracts against PostgreSQL 19 source and release
-  notes, including every change since the last tested beta;
+  notes, including every change since the last tested prerelease;
 - run all unit, component, integration, sanitizer, static-analysis, fuzz-smoke,
   package, installed-path, TLS, robustness, and provider-interoperability gates;
 - repeat clean-install, PostgreSQL 18 coexistence, upgrade, and rollback
@@ -198,8 +198,8 @@ must happen before removing the preview label:
 - update `FEATURES.md`, operator compatibility documentation, and release notes
   only after review approves the evidence.
 
-A beta-built module must never be relabeled or shipped as a final PostgreSQL 19
-module.
+A prerelease-built module must never be relabeled or shipped as a final
+PostgreSQL 19 module.
 
 ## Blocking and publication criteria
 

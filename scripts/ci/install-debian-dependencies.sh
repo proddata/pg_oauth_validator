@@ -17,7 +17,7 @@ case "$pg_major" in
 		ssl_version=3.0.20-1~deb12u2
 		;;
 	19)
-		pg_dev_version=19~beta4-1.pgdg12+1
+		pg_dev_version=19~rc1-1.pgdg12+1
 		debian_snapshot=20261005T000000Z
 		ssl_version=3.0.22-1~deb12u1
 		;;
