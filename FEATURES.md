@@ -40,7 +40,8 @@ The active release scope provides strict offline validation of signed JWT access
 
 - PostgreSQL 18 and 19 OAuth validator module initialization and callback integration, with version-specific result handling.
 - Explicit trusted issuer configuration and exact issuer validation.
-- Standards-based discovery or explicitly configured metadata/JWKS location.
+- OIDC discovery derived from the configured issuer at
+  `/.well-known/openid-configuration`, followed by the validated `jwks_uri`.
 - Strict access-token type enforcement through the selected profile.
 - Local asymmetric signing-algorithm allowlist (`RS256`, `ES256`, and opt-in Ed25519 `EdDSA`).
 - Hardened JWKS key selection and signature verification.
@@ -63,7 +64,8 @@ The active release scope provides strict offline validation of signed JWT access
 All stages fail closed and execute in this trust order:
 
 1. Select an administrator-configured trusted issuer/profile; never select trust from token claims.
-2. Retrieve bounded metadata/JWKS only from configured or standards-derived trusted locations.
+2. Retrieve bounded OIDC metadata from the issuer-derived discovery URL, then
+   JWKS from the validated, allowed `jwks_uri`.
 3. Parse the token under strict size and complexity limits.
 4. Enforce the accepted access-token type.
 5. Select a trusted signing key and locally allowed asymmetric algorithm.
@@ -133,7 +135,9 @@ than use `all` or a broad `+group` unless that wider authority is intentional.
 
 - Discovery parsing is independent of network transport and accepts only a bounded JSON object with a unique, exact configured `issuer` and one structurally valid absolute `jwks_uri`.
 - The transport adapter requires an exact allowed host, disables environment proxies and redirects, verifies TLS, bounds connection/total time and response bytes, and accepts only successful JSON responses.
-- Issuer-bound retrieval composes configured metadata fetch, exact issuer validation, separately allowlisted JWKS fetch, and strict single-key selection without implicit retry or cache behavior.
+- Issuer-bound retrieval composes issuer-derived OIDC metadata fetch, exact
+  issuer validation, separately allowlisted JWKS fetch, and strict single-key
+  selection without implicit retry or cache behavior.
 - The standalone orchestrator executes envelope, key retrieval, signature, claims/scopes, and identity stages in fail-closed order while preserving typed non-sensitive failures.
 - Production metadata and JWKS retrieval requires HTTPS with certificate verification.
 - Any development-only HTTP option must be explicit, disabled by default, and clearly unsafe for production.
