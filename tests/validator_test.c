@@ -21,7 +21,7 @@ policy(const char *issuer, int64_t current_time)
 			.max_header_size = 4096,
 			.max_payload_size = 12288,
 			.allowed_algorithms = PG_OAUTH_ALGORITHM_RS256,
-			.required_token_type = "at+jwt",
+			.allowed_token_types = PG_OAUTH_TOKEN_TYPE_AT_JWT,
 		},
 		.issuer_key = {
 			.metadata_http = {2048, 65536, 500, 1000, "localhost", NULL, NULL, true, NULL, NULL},

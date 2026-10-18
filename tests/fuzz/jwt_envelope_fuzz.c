@@ -13,7 +13,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 		.max_payload_size = 12288,
 		.allowed_algorithms = PG_OAUTH_ALGORITHM_RS256 |
 		PG_OAUTH_ALGORITHM_ES256 | PG_OAUTH_ALGORITHM_EDDSA,
-		.required_token_type = "at+jwt",
+		.allowed_token_types = PG_OAUTH_TOKEN_TYPE_AT_JWT,
 	};
 	PgOAuthJwtEnvelope envelope;
 

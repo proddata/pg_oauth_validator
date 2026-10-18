@@ -58,7 +58,8 @@ Configure an explicit audience and retain the restrictive defaults:
 oauth_validator_libraries = 'pg_oauth_validator'
 pg_oauth_validator.audiences = 'https://postgres.example.internal/'
 pg_oauth_validator.allowed_algorithms = 'RS256,ES256'
-pg_oauth_validator.required_token_type = 'at+jwt'
+pg_oauth_validator.allowed_token_types = 'at+jwt,application/at+jwt'
+pg_oauth_validator.allow_missing_token_type = off
 pg_oauth_validator.ca_file = '/etc/postgresql/oauth/provider-ca.pem'
 # Fail closed after provider-advertised key freshness expires.
 pg_oauth_validator.jwks_stale_grace = '0s'

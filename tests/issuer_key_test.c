@@ -61,7 +61,7 @@ cache_policy(LocalCache *local, PgOAuthCacheIo *io)
 			.policy_name = "default",
 			.required_scopes = "postgresql.connect",
 			.audiences = "postgresql",
-			.required_token_type = "at+jwt",
+			.allowed_token_types = PG_OAUTH_TOKEN_TYPE_AT_JWT,
 			.identity_claim = "sub",
 			.role_claim = "",
 			.allowed_jwks_hosts = "",

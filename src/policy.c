@@ -29,6 +29,49 @@ is_nonempty(const char *value)
 	return value != NULL && value[0] != '\0';
 }
 
+/* Only the two RFC 9068 spellings are access-token types. */
+static bool
+parse_token_types(const char *value, uint8_t *types)
+{
+	const char *entry = value;
+	uint8_t		result = 0;
+
+	if (!is_nonempty(value) || strlen(value) > 64)
+		return false;
+	while (*entry != '\0')
+	{
+		const char *end = strchr(entry, ',');
+		size_t		length = end != NULL ? (size_t) (end - entry) : strlen(entry);
+		uint8_t		type;
+
+		while (length > 0 && isspace((unsigned char) *entry))
+		{
+			entry++;
+			length--;
+		}
+		while (length > 0 && isspace((unsigned char) entry[length - 1]))
+			length--;
+		if (length == strlen("at+jwt") &&
+			memcmp(entry, "at+jwt", length) == 0)
+			type = PG_OAUTH_TOKEN_TYPE_AT_JWT;
+		else if (length == strlen("application/at+jwt") &&
+				 memcmp(entry, "application/at+jwt", length) == 0)
+			type = PG_OAUTH_TOKEN_TYPE_APPLICATION_AT_JWT;
+		else
+			return false;
+		if ((result & type) != 0)
+			return false;
+		result |= type;
+		if (end == NULL)
+			break;
+		entry = end + 1;
+		if (*entry == '\0')
+			return false;
+	}
+	*types = result;
+	return result != 0;
+}
+
 static bool
 validate_audiences(const char *value)
 {
@@ -185,6 +228,7 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 					  PgOAuthValidationPolicy *policy)
 {
 	uint32		algorithms;
+	uint8_t		token_types;
 
 	if (config == NULL || hba == NULL || policy == NULL)
 		return PG_OAUTH_POLICY_INVALID_ARGUMENT;
@@ -204,9 +248,7 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 		return PG_OAUTH_POLICY_INVALID_AUDIENCES;
 	if (!parse_algorithms(config->allowed_algorithms, &algorithms))
 		return PG_OAUTH_POLICY_INVALID_ALGORITHMS;
-	if (config->required_token_type == NULL ||
-		(strcmp(config->required_token_type, "at+jwt") != 0 &&
-		 strcmp(config->required_token_type, "application/at+jwt") != 0))
+	if (!parse_token_types(config->allowed_token_types, &token_types))
 		return PG_OAUTH_POLICY_INVALID_TOKEN_TYPE;
 	if (!validate_claim_name(config->identity_claim))
 		return PG_OAUTH_POLICY_INVALID_AUTHN_CLAIM;
@@ -251,7 +293,8 @@ pg_oauth_policy_build(const PgOAuthPolicyConfig *config,
 	policy->issuer = hba->issuer;
 	policy->required_scopes = hba->required_scopes;
 	policy->audiences = config->audiences;
-	policy->required_token_type = config->required_token_type;
+	policy->allowed_token_types = token_types;
+	policy->allow_missing_token_type = config->allow_missing_token_type;
 	policy->identity_claim = config->identity_claim;
 	policy->role_claim = config->role_claim;
 	policy->allowed_jwks_hosts = config->allowed_jwks_hosts;

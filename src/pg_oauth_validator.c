@@ -125,7 +125,8 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 	validator_policy.envelope.max_header_size = 4096;
 	validator_policy.envelope.max_payload_size = (size_t) policy.max_token_size;
 	validator_policy.envelope.allowed_algorithms = policy.allowed_algorithms;
-	validator_policy.envelope.required_token_type = policy.required_token_type;
+	validator_policy.envelope.allowed_token_types = policy.allowed_token_types;
+	validator_policy.envelope.allow_missing_token_type = policy.allow_missing_token_type;
 	validator_policy.issuer_key.metadata_http = (PgOAuthHttpPolicy)
 	{
 		PG_OAUTH_MAX_URL_SIZE, PG_OAUTH_MAX_DOCUMENT_SIZE,
@@ -186,7 +187,8 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 		.policy_name = policy.name,
 			.required_scopes = policy.required_scopes,
 			.audiences = policy.audiences,
-			.required_token_type = policy.required_token_type,
+			.allowed_token_types = policy.allowed_token_types,
+			.allow_missing_token_type = policy.allow_missing_token_type,
 			.identity_claim = policy.identity_claim,
 			.role_claim = policy.role_claim,
 			.allowed_jwks_hosts = policy.allowed_jwks_hosts,
@@ -244,8 +246,9 @@ pg_oauth_validator_validate(const ValidatorModuleState *state,
 	{
 		ereport(DEBUG1,
 				(errmsg_internal("OAuth access token rejected"),
-				 errdetail_internal("validator=%s issuer_key=%s http=%s metadata=%s jwks=%s signature=%s claims=%s identity=%s",
+				 errdetail_internal("validator=%s envelope=%s issuer_key=%s http=%s metadata=%s jwks=%s signature=%s claims=%s identity=%s",
 									pg_oauth_validator_error_code(validation_error),
+									pg_oauth_jwt_envelope_error_code(validation.envelope_error),
 									pg_oauth_issuer_key_error_code(validation.issuer_key_error),
 									pg_oauth_http_error_code(validation.http_error),
 									pg_oauth_metadata_error_code(validation.metadata_error),

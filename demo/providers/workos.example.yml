@@ -1,0 +1,20 @@
+# WorkOS AuthKit Connect user-token example, locally exercised on 2026-10-18.
+# Copy to demo/local/provider.yml and replace the three environment-specific
+# values below. Do not put API keys, client secrets, or bearer tokens here.
+issuer: "https://your-tenant.authkit.app"
+audience: "client_REPLACE_WITH_TOKEN_AUDIENCE"
+scope: "connect:postgres"
+client_id: "client_REPLACE_WITH_PUBLIC_DEVICE_CLIENT_ID"
+
+# The audited system_user uses the stable WorkOS user ID in sub. For this
+# example, the signed access token's role claim must contain "app_reader".
+# The renderer enables delegate_ident_mapping=1 and does not create a usermap.
+identity_claim: "sub"
+role_claim: "role"
+
+# The locally tested Connect access token had no typ header. Enable this only
+# after checking that your issuer's ID and session tokens cannot satisfy both
+# the configured audience and connect:postgres scope. Present wrong types fail.
+allow_missing_token_type: true
+
+# Omitted allowed_token_types defaults to at+jwt,application/at+jwt.

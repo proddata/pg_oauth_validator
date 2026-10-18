@@ -22,7 +22,7 @@ policy(void)
 		.policy_name = "default",
 		.required_scopes = "connect:postgres",
 		.audiences = "postgres://primary",
-		.required_token_type = "at+jwt",
+		.allowed_token_types = PG_OAUTH_TOKEN_TYPE_AT_JWT,
 		.identity_claim = "sub",
 		.role_claim = "",
 		.allowed_jwks_hosts = "",
@@ -93,7 +93,10 @@ main(void)
 	CHECK_STRING(policy_name, "production");
 	CHECK_STRING(required_scopes, "connect:postgres read:metadata");
 	CHECK_STRING(audiences, "postgres://secondary");
-	CHECK_STRING(required_token_type, "application/at+jwt");
+	CHECK_NUMBER(allowed_token_types);
+	value = policy();
+	value.allow_missing_token_type = true;
+	different(&original, &value, "missing-type policy did not separate cache trust");
 	CHECK_STRING(identity_claim, "uid");
 	CHECK_STRING(role_claim, "postgres_roles");
 	CHECK_STRING(allowed_jwks_hosts, "keys.example");

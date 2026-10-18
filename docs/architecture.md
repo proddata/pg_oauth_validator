@@ -13,7 +13,8 @@ validation callback. For every token and requested role, the callback:
 2. initializes `authn_id` to `NULL`;
 3. reads issuer and required scopes from the matched OAuth HBA rule through an
    isolated PostgreSQL compatibility layer;
-4. on PostgreSQL 19, reads the optional policy selected by `validator.policy`;
+4. on PostgreSQL 19, accepts optional `validator.policy=default` and rejects
+   other values;
 5. combines those inputs with configured defaults into an immutable validation
    policy;
 6. derives the standard OIDC discovery URL from the exact issuer;
@@ -97,8 +98,7 @@ may fall back only to an explicitly enabled, still-eligible stale entry.
 The post-signature claims stage enforces exact issuer and audience, integer
 expiry and optional activation/issuance times with bounded skew, a bounded
 stable identity claim, and every required HBA scope. The strict default uses
-the `scope` claim; provider-specific alternatives such as `scp` require a
-future exact-issuer profile.
+the `scope` claim; alternatives such as `scp` are unsupported.
 
 The final PostgreSQL identity is the validated selected identity claim,
 returned directly. Both `iss` and `sub` remain mandatory even when another

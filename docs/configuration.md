@@ -17,7 +17,8 @@ The remaining settings have restrictive defaults:
 
 ```conf
 pg_oauth_validator.allowed_algorithms = 'RS256,ES256'
-pg_oauth_validator.required_token_type = 'at+jwt'
+pg_oauth_validator.allowed_token_types = 'at+jwt,application/at+jwt'
+pg_oauth_validator.allow_missing_token_type = off
 pg_oauth_validator.identity_claim = 'sub'
 pg_oauth_validator.role_claim = ''
 pg_oauth_validator.allowed_jwks_hosts = ''
@@ -41,8 +42,17 @@ and means Ed25519 only: the signing JWK must be `kty=OKP`, `crv=Ed25519`,
 FIPS-restricted OpenSSL should confirm Ed25519 support before enabling it.
 See [`ADR 0003`](adr/0003-eddsa-ed25519-support.md).
 
+`allowed_token_types` is a nonempty, comma-separated allowlist containing only
+`at+jwt` and `application/at+jwt`. Both spellings are allowed by RFC 9068 and
+both are accepted by default. Duplicate, empty, and other entries fail closed.
+`allow_missing_token_type` defaults to `off`. When enabled, an absent `typ`
+is accepted, but a present type must still be in the allowlist. This is a
+provider-compatibility exception, not RFC 9068 validation. Enable it only when
+the issuer's access-token audience and required database scope cannot also
+occur in ID or session tokens; test those token kinds before deployment.
+
 An empty audience, empty HBA scope, unsupported or duplicate algorithm, token
-type other than `at+jwt` or `application/at+jwt`, unsafe identity or role claim
+type outside the configured allowlist, unsafe identity or role claim
 name, mismatched HBA delegation,
 invalid additional JWKS hostname, excessive clock skew, or invalid token-size
 bound causes validation to fail closed. `cache_max_ttl` must not be shorter
@@ -148,12 +158,15 @@ necessarily `sub`.
 ### Configuration transition before first release
 
 This pre-release contract does not accept `identity_format`,
-`authorization_mode`, or `roles_claim`. Remove those settings from local
+`authorization_mode`, `roles_claim`, or `required_token_type`. Remove those settings from local
 configuration. Replace delegated `roles_claim` with `role_claim` and keep
 `delegate_ident_mapping=1` on the matched HBA rule. Replace encoded
 `pg_ident.conf` identities with direct selected claim values. Restart
 PostgreSQL after replacing the module; a rollback also requires restoring the
 matching configuration and restarting.
+Replace `required_token_type = 'at+jwt'` with
+`allowed_token_types = 'at+jwt'` to retain exact old behavior, or omit it to
+accept both RFC 9068 spellings. The old setting fails at module startup.
 
 ## JWKS locations and TLS
 
@@ -224,8 +237,9 @@ versioned path and reload, or restart PostgreSQL, when rotating that bundle.
 - A valid token does not permit an identity to assume a role unless normal
   exact-name/usermap authorization or delegated exact role-claim authorization
   succeeds.
-- Provider exceptions require a reviewed, explicitly selected profile; they are
-  not inferred from issuer hostnames.
+- No provider-specific policy is selected from issuer hostnames. The only
+  compatibility exception is the explicitly configured missing-`typ` option
+  described above; other claim syntax remains unsupported.
 
 See [`../PROVIDER-COMPATIBILITY.md`](../PROVIDER-COMPATIBILITY.md) before
 configuring a specific authorization server.

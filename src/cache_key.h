@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "cache_state.h"
+#include "jwt_envelope.h"
 
 typedef enum PgOAuthCacheResource
 {
@@ -29,7 +30,8 @@ typedef struct PgOAuthCacheKeyPolicy
 	const char *policy_name;
 	const char *required_scopes;
 	const char *audiences;
-	const char *required_token_type;
+	uint8_t		allowed_token_types;
+	bool		allow_missing_token_type;
 	const char *identity_claim;
 	const char *role_claim;
 	const char *allowed_jwks_hosts;

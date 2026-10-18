@@ -412,6 +412,7 @@ def test_reload_separates_trust_policy_cache_entries(integration_environment):
         )
         default_token = idp.sign()
         alternate_type_token = idp.sign(token_type="application/at+jwt")
+        missing_type_token = idp.sign(token_type=None)
         uid_token = idp.sign(extra_claims={"uid": "stable-1"})
         previous_ca = os.environ.get("SSL_CERT_FILE")
         os.environ["SSL_CERT_FILE"] = str(idp.tls_certificate)
@@ -436,6 +437,8 @@ def test_reload_separates_trust_policy_cache_entries(integration_environment):
             psql(cluster, "CREATE ROLE uiduser LOGIN")
             accepted = connect(default_token)
             assert accepted.returncode == 0, accepted.stderr + "\n" + cluster.logs()
+            assert connect(alternate_type_token).returncode == 0
+            assert connect(missing_type_token).returncode != 0
 
             reload_setting(
                 cluster, "pg_oauth_validator.allowed_algorithms", "RS256",
@@ -443,11 +446,18 @@ def test_reload_separates_trust_policy_cache_entries(integration_environment):
             assert_accepts_after_fresh_fetch()
 
             reload_setting(
-                cluster, "pg_oauth_validator.required_token_type",
+                cluster, "pg_oauth_validator.allowed_token_types",
                 "application/at+jwt",
             )
             assert connect(default_token).returncode != 0
             assert_accepts_after_fresh_fetch(alternate_type_token)
+
+            reload_setting(cluster, "pg_oauth_validator.allow_missing_token_type", "on")
+            assert_accepts_after_fresh_fetch(missing_type_token)
+            assert connect(idp.sign(token_type="JWT")).returncode != 0
+            assert connect(idp.sign(token_type=None, scope="openid")).returncode != 0
+            assert connect(idp.sign(token_type=None,
+                                    audience="https://client.example/")).returncode != 0
 
             ident_path = cluster.data / "pg_ident.conf"
             ident_path.write_text(

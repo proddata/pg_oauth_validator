@@ -12,6 +12,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "demo" / "render-profile.py"
 EXAMPLE = ROOT / "demo" / "provider.example.yml"
+WORKOS_EXAMPLE = ROOT / "demo" / "providers" / "workos.example.yml"
 SPEC = importlib.util.spec_from_file_location("demo_profile", SCRIPT)
 PROFILE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PROFILE)
@@ -26,15 +27,55 @@ def test_example_renders_aligned_server_and_client(tmp_path):
     client = (tmp_path / "pg_service.conf").read_text()
     assert f"pg_oauth_validator.audiences = '{config['audience']}'" in server
     assert f"pg_oauth_validator.identity_claim = '{config['identity_claim']}'" in server
+    assert "pg_oauth_validator.role_claim = 'roles'" in server
+    assert "pg_oauth_validator.allowed_token_types = 'at+jwt,application/at+jwt'" in server
+    assert "pg_oauth_validator.allow_missing_token_type = off" in server
     assert f'issuer="{config["issuer"]}"' in hba
     assert f'scope="{config["scope"]}"' in hba
-    assert f"external {config['identity_value']} app_reader" in ident
+    assert "external " not in ident
     assert f"oauth_issuer={config['issuer']}" in client
     assert f"oauth_client_id={config['client_id']}" in client
     assert f"oauth_scope={config['scope']}" in client
     assert "sslmode=verify-full" in client
     assert "hostssl demo app_reader all oauth" in hba
+    assert "delegate_ident_mapping=1" in hba
+    assert "map=external" not in hba
     assert "host all all all reject" in hba
+
+
+def test_workos_example_renders_delegated_missing_type_policy(tmp_path):
+    profile = PROFILE.load_profile(WORKOS_EXAMPLE)
+    PROFILE.render(profile, tmp_path)
+    server = (tmp_path / "postgresql.conf").read_text()
+    hba = (tmp_path / "pg_hba.conf").read_text()
+    client = (tmp_path / "pg_service.conf").read_text()
+    assert "pg_oauth_validator.role_claim = 'role'" in server
+    assert "pg_oauth_validator.allow_missing_token_type = on" in server
+    assert "pg_oauth_validator.allowed_token_types = 'at+jwt,application/at+jwt'" in server
+    assert "delegate_ident_mapping=1" in hba
+    assert "map=external" not in hba
+    assert "oauth_client_id=client_REPLACE_WITH_PUBLIC_DEVICE_CLIENT_ID" in client
+    assert "oauth_scope=connect:postgres" in client
+    assert "replace-with-stable-subject" not in server + hba + client
+
+
+def test_pg_ident_maps_only_the_named_identity_to_the_fixed_role(tmp_path):
+    source = EXAMPLE.read_text().replace(
+        'role_claim: "roles"', 'pg_ident_map: "replace-with-stable-subject"', 1
+    )
+    path = tmp_path / "profile.yml"
+    path.write_text(source)
+    config = PROFILE.load_profile(path)
+    output = tmp_path / "output"
+    PROFILE.render(config, output)
+    server = (output / "postgresql.conf").read_text()
+    hba = (output / "pg_hba.conf").read_text()
+    assert "pg_oauth_validator.role_claim = ''" in server
+    assert "delegate_ident_mapping" not in hba
+    assert "map=external" in hba
+    assert (output / "pg_ident.conf").read_text() == (
+        "external replace-with-stable-subject app_reader\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -48,9 +89,10 @@ def test_example_renders_aligned_server_and_client(tmp_path):
         ("issuer: http://issuer.example/\n", "profile_issuer"),
         ("issuer: https://user@issuer.example/\n", "profile_issuer"),
         ("issuer: https://issuer.example/?x=y\n", "profile_issuer"),
-        ("identity_value: /regex\n", "profile_identity_value"),
-        ("identity_value: 'a\\nrole'\n", "profile_identity_value"),
+        ("pg_ident_map: /regex\n", "profile_pg_ident_map"),
+        ("pg_ident_map: 'a\\nrole'\n", "profile_pg_ident_map"),
         ("unexpected: value\n", "profile_key"),
+        ("allowed_token_types: 'JWT'\n", "profile_key"),
         ("scope: &shared connect:postgres\n", "profile_yaml_feature"),
         ("scope: *shared\n", "profile_yaml_feature"),
     ],
@@ -58,8 +100,10 @@ def test_example_renders_aligned_server_and_client(tmp_path):
 def test_rejects_bad_profile_without_output(tmp_path, change, code):
     source = EXAMPLE.read_text()
     key = change.split(":", 1)[0]
-    if key in ("issuer", "audience", "scope", "identity_value") and code != "profile_key":
+    if key in ("issuer", "audience", "scope") and code != "profile_key":
         source = re.sub(rf"^{key}:.*$", change.rstrip("\n"), source, flags=re.M)
+    elif key == "pg_ident_map":
+        source = source.replace('role_claim: "roles"', change.rstrip("\n"), 1)
     else:
         source += change
     profile = tmp_path / "profile.yml"
@@ -83,14 +127,53 @@ def test_missing_profile_and_oversize_fail_closed(tmp_path):
         PROFILE.load_profile(path)
 
 
+@pytest.mark.parametrize("token_types", ["", "JWT", "at+jwt,JWT", "at+jwt,at+jwt",
+                                           "at+jwt,", "at+jwt,,application/at+jwt"])
+def test_rejects_invalid_token_type_list(tmp_path, token_types):
+    path = tmp_path / "profile.yml"
+    path.write_text(EXAMPLE.read_text().replace(
+        'allowed_token_types: "at+jwt,application/at+jwt"',
+        f'allowed_token_types: "{token_types}"'))
+    with pytest.raises(PROFILE.ProfileError, match="^profile_token_type$"):
+        PROFILE.load_profile(path)
+
+
+def test_missing_type_option_is_explicit_and_boolean(tmp_path):
+    path = tmp_path / "profile.yml"
+    source = EXAMPLE.read_text()
+    path.write_text(source.replace("allow_missing_token_type: false",
+                                   "allow_missing_token_type: true"))
+    profile = PROFILE.load_profile(path)
+    PROFILE.render(profile, tmp_path / "output")
+    assert "pg_oauth_validator.allow_missing_token_type = on" in (
+        tmp_path / "output" / "postgresql.conf").read_text()
+    path.write_text(source.replace("allow_missing_token_type: false",
+                                   "allow_missing_token_type: 'true'"))
+    with pytest.raises(PROFILE.ProfileError, match="^profile_token_type$"):
+        PROFILE.load_profile(path)
+
+
+def test_token_type_list_is_canonicalized_before_render(tmp_path):
+    path = tmp_path / "profile.yml"
+    path.write_text(EXAMPLE.read_text().replace(
+        'allowed_token_types: "at+jwt,application/at+jwt"',
+        'allowed_token_types: "at+jwt, application/at+jwt\\n"'))
+    profile = PROFILE.load_profile(path)
+    PROFILE.render(profile, tmp_path / "output")
+    assert "pg_oauth_validator.allowed_token_types = 'at+jwt,application/at+jwt'\n" in (
+        tmp_path / "output" / "postgresql.conf").read_text()
+
+
 @pytest.mark.parametrize(
     "edit,code",
     [
-        (lambda s: s.replace("client_id: postgres-public-client\n", ""), "profile_missing"),
-        (lambda s: s.replace("identity_claim: sub", "identity_claim: 17"), "profile_value"),
-        (lambda s: s.replace("identity_value: replace-with-stable-subject", "identity_value: " + "a" * 64), "profile_value"),
+        (lambda s: s.replace('client_id: "postgres-public-client"\n', ""), "profile_missing"),
+        (lambda s: s.replace('identity_claim: "sub"', "identity_claim: 17"), "profile_value"),
+        (lambda s: s.replace('role_claim: "roles"',
+                             "pg_ident_map: " + "a" * 64, 1), "profile_pg_ident_map"),
+        (lambda s: s + 'identity_value: "replace-with-stable-subject"\n', "profile_key"),
         (lambda s: s + "ca_pem: 'not a certificate'\n", "profile_ca"),
-        (lambda s: s.replace("audience: https://postgres.example/", "audience: [bad"), "profile_yaml"),
+        (lambda s: s.replace('audience: "https://postgres.example/"', "audience: [bad"), "profile_yaml"),
     ],
 )
 def test_other_invalid_shapes(tmp_path, edit, code):
@@ -102,7 +185,7 @@ def test_other_invalid_shapes(tmp_path, edit, code):
 
 def test_auth0_style_subject_is_literal(tmp_path):
     source = EXAMPLE.read_text().replace(
-        "replace-with-stable-subject", "auth0|stable-123"
+        'role_claim: "roles"', 'pg_ident_map: "auth0|stable-123"', 1
     )
     profile = tmp_path / "profile.yml"
     profile.write_text(source)
@@ -111,6 +194,38 @@ def test_auth0_style_subject_is_literal(tmp_path):
     assert (tmp_path / "output" / "pg_ident.conf").read_text() == (
         "external auth0|stable-123 app_reader\n"
     )
+
+
+def test_role_claim_renders_delegated_authorization(tmp_path):
+    source = EXAMPLE.read_text().replace(
+        'role_claim: "roles"', 'role_claim: "postgres_roles"', 1
+    )
+    path = tmp_path / "profile.yml"
+    path.write_text(source)
+    profile = PROFILE.load_profile(path)
+    PROFILE.render(profile, tmp_path / "output")
+    server = (tmp_path / "output" / "postgresql.conf").read_text()
+    hba = (tmp_path / "output" / "pg_hba.conf").read_text()
+    ident = (tmp_path / "output" / "pg_ident.conf").read_text()
+    assert "pg_oauth_validator.role_claim = 'postgres_roles'" in server
+    assert "pg_oauth_validator.allowed_token_types = 'at+jwt,application/at+jwt'" in server
+    assert "delegate_ident_mapping=1" in hba
+    assert "map=external" not in hba
+    assert "external " not in ident
+
+
+@pytest.mark.parametrize("edit,code", [
+    (lambda s: s + 'pg_ident_map: "replace-with-stable-subject"\n', "profile_mapping"),
+    (lambda s: s.replace('role_claim: "roles"\n', ""),
+     "profile_mapping"),
+    (lambda s: s.replace('role_claim: "roles"', 'role_claim: "bad claim"', 1),
+     "profile_role_claim"),
+])
+def test_role_claim_configuration_fails_closed(tmp_path, edit, code):
+    path = tmp_path / "profile.yml"
+    path.write_text(edit(EXAMPLE.read_text()))
+    with pytest.raises(PROFILE.ProfileError, match=f"^{code}$"):
+        PROFILE.load_profile(path)
 
 
 def test_private_ca_is_validated_and_rendered(tmp_path):

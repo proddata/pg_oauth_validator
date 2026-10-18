@@ -3,7 +3,7 @@
 #include <limits.h>
 #include <string.h>
 
-#define PG_OAUTH_CACHE_KEY_VERSION 4
+#define PG_OAUTH_CACHE_KEY_VERSION 5
 
 static bool
 append_bytes(PgOAuthCacheKey *key, const void *value, size_t length)
@@ -76,7 +76,8 @@ pg_oauth_cache_key_build(const PgOAuthCacheKeyPolicy *policy,
 		(policy->resource == PG_OAUTH_CACHE_RESOURCE_JWKS &&
 		 (policy->jwks_url == NULL || policy->jwks_url[0] == '\0')) ||
 		policy->policy_name == NULL || policy->required_scopes == NULL ||
-		policy->audiences == NULL || policy->required_token_type == NULL ||
+		policy->audiences == NULL || policy->allowed_token_types == 0 ||
+		(policy->allowed_token_types & ~PG_OAUTH_TOKEN_TYPES_ALL) != 0 ||
 		policy->identity_claim == NULL || policy->role_claim == NULL ||
 		policy->allowed_jwks_hosts == NULL ||
 		policy->ca_file == NULL ||
@@ -95,7 +96,8 @@ pg_oauth_cache_key_build(const PgOAuthCacheKeyPolicy *policy,
 		!append_string(key, policy->policy_name) ||
 		!append_string(key, policy->required_scopes) ||
 		!append_string(key, policy->audiences) ||
-		!append_string(key, policy->required_token_type) ||
+		!append_u8(key, policy->allowed_token_types) ||
+		!append_u8(key, policy->allow_missing_token_type ? 1 : 0) ||
 		!append_string(key, policy->identity_claim) ||
 		!append_string(key, policy->role_claim) ||
 		!append_string(key, policy->allowed_jwks_hosts) ||

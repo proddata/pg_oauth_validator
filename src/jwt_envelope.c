@@ -167,7 +167,8 @@ pg_oauth_jwt_envelope_parse(const char *token, size_t token_length,
 	if (envelope == NULL)
 		return PG_OAUTH_JWT_ENVELOPE_INVALID_ARGUMENT;
 	memset(envelope, 0, sizeof(*envelope));
-	if (token == NULL || policy == NULL || policy->required_token_type == NULL ||
+	if (token == NULL || policy == NULL || policy->allowed_token_types == 0 ||
+		(policy->allowed_token_types & ~PG_OAUTH_TOKEN_TYPES_ALL) != 0 ||
 		policy->max_token_size == 0 || policy->max_header_size == 0 ||
 		policy->max_payload_size == 0 || policy->allowed_algorithms == 0)
 		return PG_OAUTH_JWT_ENVELOPE_INVALID_ARGUMENT;
@@ -207,10 +208,22 @@ pg_oauth_jwt_envelope_parse(const char *token, size_t token_length,
 		goto fail;
 	}
 	value = json_object_get(envelope->untrusted_header, "typ");
-	if (!json_is_string(value) || json_string_length(value) !=
-		strlen(policy->required_token_type) ||
-		memcmp(json_string_value(value), policy->required_token_type,
-			   json_string_length(value)) != 0)
+	if (value == NULL)
+	{
+		if (!policy->allow_missing_token_type)
+		{
+			error = PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE;
+			goto fail;
+		}
+	}
+	else if (!json_is_string(value) ||
+			 !((json_string_length(value) == strlen("at+jwt") &&
+				memcmp(json_string_value(value), "at+jwt", strlen("at+jwt")) == 0 &&
+				(policy->allowed_token_types & PG_OAUTH_TOKEN_TYPE_AT_JWT) != 0) ||
+			   (json_string_length(value) == strlen("application/at+jwt") &&
+				memcmp(json_string_value(value), "application/at+jwt",
+					   strlen("application/at+jwt")) == 0 &&
+				(policy->allowed_token_types & PG_OAUTH_TOKEN_TYPE_APPLICATION_AT_JWT) != 0)))
 	{
 		error = PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE;
 		goto fail;

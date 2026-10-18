@@ -5,12 +5,13 @@
 
 #include "algorithms.h"
 #include "hba_policy.h"
+#include "jwt_envelope.h"
 
 typedef struct PgOAuthPolicyConfig
 {
 	const char *audiences;
 	const char *allowed_algorithms;
-	const char *required_token_type;
+	const char *allowed_token_types;
 	const char *identity_claim;
 	const char *role_claim;
 	const char *allowed_jwks_hosts;
@@ -24,6 +25,7 @@ typedef struct PgOAuthPolicyConfig
 	int			unknown_kid_refresh_cooldown_ms;
 	int			refresh_wait_timeout_ms;
 	bool		allow_insecure_http;
+	bool		allow_missing_token_type;
 } PgOAuthPolicyConfig;
 
 typedef struct PgOAuthValidationPolicy
@@ -32,7 +34,7 @@ typedef struct PgOAuthValidationPolicy
 	const char *issuer;
 	const char *required_scopes;
 	const char *audiences;
-	const char *required_token_type;
+	uint8_t		allowed_token_types;
 	const char *identity_claim;
 	const char *role_claim;
 	const char *allowed_jwks_hosts;
@@ -47,6 +49,7 @@ typedef struct PgOAuthValidationPolicy
 	int			unknown_kid_refresh_cooldown_ms;
 	int			refresh_wait_timeout_ms;
 	bool		allow_insecure_http;
+	bool		allow_missing_token_type;
 } PgOAuthValidationPolicy;
 
 typedef enum PgOAuthPolicyError

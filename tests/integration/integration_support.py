@@ -408,9 +408,11 @@ class LocalIdp:
         now = int(time.time())
         key_algorithm = self.keys[key_id][1]["alg"]
         header = {
-            "alg": header_algorithm or key_algorithm, "typ": token_type,
+            "alg": header_algorithm or key_algorithm,
             "kid": header_key_id or key_id,
         }
+        if token_type is not None:
+            header["typ"] = token_type
         claims = {
             "iss": self.issuer, "aud": audience,
             "exp": expiry if expiry is not None else now + 300,
