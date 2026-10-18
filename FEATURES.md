@@ -183,9 +183,9 @@ The following are outside the active release scope:
 - automatic acceptance of arbitrary provider roles without explicit delegated
   configuration and an HBA role boundary.
 
-## Acceptance criteria for initial security review
+## Acceptance criteria for the `v1.0.0` security review
 
-The implementation is ready for an initial security review only when:
+The implementation is ready for the `v1.0.0` security review only when:
 
 - a correctly signed token for another audience is rejected;
 - a trusted issuer's ID token is rejected as an access token;

@@ -40,10 +40,11 @@ verifies the downloaded artifacts and their embedded manifests, and creates a
 package. No tag-triggered job publishes the draft. The manually dispatched
 `Release candidate` workflow remains available for rehearsals before tagging.
 
-Before publishing the draft, complete the independent review, fresh-environment
-rebuild, dependency review, install/upgrade/rollback rehearsal, and approval
-steps below. Sign the final archives and checksum file with the approved release
-key, upload and verify the signatures, and record the release approver. Then
+Before publishing the draft, complete the version-appropriate review,
+fresh-environment rebuild, dependency review, install/upgrade/rollback
+rehearsal, and approval steps below. Sign the final archives and checksum file
+with the approved release key, upload and verify the signatures, and record the
+release approver. Then
 publish the draft without replacing the reviewed tag or artifacts. A rejected
 candidate gets a new version and tag; do not move the existing tag.
 
@@ -58,7 +59,8 @@ Create an immutable release record containing:
 - the dependency review described below;
 - commands and results for every required check, including expected skips;
 - archive names, archive SHA-256 files, and signatures;
-- reviewer and release approver identities, known limitations, and rollback
+- reviewer and release approver identities (the same maintainer may fill both
+  roles for a `0.x` prerelease), known limitations, and rollback
   artifact identifiers.
 
 The tree must contain no uncommitted or untracked release inputs. CI artifacts
@@ -215,8 +217,14 @@ or build input, create a new version/tag and fresh artifacts, and rerun every
 affected gate. Never overwrite the rejected archive, checksum, signature, or
 tag, and never normalize rerunning a flaky check until it happens to pass.
 
-Publication is allowed only after independent security-sensitive review,
-release-owner approval, successful signature verification, and completion of
+For a `0.x` prerelease, the maintainer may self-review and approve publication.
+Record the reviewed commit, final diff inspection, security-relevant changes,
+test and CI results, known risks, and approval in the release record. A second
+person is welcome but not required. Before publishing `v1.0.0` or any later
+release, obtain independent security-sensitive review and release approval from
+someone other than the author.
+
+Publication also requires successful signature verification and completion of
 the per-major evidence above. Promote PostgreSQL 18 and PostgreSQL 19 artifacts
 independently; a blocked preview artifact must not prevent a separately sound
 PostgreSQL 18 release unless they share the defect or release version contract.
