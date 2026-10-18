@@ -1,18 +1,21 @@
 # pg_oauth_validator
 
-Use OAuth 2.0 JWT access tokens from issuers with
+Authenticate PostgreSQL connections with signed OAuth 2.0 JWT access tokens
+from an explicitly trusted issuer. `pg_oauth_validator` uses
 [OpenID Connect (OIDC) discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)
-to authenticate PostgreSQL connections instead of database passwords.
-`pg_oauth_validator` verifies the token, identifies the caller, and lets
-PostgreSQL apply its normal role-mapping rules.
+to find the issuer's signing keys, validates the token and its database access
+scope, and identifies the caller for PostgreSQL role mapping. It can also
+authorize an explicitly configured role claim.
 
-The current implementation derives the issuer's
-`/.well-known/openid-configuration` endpoint and uses its JWKS to validate
-[RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html)-style access tokens.
-It requires a signed token marked
-`at+jwt` (or `application/at+jwt`), a configured PostgreSQL audience, and the
-required connection scopes. OIDC **ID tokens** and opaque access tokens are
-not accepted.
+The default token-type policy accepts `at+jwt` and `application/at+jwt`.
+For issuers that omit the JWT `typ` header, an administrator can explicitly
+allow a missing type after confirming that the required audience and scope
+exclude the issuer's ID and session tokens. Exact issuer, audience, expiry,
+signature, scope, and identity checks still apply. OIDC **ID tokens** and
+opaque access tokens are not database credentials. See
+[configuration](docs/configuration.md) and
+[provider compatibility](PROVIDER-COMPATIBILITY.md) for the supported
+settings and current interoperability evidence.
 
 ## What it does
 
@@ -22,9 +25,8 @@ OAuth access token  ->  validate token and identity  ->  PostgreSQL role mapping
 
 The validator accepts signed JWT access tokens with `iss` and `sub` from an
 explicitly configured issuer. It checks the token's signature, issuer,
-audience, expiry, type,
-required scopes, and stable identity before allowing PostgreSQL to continue
-authentication.
+audience, expiry, configured token-type policy, required scopes, and stable
+identity before allowing PostgreSQL to continue authentication.
 
 By default, PostgreSQL decides which database role that external identity may
 use: either its name must match the requested role, or a normal
@@ -211,7 +213,8 @@ secrets in normal diagnostics.
 
 - PostgreSQL 18, plus PostgreSQL 19 preview support
 - Signed OAuth JWT access tokens from issuers with OIDC discovery
-- `at+jwt` token type; OIDC ID tokens and opaque tokens are rejected
+- `at+jwt` and `application/at+jwt` by default; missing `typ` only by explicit opt-in
+- OIDC ID tokens and opaque access tokens are rejected
 - Exact issuer and audience validation
 - Discovery/JWKS retrieval with bounded shared caching
 - Normal PostgreSQL identity matching and `pg_ident.conf` usermaps
