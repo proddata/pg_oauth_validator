@@ -10,10 +10,8 @@ from urllib.parse import urlsplit
 import yaml
 
 
-REQUIRED = frozenset(
-    {"issuer", "audience", "scope", "client_id", "identity_claim", "identity_value"}
-)
-OPTIONAL = frozenset({"ca_pem"})
+REQUIRED = frozenset({"issuer", "audience", "scope", "client_id", "identity_claim"})
+OPTIONAL = frozenset({"identity_value", "role_claim", "ca_pem"})
 SAFE_VALUE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._~:/?&=%+@|-]*\Z", re.ASCII)
 SAFE_TOKEN = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:/-]*\Z", re.ASCII)
 SAFE_IDENTITY = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:@|/-]*\Z", re.ASCII)
@@ -58,11 +56,12 @@ def load_profile(path):
         if not isinstance(value, yaml.ScalarNode) or value.tag != "tag:yaml.org,2002:str":
             raise ProfileError("profile_value")
         values[name] = value.value
-    if values.keys() < REQUIRED:
+    if not REQUIRED <= values.keys():
         raise ProfileError("profile_missing")
-    for name in REQUIRED:
-        value = values[name]
-        limit = 63 if name == "identity_value" else 1024
+    if ("identity_value" in values) == ("role_claim" in values):
+        raise ProfileError("profile_mapping")
+    for name, value in values.items():
+        limit = 63 if name == "identity_value" else (16384 if name == "ca_pem" else 1024)
         if not value or len(value.encode("utf-8")) > limit:
             raise ProfileError("profile_value")
     issuer = values["issuer"]
@@ -88,8 +87,10 @@ def load_profile(path):
         raise ProfileError("profile_client_id")
     if not SAFE_CLAIM.fullmatch(values["identity_claim"]):
         raise ProfileError("profile_identity_claim")
-    if not SAFE_IDENTITY.fullmatch(values["identity_value"]):
+    if "identity_value" in values and not SAFE_IDENTITY.fullmatch(values["identity_value"]):
         raise ProfileError("profile_identity_value")
+    if "role_claim" in values and not SAFE_CLAIM.fullmatch(values["role_claim"]):
+        raise ProfileError("profile_role_claim")
     if "ca_pem" in values:
         cert = values["ca_pem"]
         if len(cert) > 16384 or not PEM.fullmatch(cert):
@@ -105,6 +106,12 @@ def render(profile, output):
     """Write only fixed templates after all profile values have passed validation."""
     output.mkdir(mode=0o755, parents=True, exist_ok=True)
     ca_path = "/demo/runtime/provider-ca.crt" if "ca_pem" in profile else ""
+    delegated = "role_claim" in profile
+    role_setting = (
+        f"pg_oauth_validator.role_claim = '{profile['role_claim']}'\n"
+        if delegated else ""
+    )
+    mapping_option = "delegate_ident_mapping=1" if delegated else "map=external"
     files = {
         "postgresql.conf": (
             "listen_addresses = '*'\n"
@@ -114,6 +121,7 @@ def render(profile, output):
             "oauth_validator_libraries = 'pg_oauth_validator'\n"
             f"pg_oauth_validator.audiences = '{profile['audience']}'\n"
             f"pg_oauth_validator.identity_claim = '{profile['identity_claim']}'\n"
+            f"{role_setting}"
             f"pg_oauth_validator.ca_file = '{ca_path}'\n"
             "ssl = on\n"
             "ssl_cert_file = '/certs/postgres.crt'\n"
@@ -124,10 +132,10 @@ def render(profile, output):
             "local all postgres peer\n"
             "local all all reject\n"
             f"hostssl demo app_reader all oauth issuer=\"{profile['issuer']}\" "
-            f"scope=\"{profile['scope']}\" validator=pg_oauth_validator map=external\n"
+            f"scope=\"{profile['scope']}\" validator=pg_oauth_validator {mapping_option}\n"
             "host all all all reject\n"
         ),
-        "pg_ident.conf": f"external {profile['identity_value']} app_reader\n",
+        "pg_ident.conf": "" if delegated else f"external {profile['identity_value']} app_reader\n",
         "init.sql": "CREATE ROLE app_reader LOGIN;\nGRANT CONNECT ON DATABASE demo TO app_reader;\n",
         "pg_service.conf": (
             "[external]\n"

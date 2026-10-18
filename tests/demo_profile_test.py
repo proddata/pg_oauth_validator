@@ -29,12 +29,33 @@ def test_example_renders_aligned_server_and_client(tmp_path):
     assert f'issuer="{config["issuer"]}"' in hba
     assert f'scope="{config["scope"]}"' in hba
     assert f"external {config['identity_value']} app_reader" in ident
+    assert "delegate_ident_mapping" not in hba
+    assert "pg_oauth_validator.role_claim" not in server
     assert f"oauth_issuer={config['issuer']}" in client
     assert f"oauth_client_id={config['client_id']}" in client
     assert f"oauth_scope={config['scope']}" in client
     assert "sslmode=verify-full" in client
     assert "hostssl demo app_reader all oauth" in hba
     assert "host all all all reject" in hba
+
+
+def test_role_claim_delegates_only_the_fixed_role(tmp_path):
+    source = EXAMPLE.read_text().replace(
+        "identity_value: replace-with-stable-subject", "role_claim: roles"
+    )
+    profile = tmp_path / "profile.yml"
+    profile.write_text(source)
+    config = PROFILE.load_profile(profile)
+    output = tmp_path / "output"
+    PROFILE.render(config, output)
+    server = (output / "postgresql.conf").read_text()
+    hba = (output / "pg_hba.conf").read_text()
+    assert "pg_oauth_validator.role_claim = 'roles'" in server
+    assert "pg_oauth_validator.identity_claim = 'sub'" in server
+    assert "hostssl demo app_reader all oauth" in hba
+    assert "delegate_ident_mapping=1" in hba
+    assert "map=" not in hba
+    assert (output / "pg_ident.conf").read_text() == ""
 
 
 @pytest.mark.parametrize(
@@ -89,6 +110,12 @@ def test_missing_profile_and_oversize_fail_closed(tmp_path):
         (lambda s: s.replace("client_id: postgres-public-client\n", ""), "profile_missing"),
         (lambda s: s.replace("identity_claim: sub", "identity_claim: 17"), "profile_value"),
         (lambda s: s.replace("identity_value: replace-with-stable-subject", "identity_value: " + "a" * 64), "profile_value"),
+        (lambda s: s.replace("identity_value: replace-with-stable-subject\n", ""), "profile_mapping"),
+        (lambda s: s + "role_claim: roles\n", "profile_mapping"),
+        (lambda s: s.replace("identity_value: replace-with-stable-subject", "role_claim: [roles]"), "profile_value"),
+        (lambda s: s.replace("identity_value: replace-with-stable-subject", "role_claim: 17"), "profile_value"),
+        (lambda s: s.replace("identity_value: replace-with-stable-subject", "role_claim: 'roles;all'"), "profile_role_claim"),
+        (lambda s: s.replace("identity_value: replace-with-stable-subject", "role_claim: ''"), "profile_value"),
         (lambda s: s + "ca_pem: 'not a certificate'\n", "profile_ca"),
         (lambda s: s.replace("audience: https://postgres.example/", "audience: [bad"), "profile_yaml"),
     ],
