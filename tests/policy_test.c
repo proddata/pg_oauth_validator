@@ -21,7 +21,7 @@ valid_config(void)
 	PgOAuthPolicyConfig config = {
 		.audiences = "https://postgres.example/",
 		.allowed_algorithms = "RS256,ES256",
-		.required_token_type = "at+jwt",
+		.allowed_token_types = "at+jwt,application/at+jwt",
 		.identity_claim = "sub",
 		.role_claim = "",
 		.allowed_jwks_hosts = "",
@@ -126,14 +126,35 @@ main(void)
 				 "duplicate algorithm was accepted");
 
 	config = valid_config();
-	config.required_token_type = "application/at+jwt";
+	config.allowed_token_types = "application/at+jwt";
 	if (pg_oauth_policy_build(&config, &hba, &policy) != PG_OAUTH_POLICY_OK)
 		fail("standard access-token media type was rejected");
+	if (policy.allowed_token_types != PG_OAUTH_TOKEN_TYPE_APPLICATION_AT_JWT)
+		fail("token-type allowlist was built incorrectly");
 
 	config = valid_config();
-	config.required_token_type = "JWT";
+	config.allowed_token_types = "JWT";
 	expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_TOKEN_TYPE,
 				 "non-access-token type was accepted");
+	{
+		static const char *const rejected[] = {
+			"", "at+jwt,", ",at+jwt", "at+jwt,,application/at+jwt",
+			"at+jwt,at+jwt", "JWT,at+jwt", "at+jwt,id+jwt"
+		};
+
+		for (size_t i = 0; i < lengthof(rejected); i++)
+		{
+			config = valid_config();
+			config.allowed_token_types = rejected[i];
+			expect_error(&config, &hba, PG_OAUTH_POLICY_INVALID_TOKEN_TYPE,
+						 "invalid token-type allowlist was accepted");
+		}
+	}
+	config = valid_config();
+	config.allow_missing_token_type = true;
+	if (pg_oauth_policy_build(&config, &hba, &policy) != PG_OAUTH_POLICY_OK ||
+		!policy.allow_missing_token_type)
+		fail("explicit missing-type policy was not built");
 
 	config = valid_config();
 	config.identity_claim = "display name";

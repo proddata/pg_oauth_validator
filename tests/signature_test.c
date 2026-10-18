@@ -273,7 +273,7 @@ check_algorithm(const char *algorithm, uint32_t algorithm_flag,
 		.max_header_size = 4096,
 		.max_payload_size = 12288,
 		.allowed_algorithms = algorithm_flag,
-		.required_token_type = "at+jwt",
+		.allowed_token_types = PG_OAUTH_TOKEN_TYPE_AT_JWT,
 	};
 	PgOAuthJwksPolicy jwks_policy = {
 		.max_jwks_size = 65536,

@@ -2,11 +2,16 @@
 #define PG_OAUTH_VALIDATOR_JWT_ENVELOPE_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <jansson.h>
 
 #include "algorithms.h"
+
+#define PG_OAUTH_TOKEN_TYPE_AT_JWT 0x01
+#define PG_OAUTH_TOKEN_TYPE_APPLICATION_AT_JWT 0x02
+#define PG_OAUTH_TOKEN_TYPES_ALL (PG_OAUTH_TOKEN_TYPE_AT_JWT | PG_OAUTH_TOKEN_TYPE_APPLICATION_AT_JWT)
 
 typedef enum PgOAuthJwtEnvelopeError
 {
@@ -32,7 +37,8 @@ typedef struct PgOAuthJwtEnvelopePolicy
 	size_t		max_header_size;
 	size_t		max_payload_size;
 	uint32_t	allowed_algorithms;
-	const char *required_token_type;
+	uint8_t		allowed_token_types;
+	bool		allow_missing_token_type;
 } PgOAuthJwtEnvelopePolicy;
 
 /*

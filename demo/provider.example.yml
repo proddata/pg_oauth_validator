@@ -1,11 +1,22 @@
 # Copy to demo/local/provider.yml. The copy is ignored by Git.
-# This is a strict JWT example, not a provider compatibility profile.
-issuer: https://issuer.example/realms/example
-audience: https://postgres.example/
-scope: connect:postgres
-client_id: postgres-public-client
-identity_claim: sub
-identity_value: replace-with-stable-subject
+# Strict RFC 9068 token typing is the default; compatibility is explicit below.
+issuer: "https://issuer.example/realms/example"
+audience: "https://postgres.example/"
+scope: "connect:postgres"
+client_id: "postgres-public-client"
+identity_claim: "sub"
+identity_value: "replace-with-stable-subject"
+
+# Optional alternative to identity_value/pg_ident mapping: uncomment this
+# and comment out identity_value. The claim must contain exactly "app_reader"
+# (or include it in a string array); the audited identity still uses sub.
+# role_claim: "postgres_roles"
+
+# Defaults: accept both RFC 9068 spellings; reject a missing typ header.
+# Set allow_missing_token_type to true only when your issuer's access tokens
+# omit typ and audience plus required scope distinguish them from ID tokens.
+allowed_token_types: "at+jwt,application/at+jwt"
+allow_missing_token_type: false
 
 # For a private issuer CA, uncomment and paste ONE PEM certificate here.
 # ca_pem: |

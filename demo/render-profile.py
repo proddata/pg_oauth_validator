@@ -10,10 +10,11 @@ from urllib.parse import urlsplit
 import yaml
 
 
-REQUIRED = frozenset(
-    {"issuer", "audience", "scope", "client_id", "identity_claim", "identity_value"}
-)
-OPTIONAL = frozenset({"ca_pem"})
+REQUIRED = frozenset({"issuer", "audience", "scope", "client_id", "identity_claim"})
+OPTIONAL = frozenset({"identity_value", "role_claim", "ca_pem",
+                      "allowed_token_types", "allow_missing_token_type"})
+DEFAULT_TOKEN_TYPES = "at+jwt,application/at+jwt"
+ACCESS_TOKEN_TYPES = frozenset({"at+jwt", "application/at+jwt"})
 SAFE_VALUE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._~:/?&=%+@|-]*\Z", re.ASCII)
 SAFE_TOKEN = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:/-]*\Z", re.ASCII)
 SAFE_IDENTITY = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:@|/-]*\Z", re.ASCII)
@@ -55,16 +56,31 @@ def load_profile(path):
         name = key.value
         if name not in REQUIRED | OPTIONAL or name in values:
             raise ProfileError("profile_key")
-        if not isinstance(value, yaml.ScalarNode) or value.tag != "tag:yaml.org,2002:str":
+        if not isinstance(value, yaml.ScalarNode):
+            raise ProfileError("profile_value")
+        if name == "allow_missing_token_type":
+            if value.tag != "tag:yaml.org,2002:bool" or value.value not in ("true", "false"):
+                raise ProfileError("profile_token_type")
+            values[name] = value.value == "true"
+            continue
+        if value.tag != "tag:yaml.org,2002:str":
             raise ProfileError("profile_value")
         values[name] = value.value
-    if values.keys() < REQUIRED:
+    if not REQUIRED.issubset(values):
         raise ProfileError("profile_missing")
+    if ("role_claim" in values) == ("identity_value" in values):
+        raise ProfileError("profile_mapping")
     for name in REQUIRED:
         value = values[name]
-        limit = 63 if name == "identity_value" else 1024
-        if not value or len(value.encode("utf-8")) > limit:
+        if not value or len(value.encode("utf-8")) > 1024:
             raise ProfileError("profile_value")
+    values.setdefault("allowed_token_types", DEFAULT_TOKEN_TYPES)
+    values.setdefault("allow_missing_token_type", False)
+    types = [item.strip() for item in values["allowed_token_types"].split(",")]
+    if (not types or len(types) != len(set(types)) or
+            any(item not in ACCESS_TOKEN_TYPES for item in types)):
+        raise ProfileError("profile_token_type")
+    values["allowed_token_types"] = ",".join(types)
     issuer = values["issuer"]
     if not SAFE_VALUE.fullmatch(issuer):
         raise ProfileError("profile_issuer")
@@ -88,8 +104,14 @@ def load_profile(path):
         raise ProfileError("profile_client_id")
     if not SAFE_CLAIM.fullmatch(values["identity_claim"]):
         raise ProfileError("profile_identity_claim")
-    if not SAFE_IDENTITY.fullmatch(values["identity_value"]):
-        raise ProfileError("profile_identity_value")
+    if "identity_value" in values:
+        if (len(values["identity_value"].encode("utf-8")) > 63 or
+                not SAFE_IDENTITY.fullmatch(values["identity_value"])):
+            raise ProfileError("profile_identity_value")
+    if "role_claim" in values:
+        if (len(values["role_claim"]) > 128 or
+                not SAFE_CLAIM.fullmatch(values["role_claim"])):
+            raise ProfileError("profile_role_claim")
     if "ca_pem" in values:
         cert = values["ca_pem"]
         if len(cert) > 16384 or not PEM.fullmatch(cert):
@@ -105,6 +127,8 @@ def render(profile, output):
     """Write only fixed templates after all profile values have passed validation."""
     output.mkdir(mode=0o755, parents=True, exist_ok=True)
     ca_path = "/demo/runtime/provider-ca.crt" if "ca_pem" in profile else ""
+    delegated = "role_claim" in profile
+    role_claim = profile.get("role_claim", "")
     files = {
         "postgresql.conf": (
             "listen_addresses = '*'\n"
@@ -114,6 +138,10 @@ def render(profile, output):
             "oauth_validator_libraries = 'pg_oauth_validator'\n"
             f"pg_oauth_validator.audiences = '{profile['audience']}'\n"
             f"pg_oauth_validator.identity_claim = '{profile['identity_claim']}'\n"
+            f"pg_oauth_validator.role_claim = '{role_claim}'\n"
+            f"pg_oauth_validator.allowed_token_types = '{profile['allowed_token_types']}'\n"
+            "pg_oauth_validator.allow_missing_token_type = "
+            f"{'on' if profile['allow_missing_token_type'] else 'off'}\n"
             f"pg_oauth_validator.ca_file = '{ca_path}'\n"
             "ssl = on\n"
             "ssl_cert_file = '/certs/postgres.crt'\n"
@@ -124,10 +152,13 @@ def render(profile, output):
             "local all postgres peer\n"
             "local all all reject\n"
             f"hostssl demo app_reader all oauth issuer=\"{profile['issuer']}\" "
-            f"scope=\"{profile['scope']}\" validator=pg_oauth_validator map=external\n"
+            f"scope=\"{profile['scope']}\" validator=pg_oauth_validator "
+            f"{'delegate_ident_mapping=1' if delegated else 'map=external'}\n"
             "host all all all reject\n"
         ),
-        "pg_ident.conf": f"external {profile['identity_value']} app_reader\n",
+        "pg_ident.conf": ("# delegated role authorization; no identity map\n"
+                          if delegated else
+                          f"external {profile['identity_value']} app_reader\n"),
         "init.sql": "CREATE ROLE app_reader LOGIN;\nGRANT CONNECT ON DATABASE demo TO app_reader;\n",
         "pg_service.conf": (
             "[external]\n"

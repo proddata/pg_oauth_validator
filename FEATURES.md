@@ -30,9 +30,9 @@ validation and an authenticated identity.
 - Protocol parsing and cryptographic primitives will come from reviewed, established libraries rather than bespoke implementations.
 - The callback starts denied and authorizes only after the complete configured validation pipeline succeeds.
 - Issuer and required scopes come from the matched HBA rule through a small, isolated PostgreSQL-internal compatibility adapter.
-- PostgreSQL 19 registers `validator.policy` through the supported custom HBA option API so a rule can select additional named validation policy.
+- PostgreSQL 19 registers `validator.policy` through the supported custom HBA option API; only `default` is accepted.
 - A validated immutable policy combines matched-HBA issuer/scopes with configured audience, algorithms, token type, identity claim, clock skew, and token-size limit.
-- Audience is mandatory and has no implicit default. Algorithms default to `RS256,ES256` (`EdDSA`, Ed25519 only, is available when the administrator lists it; see [`ADR 0003`](docs/adr/0003-eddsa-ed25519-support.md)), token type to `at+jwt`, identity claim to `sub`, clock skew to 60 seconds, and maximum token size to 16 KiB.
+- Audience is mandatory and has no implicit default. Algorithms default to `RS256,ES256` (`EdDSA`, Ed25519 only, is available when the administrator lists it; see [`ADR 0003`](docs/adr/0003-eddsa-ed25519-support.md)), allowed token types to `at+jwt,application/at+jwt`, missing token type to denied, identity claim to `sub`, clock skew to 60 seconds, and maximum token size to 16 KiB.
 
 ## Active release scope: strict offline JWT validation
 
@@ -42,7 +42,9 @@ The active release scope provides strict offline validation of signed JWT access
 - Explicit trusted issuer configuration and exact issuer validation.
 - OIDC discovery derived from the configured issuer at
   `/.well-known/openid-configuration`, followed by the validated `jwks_uri`.
-- Strict access-token type enforcement through the selected profile.
+- Explicit allowlist of the two RFC 9068 access-token type spellings. An
+  administrator may allow a missing `typ` only when issuer-specific audience
+  and scope rules distinguish access tokens from ID and session tokens.
 - Local asymmetric signing-algorithm allowlist (`RS256`, `ES256`, and opt-in Ed25519 `EdDSA`).
 - Hardened JWKS key selection and signature verification.
 - Mandatory configured audience validation.
@@ -63,7 +65,7 @@ The active release scope provides strict offline validation of signed JWT access
 
 All stages fail closed and execute in this trust order:
 
-1. Select an administrator-configured trusted issuer/profile; never select trust from token claims.
+1. Select the trusted issuer from the matched HBA rule; never select trust from token claims.
 2. Retrieve bounded OIDC metadata from the issuer-derived discovery URL, then
    JWKS from the validated, allowed `jwks_uri`.
 3. Parse the token under strict size and complexity limits.
@@ -79,7 +81,7 @@ Callback outputs must begin denied. Success at an earlier stage never compensate
 
 ## Security invariants
 
-- Only OAuth access tokens are accepted. ID tokens are rejected even when signed by the trusted issuer and key.
+- Only OAuth access tokens are accepted. ID tokens are rejected even when signed by the trusted issuer and key. Deployments allowing missing `typ` must establish mutually exclusive validation rules for access, ID, and session tokens from their issuer.
 - `iss`, `sub`, `aud`, `exp`, and the configured stable identity claim are mandatory and correctly typed.
 - Audience matching is exact and requires at least one configured PostgreSQL resource identifier.
 - Issuer matching is exact; no substring detection or silent trailing-slash normalization is allowed.
@@ -143,7 +145,7 @@ than use `all` or a broad `+group` unless that wider authority is intentional.
 - Any development-only HTTP option must be explicit, disabled by default, and clearly unsafe for production.
 - Metadata `issuer` must exactly equal the configured issuer.
 - URL schemes, redirects, response sizes, timeouts, and allowed hosts are restricted by policy.
-- Cache entries are separated by exact URL, issuer, and provider profile.
+- Cache entries are separated by exact URL, issuer, and complete validation policy.
 - Unknown signing keys may trigger at most one controlled refresh, subject to per-issuer rate limiting.
 - When another backend is already refreshing the same cold cache entry,
   authentication waits for bounded publication by default and then retries the
@@ -154,22 +156,22 @@ than use `all` or a broad `+group` unless that wider authority is intentional.
 - PostgreSQL locks are not held during network operations.
 - PostgreSQL locks are not held while waiting for another refresh owner.
 
-## Provider profiles
+## Issuer compatibility
 
-The validation core implements strict standards behavior. Any provider compatibility behavior must use a named, explicitly selected profile bound to an exact trusted issuer.
+The validation core defaults to RFC 9068 token-type behavior. The explicit
+`allow_missing_token_type` setting is a compatibility exception for issuers
+that omit `typ`; it never accepts a present unrecognized type. Operators must
+verify that issuer, audience, and required scopes distinguish access tokens
+from other JWTs issued by the same provider. See
+[ADR 0004](docs/adr/0004-token-type-compatibility.md).
 
-A supported profile documents and tests:
-
-- acceptable issuer rules;
-- metadata and JWKS behavior;
-- token type and signing algorithms;
-- audience semantics;
-- scope claim syntax;
-- stable identity claim;
-- optional group/role claim semantics;
-- provider versions and known limitations.
-
-Implicit provider detection from issuer-hostname substrings is unsupported.
+The implementation has one policy, with explicit configuration for token type,
+algorithms, audience, identity, and optional role claim. It requires a `scope`
+claim and does not infer compatibility from issuer hostnames. An issuer needing
+different claim syntax or validation rules is unsupported until a reviewed
+specification, implementation, and negative interoperability tests establish
+those rules. [Provider compatibility](PROVIDER-COMPATIBILITY.md) records the
+evidence available for particular deployments.
 
 ## Explicitly deferred or unsupported
 
@@ -210,11 +212,11 @@ The implementation is ready for the `v1.0.0` security review only when:
 
 ## Current constraints and deferred decisions
 
-- The first release uses the strict JWT profile described above. Named provider
-  profiles require a reviewed specification and provider-specific evidence.
+- The first release uses the single JWT policy described above. Additional
+  issuer-specific behavior requires a reviewed specification and evidence.
 - Audience is an explicit, administrator-configured cluster-wide GUC; there is
   no implicit canonical audience. Per-rule audience selection is deferred to
-  named policies.
+  a future policy design.
 - Metadata/JWKS freshness bounds and outage behavior follow
   [`ADR 0002`](docs/adr/0002-metadata-jwks-cache-and-outage-policy.md).
   Changes to that policy require a new reviewed decision.

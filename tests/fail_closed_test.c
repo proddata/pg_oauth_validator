@@ -31,6 +31,8 @@ PGDLLEXPORT volatile sig_atomic_t InterruptPending;
 static int	registered_gucs;
 static bool cache_gucs_have_expected_contract;
 static int	cache_gucs_checked;
+static bool token_type_allowlist_default_checked;
+static bool missing_token_type_default_checked;
 
 PGDLLEXPORT void
 ProcessInterrupts(void)
@@ -248,6 +250,10 @@ DefineCustomStringVariable(const char *name, const char *short_desc,
 
 	*value_address = (char *) boot_value;
 	registered_gucs++;
+	if (strcmp(name, "pg_oauth_validator.allowed_token_types") == 0 &&
+		strcmp(boot_value, "at+jwt,application/at+jwt") == 0 &&
+		context == PGC_SIGHUP)
+		token_type_allowlist_default_checked = true;
 }
 
 PGDLLEXPORT void
@@ -316,6 +322,9 @@ DefineCustomBoolVariable(const char *name, const char *short_desc,
 	(void) show_hook;
 	*value_address = boot_value;
 	registered_gucs++;
+	if (strcmp(name, "pg_oauth_validator.allow_missing_token_type") == 0 &&
+		!boot_value && context == PGC_SIGHUP)
+		missing_token_type_default_checked = true;
 }
 
 #if PG_VERSION_NUM >= 190000
@@ -401,7 +410,8 @@ main(int argc, char **argv)
 		fail("PostgreSQL module initialization symbol is unavailable");
 	memcpy(&module_init, &symbol, sizeof(module_init));
 	module_init();
-	if (registered_gucs != 17)
+	if (registered_gucs != 18 || !token_type_allowlist_default_checked ||
+		!missing_token_type_default_checked)
 		fail("module did not register all configuration variables");
 	if (!cache_gucs_have_expected_contract)
 		fail("cache GUC defaults, bounds, or reload contexts changed");

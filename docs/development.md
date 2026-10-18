@@ -149,8 +149,8 @@ role assumption, fail-closed behavior, shared-cache concurrency, and
 bearer-token redaction. Its hostile-transport matrix covers bounded connection
 and total timeouts, HTTP errors, redirects, malformed and truncated JSON,
 incorrect content types, oversized responses, and recovery for both discovery
-and JWKS. PostgreSQL 19 additionally exercises named validator-policy
-selection.
+and JWKS. PostgreSQL 19 additionally exercises the `default` validator-policy
+selector and rejects unknown policy names.
 
 `make verify` also checks the runtime libcurl version and asynchronous DNS
 capability, reports whether it uses c-ares or threaded resolution, and tests

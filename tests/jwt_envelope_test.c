@@ -83,7 +83,7 @@ valid_policy(void)
 		.max_payload_size = 12288,
 		.allowed_algorithms = PG_OAUTH_ALGORITHM_RS256 |
 		PG_OAUTH_ALGORITHM_ES256,
-		.required_token_type = "at+jwt",
+		.allowed_token_types = PG_OAUTH_TOKEN_TYPE_AT_JWT,
 	};
 
 	return policy;
@@ -135,6 +135,33 @@ main(void)
 		strcmp(envelope.key_id, "key-1") != 0)
 		fail("valid envelope fields were not retained");
 	pg_oauth_jwt_envelope_clear(&envelope);
+	free(token);
+
+	policy = valid_policy();
+	policy.allowed_token_types = PG_OAUTH_TOKEN_TYPES_ALL;
+	token = make_token("{\"alg\":\"RS256\",\"typ\":\"application/at+jwt\",\"kid\":\"k\"}", "{}");
+	if (pg_oauth_jwt_envelope_parse(token, strlen(token), &policy, &envelope) !=
+		PG_OAUTH_JWT_ENVELOPE_OK)
+		fail("full RFC 9068 type was rejected");
+	pg_oauth_jwt_envelope_clear(&envelope);
+	free(token);
+
+	policy.allow_missing_token_type = true;
+	token = make_token("{\"alg\":\"RS256\",\"kid\":\"k\"}", "{}");
+	if (pg_oauth_jwt_envelope_parse(token, strlen(token), &policy, &envelope) !=
+		PG_OAUTH_JWT_ENVELOPE_OK)
+		fail("explicitly allowed missing type was rejected");
+	pg_oauth_jwt_envelope_clear(&envelope);
+	free(token);
+	token = make_token("{\"alg\":\"RS256\",\"typ\":\"JWT\",\"kid\":\"k\"}", "{}");
+	if (pg_oauth_jwt_envelope_parse(token, strlen(token), &policy, &envelope) !=
+		PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE)
+		fail("wrong present type was accepted in missing-type mode");
+	free(token);
+	token = make_token("{\"alg\":\"RS256\",\"typ\":null,\"kid\":\"k\"}", "{}");
+	if (pg_oauth_jwt_envelope_parse(token, strlen(token), &policy, &envelope) !=
+		PG_OAUTH_JWT_ENVELOPE_INVALID_TOKEN_TYPE)
+		fail("null type was accepted in missing-type mode");
 	free(token);
 
 	token = make_token("{\"alg\":\"EdDSA\",\"typ\":\"at+jwt\",\"kid\":\"key-1\"}",

@@ -149,8 +149,9 @@ Stop the services with `docker compose down`. To also delete the disposable
 database and generated certificates, run `docker compose down --volumes`. The
 [Keycloak quickstart guide](demo/README.md) explains the sample configuration
 and how to use [`compose.external.yml`](compose.external.yml) with a single
-ignored YAML profile for your own issuer. This stack uses published demo
-credentials and is intended for local evaluation.
+ignored YAML profile for your own issuer, including a locally verified
+[WorkOS AuthKit example](demo/providers/workos.example.yml). This stack uses
+published demo credentials and is intended for local evaluation.
 
 ## Configure your own PostgreSQL server
 
@@ -226,8 +227,8 @@ secrets in normal diagnostics.
   rollout, and rollback
 - [Keycloak quickstart](demo/README.md): follow the Compose tutorial and adapt
   the sample for an external issuer
-- [Provider compatibility](PROVIDER-COMPATIBILITY.md): supported provider
-  behavior and requirements
+- [Provider compatibility](PROVIDER-COMPATIBILITY.md): tested provider
+  configurations and evidence limits
 
 ### Reference and contributors
 

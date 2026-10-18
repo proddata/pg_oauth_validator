@@ -11,7 +11,7 @@
 
 static char *oauth_audiences;
 static char *oauth_allowed_algorithms;
-static char *oauth_required_token_type;
+static char *oauth_allowed_token_types;
 static char *oauth_identity_claim;
 static char *oauth_role_claim;
 static char *oauth_allowed_jwks_hosts;
@@ -26,6 +26,7 @@ static int	oauth_unknown_kid_refresh_cooldown_ms;
 static int	oauth_refresh_wait_timeout_ms;
 static int	oauth_cache_max_entries;
 static bool oauth_allow_insecure_http;
+static bool oauth_allow_missing_token_type;
 
 PGDLLEXPORT void _PG_init(void);
 
@@ -36,7 +37,8 @@ _PG_init(void)
 	static const char *const removed_settings[] = {
 		"pg_oauth_validator.identity_format",
 		"pg_oauth_validator.authorization_mode",
-		"pg_oauth_validator.roles_claim"
+		"pg_oauth_validator.roles_claim",
+		"pg_oauth_validator.required_token_type"
 	};
 
 	for (size_t i = 0; i < lengthof(removed_settings); i++)
@@ -55,10 +57,17 @@ _PG_init(void)
 							   "Asymmetric JWT signing algorithms accepted by the validator.",
 							   NULL, &oauth_allowed_algorithms, "RS256,ES256",
 							   PGC_SIGHUP, 0, NULL, NULL, NULL);
-	DefineCustomStringVariable("pg_oauth_validator.required_token_type",
-							   "Required JWT typ header.", NULL,
-							   &oauth_required_token_type, "at+jwt", PGC_SIGHUP, 0,
+	DefineCustomStringVariable("pg_oauth_validator.allowed_token_types",
+							   "Allowed JWT access-token typ header values.",
+							   "Comma-separated RFC 9068 type names.",
+							   &oauth_allowed_token_types,
+							   "at+jwt,application/at+jwt", PGC_SIGHUP, 0,
 							   NULL, NULL, NULL);
+	DefineCustomBoolVariable("pg_oauth_validator.allow_missing_token_type",
+							 "Allow JWT access tokens without a typ header.",
+							 "Requires issuer-specific access-token and ID-token separation.",
+							 &oauth_allow_missing_token_type, false, PGC_SIGHUP, 0,
+							 NULL, NULL, NULL);
 	DefineCustomStringVariable("pg_oauth_validator.identity_claim",
 							   "Stable token claim used for authenticated identity.", NULL,
 							   &oauth_identity_claim, "sub", PGC_SIGHUP, 0,
@@ -129,7 +138,8 @@ pg_oauth_config_snapshot(PgOAuthPolicyConfig *config)
 {
 	config->audiences = oauth_audiences;
 	config->allowed_algorithms = oauth_allowed_algorithms;
-	config->required_token_type = oauth_required_token_type;
+	config->allowed_token_types = oauth_allowed_token_types;
+	config->allow_missing_token_type = oauth_allow_missing_token_type;
 	config->identity_claim = oauth_identity_claim;
 	config->role_claim = oauth_role_claim;
 	config->allowed_jwks_hosts = oauth_allowed_jwks_hosts;
