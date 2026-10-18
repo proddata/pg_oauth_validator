@@ -19,7 +19,7 @@ Use these defaults:
 - Preserve backward compatibility only when it does not weaken security. Document intentional incompatibilities and migration steps.
 - Do not claim production readiness from unit tests alone.
 
-If a requested change conflicts with `FEATURES.md` or weakens a security invariant, stop and explain the conflict. Update the specification through review before changing the implementation contract.
+If a requested change conflicts with `FEATURES.md` or weakens a security invariant, stop and explain the conflict. Update the specification in a reviewable pull request before changing the implementation contract.
 
 ## Sources and evidence
 
@@ -135,7 +135,7 @@ Add, as the project matures:
 - a scheduled provider interoperability suite with isolated credentials;
 - release builds, artifact provenance, SBOM generation, and signed checksums.
 
-CI should use a minimal `permissions` block, pin external actions by full commit SHA, set job timeouts, and avoid `pull_request_target` for building contributor code. Changes to workflows receive the same security review as authentication code.
+CI should use a minimal `permissions` block, pin external actions by full commit SHA, set job timeouts, and avoid `pull_request_target` for building contributor code. Changes to workflows receive the same review as authentication code under the version-specific policy below.
 
 Do not merge when a required check is failing, skipped unexpectedly, or flaky. Fix or quarantine flakes with an owner and tracked rationale; do not normalize rerunning until green.
 
@@ -143,14 +143,21 @@ Do not merge when a required check is failing, skipped unexpectedly, or flaky. F
 
 Every pull request should state:
 
-- the requirement, defect, or threat addressed;
-- the trust boundary and fail-closed behavior;
-- user-visible, configuration, and compatibility effects;
-- tests added and commands run;
-- rollout and rollback considerations for operational changes;
-- remaining risks or follow-up work.
+- why the change is needed and its user-visible or security effect;
+- tests run and any required checks that could not run;
+- rollout and rollback notes when the change affects operations.
 
-Security-sensitive code requires review by someone other than its author. Prefer reviewable commits and squash only when it improves history. Do not combine dependency upgrades, formatting sweeps, and security behavior changes in one review unless inseparable.
+For `0.x` prereleases while there is one maintainer, the maintainer may review
+and merge their own pull request after all required checks pass. For
+security-sensitive code, dependencies, workflows, or release inputs, record a
+brief self-review of the final diff, denial behavior, test gaps, and secret
+exposure in the pull request. External review is welcome but is not a merge or
+publication requirement before `v1.0.0`.
+
+Starting with `v1.0.0`, security-sensitive changes and release approval require
+review by someone other than the author. Do not claim that self-review is
+independent review. Prefer reviewable commits and keep unrelated dependency
+upgrades, formatting sweeps, and security behavior changes separate.
 
 ## Documentation
 

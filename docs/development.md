@@ -159,8 +159,8 @@ threaded lookup through a local resolver shim on Linux. Repeat the cancellation
 check with the deployed libcurl and DNS environment.
 
 PGXS provides the standard `make install` target. Treat current builds as
-pre-release software until the initial security review and packaging work are
-complete.
+prerelease software. Independent security review is required before `v1.0.0`;
+the `0.x` release process permits documented maintainer self-review.
 
 On the supported Linux packaging environment, validate a non-privileged staged
 installation with:
