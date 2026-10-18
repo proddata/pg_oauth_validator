@@ -1,10 +1,18 @@
 # pg_oauth_validator
 
-Use OAuth 2.0 access tokens to authenticate PostgreSQL connections instead of
-database passwords. `pg_oauth_validator` verifies a token from a trusted
-identity provider, identifies the caller, and lets PostgreSQL apply its normal
-role-mapping rules.
+Use OAuth 2.0 JWT access tokens from issuers with
+[OpenID Connect (OIDC) discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)
+to authenticate PostgreSQL connections instead of database passwords.
+`pg_oauth_validator` verifies the token, identifies the caller, and lets
+PostgreSQL apply its normal role-mapping rules.
 
+The current implementation derives the issuer's
+`/.well-known/openid-configuration` endpoint and uses its JWKS to validate
+[RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html)-style access tokens.
+It requires a signed token marked
+`at+jwt` (or `application/at+jwt`), a configured PostgreSQL audience, and the
+required connection scopes. OIDC **ID tokens** and opaque access tokens are
+not accepted.
 
 ## What it does
 
@@ -201,7 +209,8 @@ secrets in normal diagnostics.
 ## Supported today
 
 - PostgreSQL 18, plus PostgreSQL 19 preview support
-- Signed JWT OAuth access tokens
+- Signed OAuth JWT access tokens from issuers with OIDC discovery
+- `at+jwt` token type; OIDC ID tokens and opaque tokens are rejected
 - Exact issuer and audience validation
 - Discovery/JWKS retrieval with bounded shared caching
 - Normal PostgreSQL identity matching and `pg_ident.conf` usermaps
