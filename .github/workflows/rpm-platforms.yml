@@ -18,7 +18,7 @@ jobs:
   build:
     name: ${{ matrix.distribution.name }} / PostgreSQL 18${{ matrix.architecture.name_suffix }}
     runs-on: ${{ matrix.architecture.runner }}
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -73,7 +73,7 @@ jobs:
             --tag "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
             .
 
-      - name: Verify build and staged installation
+      - name: Verify build and installed OAuth runtime
         env:
           IMAGE_NAME: ${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
           DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
@@ -82,4 +82,32 @@ jobs:
             --platform "$DOCKER_PLATFORM" \
             --volume "$GITHUB_WORKSPACE:/workspace:ro" \
             "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
-            verify-dev packagecheck
+            verify-dev installedcheck
+
+      - name: Test RPM source preparation
+        run: python3 tests/ci/test_rpm_sources.py
+
+      - name: Prepare immutable RPM inputs offline
+        env:
+          IMAGE_NAME: ${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+          DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
+        run: |
+          docker run --rm --network=none --entrypoint python3 \
+            --platform "$DOCKER_PLATFORM" \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --volume "$RUNNER_TEMP:/output" \
+            "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
+            /workspace/scripts/ci/prepare-rpm-sources.py prepare \
+            0.0.0 "$GITHUB_SHA" /opt/rpm-dependencies /output/rpm-inputs
+
+      - name: Build RPM offline and test installed package
+        env:
+          IMAGE_NAME: ${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+          DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
+        run: |
+          docker run --rm --network=none --tmpfs /source:exec --entrypoint /bin/sh \
+            --platform "$DOCKER_PLATFORM" \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --volume "$RUNNER_TEMP/rpm-inputs:/inputs:ro" \
+            "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
+            /workspace/scripts/ci/test-rpm-package.sh /inputs

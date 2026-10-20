@@ -87,6 +87,9 @@ class TemporaryPostgres:
         )
 
         library_dir = str(self.validator_library.parent).replace("'", "''")
+        # Socket defaults vary by distribution (PostgreSQL 18, section 19.3.1).
+        # Keep administrative connections inside this cluster's private root.
+        socket_dir = str(self.root).replace("'", "''")
         audience = self.audience.replace("'", "''")
         ca_file = ""
         if self.ca_file:
@@ -117,6 +120,7 @@ class TemporaryPostgres:
             config.write(
                 f"\nlisten_addresses = '127.0.0.1'\n"
                 f"port = {self.port}\n"
+                f"unix_socket_directories = '{socket_dir}'\n"
                 f"dynamic_library_path = '{library_dir}'\n"
                 "oauth_validator_libraries = 'pg_oauth_validator'\n"
                 f"pg_oauth_validator.audiences = '{audience}'\n"
@@ -129,6 +133,10 @@ class TemporaryPostgres:
                 f"pg_oauth_validator.ca_file = '{ca_file}'\n"
                 f"{self.extra_config}"
                 f"{ssl_configuration}"
+                # RPM samples enable the collector; keep all diagnostics in
+                # pg_ctl's protected log so redaction assertions inspect them.
+                "logging_collector = off\n"
+                "log_destination = 'stderr'\n"
                 "log_connections = on\n"
                 "log_min_messages = debug1\n"
             )
@@ -203,7 +211,7 @@ def psql_argv(cluster, sql):
     return [
         "runuser", "-u", "postgres", "--", cluster.bindir / "psql",
         "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1",
-        "-p", cluster.port, "-d", "postgres", "-c", sql,
+        "-h", cluster.root, "-p", cluster.port, "-d", "postgres", "-c", sql,
     ]
 
 

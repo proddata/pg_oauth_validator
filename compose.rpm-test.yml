@@ -19,7 +19,7 @@ services:
       - /source:exec
     command:
       - verify-dev
-      - packagecheck
+      - installedcheck
 
   fedora44:
     image: pg-oauth-validator-rpm-test:fedora44
@@ -39,7 +39,7 @@ services:
       - /source:exec
     command:
       - verify-dev
-      - packagecheck
+      - installedcheck
 
   rocky10:
     image: pg-oauth-validator-rpm-test:rocky10
@@ -59,7 +59,7 @@ services:
       - /source:exec
     command:
       - verify-dev
-      - packagecheck
+      - installedcheck
 
   fedora43-arm64:
     profiles: [arm64]
@@ -80,7 +80,7 @@ services:
       - /source:exec
     command:
       - verify-dev
-      - packagecheck
+      - installedcheck
 
   fedora44-arm64:
     profiles: [arm64]
@@ -101,7 +101,7 @@ services:
       - /source:exec
     command:
       - verify-dev
-      - packagecheck
+      - installedcheck
 
   rocky10-arm64:
     profiles: [arm64]
@@ -122,7 +122,7 @@ services:
       - /source:exec
     command:
       - verify-dev
-      - packagecheck
+      - installedcheck
 
 volumes:
   fedora43-build:

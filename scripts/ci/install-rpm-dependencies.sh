@@ -17,7 +17,7 @@ test "$(id -u)" -eq 0 || {
 }
 
 common_packages='ca-certificates clang llvm cmake curl-minimal diffutils findutils gcc git gzip make
-openssl openssl-devel libcurl-devel pkgconf-pkg-config python3 tar binutils
+openssl openssl-devel libcurl-devel pkgconf-pkg-config python3 python3-pytest tar binutils util-linux
 krb5-devel redhat-rpm-config'
 
 case "$platform" in
