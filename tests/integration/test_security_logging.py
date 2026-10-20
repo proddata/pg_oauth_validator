@@ -90,7 +90,15 @@ def test_diagnostics_redact_token_signature_claim_and_response(
                 audience="https://wrong-resource.example/",
                 extra_claims={"private_data": CLAIM_SECRET},
             )
-            assert connect(wrong_claim).returncode != 0
+            logs_before_rejection = cluster.logs()
+            wrong_claim_result = connect(wrong_claim)
+            assert wrong_claim_result.returncode != 0
+            if cluster.major >= 19:
+                # PG19 sends callback error_detail to the server log only.
+                rejection_logs = cluster.logs()[len(logs_before_rejection):]
+                detail = "OAuth access token validation failed"
+                assert f"DETAIL:  {detail}" in rejection_logs
+                assert detail not in wrong_claim_result.stderr
 
             # Force a JWKS fetch so an HTTP error body containing the fixture's
             # response sentinel reaches the transport boundary.
