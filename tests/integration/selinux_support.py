@@ -1,5 +1,4 @@
 """Opt-in disposable-VM launcher; never used by the normal integration path."""
-import os
 import pathlib
 import subprocess
 import time
@@ -39,25 +38,21 @@ class ConfinedPostgres:
         # These temporary test files live under /var/lib/pgsql. Preserve normal
         # policy for installed binaries/libraries; label only this private tree.
         run("chcon", "-R", "-t", "postgresql_db_t", cluster.root)
-        cluster.log.touch(mode=0o600)
-        owner = cluster.root.stat()
-        os.chown(cluster.log, owner.st_uid, owner.st_gid)
-        run("chcon", "-t", "postgresql_log_t", cluster.log)
         # systemd SELinuxContext= (systemd.exec(5)) makes launch failure fatal;
         # executing the packaged postmaster also retains its entrypoint checks.
         try:
             run("systemd-run", "--collect", "--unit=" + self.unit,
                 "--service-type=exec", "--uid=postgres",
                 "--property=SELinuxContext=system_u:system_r:postgresql_t:s0",
-                "--property=StandardOutput=append:" + str(cluster.log),
-                "--property=StandardError=append:" + str(cluster.log),
+                "--property=StandardOutput=journal",
+                "--property=StandardError=journal",
                 cluster.bindir / "postgres", "-D", cluster.data)
         except subprocess.CalledProcessError as error:
             journal = run("journalctl", "--unit=" + self.unit, "--no-pager",
                           "-n", "20", check=False).stdout
             # No clients have connected yet; these are startup diagnostics.
             raise RuntimeError("confined PostgreSQL launch failed: " +
-                               error.stderr + journal + cluster.logs()) from error
+                               error.stderr + journal) from error
         for _attempt in range(100):
             status = run(cluster.bindir / "pg_isready", "-h", cluster.root,
                          "-p", cluster.port, check=False)
@@ -73,6 +68,13 @@ class ConfinedPostgres:
                 break
             time.sleep(0.1)
         raise RuntimeError("confined PostgreSQL failed to start: " + cluster.logs())
+
+    def logs(self):
+        # PostgreSQL keeps its collector off; journald receives stderr directly.
+        # Flush pending journal writes before the existing redaction assertions.
+        run("journalctl", "--sync")
+        return run("journalctl", "--unit=" + self.unit, "--output=cat",
+                   "--no-pager").stdout
 
     def stop(self):
         run("systemctl", "stop", self.unit, check=False)

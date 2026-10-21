@@ -325,10 +325,12 @@ per-domain permissive exception. Missing tools and confinement failures fail
 the test. The normal integration path does not use this launcher.
 
 Only temporary fixture files and ports receive test labels: database content
-uses `postgresql_db_t`, logs use `postgresql_log_t`, PostgreSQL listener ports
+uses `postgresql_db_t`, PostgreSQL listener ports
 use `postgresql_port_t`, and local provider ports use `http_port_t`. Tests
 remove their port overrides and systemd units. Installed binaries and modules
-retain distribution labels. The cache probe is separate test instrumentation.
+retain distribution labels. Confined services send stderr to journald; the
+existing diagnostic/redaction assertions read only their specific unit's journal.
+The cache probe is separate test instrumentation.
 The guest prints AVC evidence on failure; it never uploads bearer-token files,
 provider keys, or raw PostgreSQL logs as artifacts. This gate initially tests
 the unchanged distribution policy; successful container tests do not imply

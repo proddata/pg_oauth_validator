@@ -43,6 +43,28 @@ class EnforcementTest(unittest.TestCase):
 
 
 class LauncherTest(unittest.TestCase):
+    def test_ready_server_requires_the_exact_live_domain(self):
+        expected = "system_u:system_r:postgresql_t:s0"
+        for context in [expected, "unconfined_u:unconfined_r:unconfined_t:s0", "", "postgresql_t"]:
+            with self.subTest(context=context), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                cluster = types.SimpleNamespace(
+                    root=root, log=root / "postgres.log", port=54321,
+                    bindir=root, data=root / "data", logs=lambda: "",
+                )
+                success = subprocess.CompletedProcess([], 0, "", "")
+                with mock.patch.object(selinux_support, "require_enforcing"), \
+                        mock.patch.object(selinux_support, "label_port"), \
+                        mock.patch.object(selinux_support, "run", return_value=success), \
+                        mock.patch.object(pathlib.Path, "read_text", side_effect=["123\n", context]):
+                    launcher = selinux_support.ConfinedPostgres(cluster)
+                    if context == expected:
+                        launcher.start()
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "escaped"):
+                            launcher.start()
+                    launcher.stop()
+
     def test_failed_launch_still_removes_its_port_override(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -53,7 +75,7 @@ class LauncherTest(unittest.TestCase):
                     mock.patch.object(selinux_support, "label_port") as label, \
                     mock.patch.object(selinux_support, "run") as run:
                 launcher = selinux_support.ConfinedPostgres(cluster)
-                run.side_effect = [None, None,
+                run.side_effect = [None,
                                    subprocess.CalledProcessError(1, "systemd-run", stderr="failed"),
                                    subprocess.CompletedProcess([], 0, "startup journal", "")]
                 with self.assertRaisesRegex(RuntimeError, "startup journal"):

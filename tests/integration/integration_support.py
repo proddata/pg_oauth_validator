@@ -204,6 +204,8 @@ class TemporaryPostgres:
         shutil.rmtree(self.root, ignore_errors=True)
 
     def logs(self):
+        if self.confined is not None:
+            return self.confined.logs()
         return self.log.read_text(encoding="utf-8", errors="replace")
 
 
