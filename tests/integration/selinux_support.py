@@ -1,4 +1,5 @@
 """Opt-in disposable-VM launcher; never used by the normal integration path."""
+import os
 import pathlib
 import subprocess
 import time
@@ -29,6 +30,7 @@ class ConfinedPostgres:
         self.cluster = cluster
         self.unit = "pg-oauth-test-" + uuid.uuid4().hex
         self.port_labeled = False
+        self.trace = None
 
     def start(self):
         cluster = self.cluster
@@ -63,6 +65,14 @@ class ConfinedPostgres:
                     raise RuntimeError("postmaster escaped the required SELinux domain")
                 require_enforcing()
                 print(f"SELinux postmaster: {context}", flush=True)
+                if os.environ.get("OAUTH_TEST_NETWORK_TRACE") == "1":
+                    # Diagnostic only: never trace read/write, token bytes, or TLS.
+                    self.trace = subprocess.Popen(
+                        ["strace", "-ff", "-e", "trace=connect,socket,getsockopt",
+                         "-p", str(pid), "-o", str(cluster.root / "network.trace")],
+                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    )
+                    time.sleep(0.2)
                 return
             if run("systemctl", "is-active", self.unit, check=False).returncode:
                 break
@@ -77,6 +87,12 @@ class ConfinedPostgres:
                    "--no-pager").stdout
 
     def stop(self):
+        if self.trace is not None:
+            self.trace.terminate()
+            self.trace.wait(timeout=10)
+            for path in sorted(self.cluster.root.glob("network.trace.*")):
+                print(path.read_text()[:16384], flush=True)
+            self.trace = None
         run("systemctl", "stop", self.unit, check=False)
         run("systemctl", "reset-failed", self.unit, check=False)
         if self.port_labeled:

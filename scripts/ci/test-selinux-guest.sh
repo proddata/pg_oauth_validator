@@ -7,12 +7,13 @@ test "$(getenforce)" = Enforcing
 test "$ID" = fedora && test "$VERSION_ID" = 44
 cd /opt/pg-oauth-validator
 sh scripts/ci/install-rpm-dependencies.sh fedora44
-dnf install -y rpm-build cpio elfutils policycoreutils-python-utils audit iproute
+dnf install -y rpm-build cpio elfutils policycoreutils-python-utils audit iproute strace setools-console
 systemctl start auditd
 # Cloud images may boot with auditing disabled. Enable records explicitly in
 # this disposable guest; keep SELinux enforcing and reveal dontaudit denials.
 auditctl -e 1
 auditctl -s
+auditctl -l
 cat /proc/cmdline
 semodule -DB
 export PG_CONFIG_PATH=/usr/bin/pg_server_config
@@ -26,7 +27,7 @@ mkdir /source /opt/tested-rpm
 export RPM_TEST_EXPORT_DIR=/opt/tested-rpm
 # sysfs is tied to its mount's network namespace. Remount it privately so
 # the existing offline gate observes this namespace, not the VM's NIC.
-unshare --mount --net --fork --propagation private /bin/sh -c \
+unshare --mount --net --fork --propagation private /bin/sh -eu -c \
 	'mount -t sysfs sysfs /sys; ip link set lo up; exec sh scripts/ci/test-rpm-package.sh /opt/rpm-inputs'
 rpm --install /opt/tested-rpm/validator.rpm
 library="$($PG_CONFIG_PATH --pkglibdir)/pg_oauth_validator.so"
@@ -42,7 +43,9 @@ export OAUTH_TEST_SELINUX=1 PYTHONPYCACHEPREFIX=/source/.pycache
 # token files, raw PostgreSQL logs, or pytest locals.
 uname -r
 rpm -q selinux-policy selinux-policy-targeted policycoreutils postgresql-server
-trap 'getenforce; semanage permissive -l; ausearch -m AVC,USER_AVC -ts boot -i || true; semodule -B' EXIT
+trap 'getenforce; semanage permissive -l; ausearch -m AVC,USER_AVC -i || true; journalctl -k --grep=avc: --no-pager -n 80 || true; auditctl -s; semodule -B' EXIT
+sesearch -A -s postgresql_t -t http_port_t -c tcp_socket -p name_connect
+export OAUTH_TEST_NETWORK_TRACE=1
 python3 -m pytest -q --maxfail=1 --capture=tee-sys -p no:cacheprovider tests/integration
 rpm --verify postgresql18-pg_oauth_validator
 test "$(getenforce)" = Enforcing
