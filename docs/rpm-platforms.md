@@ -297,3 +297,38 @@ policy can constrain resource and port types; the validator must continue to
 enforce the exact administrator-configured issuer host, TLS verification, and
 redirect/proxy prohibitions. Absence or failure of required policy must remain
 a deterministic authentication denial.
+
+### Disposable enforcing VM gate
+
+The `SELinux enforcing VM` workflow boots the Fedora 44 x86-64 Cloud image
+in a disposable KVM guest. The image URL and SHA-256 are fixed in
+`scripts/ci/test-selinux-vm.sh`; the digest comes from Fedora's signed
+[44-1.7 Cloud checksum manifest](https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-44-1.7-x86_64-CHECKSUM).
+Guest package repositories remain mutable, as in the RPM compatibility jobs.
+The host requires Linux, writable `/dev/kvm`, QEMU, `cloud-localds`, curl,
+OpenSSH, and tar. Run from a clean checkout with no persisted Git credentials:
+
+```sh
+sh scripts/ci/test-selinux-vm.sh
+```
+
+The root-only guest script installs build dependencies, runs the existing
+network-isolated RPM build/install/removal gate, and retains its tested RPM.
+It installs that artifact normally, then runs the complete integration suite
+with `OAUTH_TEST_SELINUX=1`. Each temporary cluster lives under `/var/lib/pgsql`;
+its systemd unit explicitly starts the packaged PostgreSQL binary in
+`system_u:system_r:postgresql_t:s0`. Every successful startup checks the live
+postmaster's `/proc/PID/attr/current`, global enforcement, and absence of a
+per-domain permissive exception. Missing tools and confinement failures fail
+the test. The normal integration path does not use this launcher.
+
+Only temporary fixture files and ports receive test labels: database content
+uses `postgresql_db_t`, logs use `postgresql_log_t`, PostgreSQL listener ports
+use `postgresql_port_t`, and local provider ports use `http_port_t`. Tests
+remove their port overrides and systemd units. Installed binaries and modules
+retain distribution labels. The cache probe is separate test instrumentation.
+The guest prints AVC evidence on failure; it never uploads bearer-token files,
+provider keys, or raw PostgreSQL logs as artifacts. This gate initially tests
+the unchanged distribution policy; successful container tests do not imply
+that this enforcing gate passes. Enterprise Linux and ARM64 VM coverage remain
+separate work.
