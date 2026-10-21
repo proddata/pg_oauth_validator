@@ -175,8 +175,8 @@ create roles, or restart PostgreSQL. Before replacing or removing an enabled
 module, arrange the protected recovery path described in
 [`operations.md`](operations.md). Upgrades and rollback must restore the matching
 package and configuration together and restart PostgreSQL; replacing a loaded
-shared library is not reload-safe. Upgrade/rollback rehearsal and SELinux tests
-remain separate requirements.
+shared library is not reload-safe. Release-specific upgrade/rollback rehearsals
+and SELinux tests remain separate requirements.
 
 On 2026-10-20 the offline package gate passed on native arm64 Fedora 43,
 Fedora 44, and Rocky Linux 10, including strict unit/component verification,
@@ -189,6 +189,79 @@ tests passed, including corrupt/missing archives, exact-commit exclusion of
 working-tree edits, and verified download publication. External-network and
 unsupported-distribution rejection probes also passed. x86-64 CI and
 SELinux-enforcing VM checks were not run locally.
+
+## Upgrade and rollback rehearsal
+
+The six-cell CI matrix additionally prepares disposable versions `0.0.0` (A)
+and `0.0.1` (B) from its exact Git commit. Both packages pass the same offline
+build, complete-source, dependency/ABI, scriptlet, and licensing checks. The
+existing full installed-security suite runs on A before the rehearsal.
+
+The rehearsal then keeps one PostgreSQL data directory and performs:
+
+1. Start A with a single test audience and a mapped low-privilege role. Save the
+   exact configuration bytes, permissions, and ownership, plus the retained RPM
+   and installed-module SHA-256. Create a marker row to detect data replacement.
+2. Stop PostgreSQL cleanly with bounded `pg_ctl -m fast -w`, prove it is stopped,
+   upgrade to B with normal RPM dependency/conflict checking, and verify package
+   identity, payload digests, ownership, and source-version record. The package
+   transaction must leave operator configuration unchanged.
+3. Install B's test configuration with a different exact audience and start the
+   same cluster. Check a new postmaster start time and the retained marker row.
+4. Stop again. Prove an implicit downgrade is rejected without changing B, then
+   explicitly restore the retained A RPM with `rpm --upgrade --oldpackage`.
+   Verify the original module digest, restore all saved configuration files and
+   their ownership/permissions, and start the same cluster again.
+
+Every phase proves `verify-full` TLS authentication and audited identity, and
+rejects the other version's audience, wrong issuer, missing required scope,
+expired/wrong-type/malformed/bad-signature tokens, unmapped principals, and
+administrative-role requests. It also exercises signing-key replacement,
+provider failure, the protected local recovery connection, provider recovery,
+and redaction of tokens, signatures, private claims, and provider error bodies.
+Zero advertised provider freshness makes the outage probes deterministic without
+waiting for expiry. No issuer, scope, TLS, algorithm, or usermap policy is weakened
+to recover access.
+
+For a local run, prepare B into a new directory alongside the A inputs above:
+
+```sh
+docker run --rm --network=none --entrypoint python3 \
+  -v "$PWD:/workspace:ro" -v "$PWD/dist:/output" \
+  pg-oauth-validator-rpm-test:fedora44-arm64 \
+  /workspace/scripts/ci/prepare-rpm-sources.py prepare \
+  0.0.1 "$(git rev-parse HEAD)" /opt/rpm-dependencies /output/rpm-candidate
+
+docker run --rm --network=none --tmpfs /source:exec --entrypoint /bin/sh \
+  -v "$PWD:/workspace:ro" -v "$PWD/dist/rpm-inputs:/inputs:ro" \
+  -v "$PWD/dist/rpm-candidate:/candidate:ro" \
+  pg-oauth-validator-rpm-test:fedora44-arm64 \
+  /workspace/scripts/ci/test-rpm-package.sh /inputs /candidate
+
+python3 tests/ci/test_rpm_upgrade.py
+```
+
+The second input directory is optional; omitting it retains the single-package
+install/authenticate/remove gate. The four deterministic configuration-recovery
+tests cover exact restoration. Capture rejects missing, oversized, or symlinked
+files; restoration rejects unexpected paths and symlinks, and audience changes
+reject ambiguous substitution.
+
+This is a transaction/restart/configuration-pair smoke test using two versions
+of the same source, not compatibility evidence between different releases. A
+release must repeat it with the retained previous artifact, actual candidate,
+and reviewed migration configuration. Same-commit CI cannot prove compatibility
+with changed defaults, dependency versions, or shared-memory layouts. SELinux
+confinement remains a separate enforcing-VM requirement.
+
+Local verification on 2026-10-21 passed the full installed suite (**28 passed,
+2 expected PostgreSQL-19-only skips**) and A -> B -> A rehearsal on native
+arm64 Fedora 43, Fedora 44, and Rocky Linux 10. Both disposable packages used
+source commit `40eb537294adfe61bc788ee368b1f8dc2f354096`, with versions `0.0.0`
+and `0.0.1`. Four configuration-recovery tests, the seven source-preparation
+tests, source hygiene, and formatting passed. The one-input gate also passed
+after the build-function refactor. Updated x86-64 CI and SELinux-enforcing VM
+tests were not run locally.
 
 ## Required work before support
 

@@ -85,7 +85,9 @@ jobs:
             verify-dev installedcheck
 
       - name: Test RPM source preparation
-        run: python3 tests/ci/test_rpm_sources.py
+        run: |
+          python3 tests/ci/test_rpm_sources.py
+          python3 tests/ci/test_rpm_upgrade.py
 
       - name: Prepare immutable RPM inputs offline
         env:
@@ -99,8 +101,15 @@ jobs:
             "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
             /workspace/scripts/ci/prepare-rpm-sources.py prepare \
             0.0.0 "$GITHUB_SHA" /opt/rpm-dependencies /output/rpm-inputs
+          docker run --rm --network=none --entrypoint python3 \
+            --platform "$DOCKER_PLATFORM" \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --volume "$RUNNER_TEMP:/output" \
+            "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
+            /workspace/scripts/ci/prepare-rpm-sources.py prepare \
+            0.0.1 "$GITHUB_SHA" /opt/rpm-dependencies /output/rpm-candidate
 
-      - name: Build RPM offline and test installed package
+      - name: Build RPMs offline and rehearse upgrade and rollback
         env:
           IMAGE_NAME: ${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
           DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
@@ -109,5 +118,6 @@ jobs:
             --platform "$DOCKER_PLATFORM" \
             --volume "$GITHUB_WORKSPACE:/workspace:ro" \
             --volume "$RUNNER_TEMP/rpm-inputs:/inputs:ro" \
+            --volume "$RUNNER_TEMP/rpm-candidate:/candidate:ro" \
             "pg-oauth-validator-rpm-test:$IMAGE_NAME" \
-            /workspace/scripts/ci/test-rpm-package.sh /inputs
+            /workspace/scripts/ci/test-rpm-package.sh /inputs /candidate

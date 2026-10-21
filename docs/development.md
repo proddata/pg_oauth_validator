@@ -30,8 +30,9 @@ Experimental Fedora and Enterprise Linux compatibility builds are documented
 in [`rpm-platforms.md`](rpm-platforms.md). They exercise strict builds, staged
 installation, and real OAuth connections against the installed module. They are
 not release artifacts or production-support claims. The separate offline RPM
-gate builds a complete SRPM and tests package installation, real OAuth, and
-removal. SELinux enforcement and upgrade/rollback testing remain separate
+gate builds complete SRPMs and tests package installation, real OAuth, removal,
+and an A -> B -> A upgrade/rollback rehearsal in one retained cluster. SELinux
+enforcement and compatibility rehearsals between actual releases remain separate
 requirements.
 
 ## Build and verify

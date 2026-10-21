@@ -48,10 +48,24 @@ dynamic linkage, file permissions, normal RPM installation, real OAuth
 authentication against the installed RPM library, RPM file verification, and
 removal. It must not overwrite that library with `make install` during testing.
 
+The optional two-package gate rehearses A -> B -> A in one retained PostgreSQL
+cluster. It stops the server cleanly before each package transaction, verifies
+new process startup and retained data, changes the test audience for B, and
+restores A's exact configuration and library digest on rollback. RPM's
+`--oldpackage` is used only for the explicit rollback; dependency, architecture,
+and conflict checks remain enabled. Rejection of an implicit downgrade is a
+negative test. Authentication, denial, rotation, outage/recovery, and redaction
+are checked in every phase over verified TLS.
+
+CI's two package versions use the same source commit. This proves the operational
+mechanism, not compatibility between releases. Release-specific rehearsals must
+use retained real artifacts and reviewed configuration migration, and remain
+required for release approval.
+
 This is not a Fedora/EPEL submission or a platform-support approval. Repository
 packages are not snapshot-pinned. Reproducible release builds, signing,
-vulnerability review, upgrade/rollback rehearsal, and SELinux-enforcing VM tests
-remain release requirements. Operators must restart PostgreSQL after replacing
+vulnerability review, release-specific upgrade/rollback rehearsal, and
+SELinux-enforcing VM tests remain release requirements. Operators must restart PostgreSQL after replacing
 or restoring its validator library; package transactions do not make an active
 backend safely reload a changed module.
 

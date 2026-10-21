@@ -3,8 +3,8 @@
 # Run as root only inside a disposable, --network=none RPM test container.
 set -eu
 
-test "$#" -eq 1 || {
-	echo "usage: $0 PREPARED_INPUT_DIR" >&2
+test "$#" -ge 1 && test "$#" -le 2 || {
+	echo "usage: $0 BASELINE_INPUT_DIR [CANDIDATE_INPUT_DIR]" >&2
 	exit 2
 }
 : "${PG_CONFIG_PATH:?PG_CONFIG_PATH is required}"
@@ -97,6 +97,12 @@ chmod 0755 "$work_dir"
 build_package "$inputs" "$work_dir/baseline"
 package=$(cat "$work_dir/baseline/package-path")
 package_name=postgresql18-pg_oauth_validator
+candidate_package=
+if test "$#" -eq 2; then
+	candidate_inputs=$(CDPATH= cd -- "$2" && pwd)
+	build_package "$candidate_inputs" "$work_dir/candidate"
+	candidate_package=$(cat "$work_dir/candidate/package-path")
+fi
 
 # Install with normal dependency/conflict checking; never use --nodeps.
 library="$($PG_CONFIG_PATH --pkglibdir)/pg_oauth_validator.so"
@@ -131,6 +137,13 @@ cp -a "$repo_root/." /source/
 make -C /source clean PG_CONFIG="$PG_CONFIG_PATH" >/dev/null
 make -C /source integrationcheck PG_CONFIG="$PG_CONFIG_PATH" \
 	VALIDATOR_LIBRARY="$library"
+rpm --verify "$package_name"
+if test -n "$candidate_package"; then
+	PG_CONFIG="$PG_CONFIG_PATH" VALIDATOR_LIBRARY="$library" \
+		OAUTH_TEST_CLIENT=/source/tests/integration/oauth_test_client \
+		PYTHONPYCACHEPREFIX=/source/.pycache \
+		python3 /source/tests/integration/rpm_upgrade.py "$package" "$candidate_package"
+fi
 rpm --verify "$package_name"
 rpm --erase "$package_name"
 test ! -e "$library"
