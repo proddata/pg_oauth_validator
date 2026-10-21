@@ -25,8 +25,9 @@ users:
       - $(cat "$work/key.pub")
 ssh_pwauth: false
 disable_root: true
+preserve_hostname: true
 EOF
-printf 'instance-id: pg-oauth-selinux\nlocal-hostname: pg-oauth-selinux\n' >"$work/meta-data"
+printf 'instance-id: pg-oauth-selinux\n' >"$work/meta-data"
 cloud-localds "$work/seed.img" "$work/user-data" "$work/meta-data"
 qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -nographic \
 	-drive "file=$work/guest.qcow2,if=virtio,format=qcow2" \
