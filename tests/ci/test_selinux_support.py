@@ -47,7 +47,8 @@ class LauncherTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             cluster = types.SimpleNamespace(root=root, log=root / "postgres.log",
-                                            port=54321, bindir=root, data=root / "data")
+                                            port=54321, bindir=root, data=root / "data",
+                                            logs=lambda: "")
             with mock.patch.object(selinux_support, "require_enforcing"), \
                     mock.patch.object(selinux_support, "label_port") as label, \
                     mock.patch.object(selinux_support, "run") as run:
