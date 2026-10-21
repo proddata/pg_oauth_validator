@@ -26,63 +26,77 @@ for interface in /sys/class/net/*; do
 		exit 1
 	}
 done
-(cd "$inputs" && sha256sum --check INPUTS.sha256)
-if rpmspec --parse --define 'fedora 42' --define 'rhel 9' \
-	"$inputs/SPECS/pg_oauth_validator.spec" >"$work_dir/unsupported.out" 2>&1; then
-	echo 'error: spec accepted an unsupported distribution' >&2
-	exit 1
-fi
-grep -q 'Only Fedora 43/44 and Enterprise Linux 10' "$work_dir/unsupported.out"
-mkdir -p "$work_dir/rpmbuild" "$work_dir/tmp"
-cp -R "$inputs/SOURCES" "$inputs/SPECS" "$work_dir/rpmbuild/"
-source_epoch=$(sed -n 's/^%global source_epoch \([0-9][0-9]*\)$/\1/p' \
-	"$work_dir/rpmbuild/SPECS/pg_oauth_validator.spec")
-test -n "$source_epoch"
-chown -R nobody "$work_dir"
+build_package() (
+	# A subshell keeps each build's paths and metadata independent.
+	trap - EXIT HUP INT TERM
+	inputs=$1
+	work_dir=$2
+	mkdir -p "$work_dir"
+	(cd "$inputs" && sha256sum --check INPUTS.sha256)
+	if rpmspec --parse --define 'fedora 42' --define 'rhel 9' \
+		"$inputs/SPECS/pg_oauth_validator.spec" >"$work_dir/unsupported.out" 2>&1; then
+		echo 'error: spec accepted an unsupported distribution' >&2
+		exit 1
+	fi
+	grep -q 'Only Fedora 43/44 and Enterprise Linux 10' "$work_dir/unsupported.out"
+	mkdir -p "$work_dir/rpmbuild" "$work_dir/tmp"
+	cp -R "$inputs/SOURCES" "$inputs/SPECS" "$work_dir/rpmbuild/"
+	source_epoch=$(sed -n 's/^%global source_epoch \([0-9][0-9]*\)$/\1/p' \
+		"$work_dir/rpmbuild/SPECS/pg_oauth_validator.spec")
+	test -n "$source_epoch"
+	chown -R nobody "$work_dir"
+	chmod 0755 "$work_dir"
+	runuser -u nobody -- env SOURCE_DATE_EPOCH="$source_epoch" \
+		rpmbuild -ba \
+		--define "_topdir $work_dir/rpmbuild" \
+		--define "_tmppath $work_dir/tmp" \
+		--define '_buildhost pg-oauth-rpm-builder.invalid' \
+		--define 'use_source_date_epoch_as_buildtime 1' \
+		--define 'clamp_mtime_to_source_date_epoch 1' \
+		"$work_dir/rpmbuild/SPECS/pg_oauth_validator.spec"
+
+	package_name=postgresql18-pg_oauth_validator
+	package=$(find "$work_dir/rpmbuild/RPMS" -type f -name "$package_name-[0-9]*.rpm")
+	test -n "$package" && test "$(printf '%s\n' "$package" | wc -l)" -eq 1
+	test "$(rpm -qp --qf '%{NAME}' "$package")" = "$package_name"
+	test "$(rpm -qp --qf '%{ARCH}' "$package")" = "$(rpm --eval '%{_arch}')"
+	test -z "$(rpm -qp --scripts "$package")"
+	requires=$work_dir/requires
+	rpm -qp --requires "$package" >"$requires"
+	case "$PG_CONFIG_PATH" in
+		/usr/bin/pg_server_config)
+			server=postgresql-server
+			grep -Fx 'postgresql-server(:MODULE_COMPAT_18)' "$requires"
+			;;
+		/usr/pgsql-18/bin/pg_config) server=postgresql18-server ;;
+		*) echo 'error: unexpected PostgreSQL selector' >&2; exit 1 ;;
+	esac
+	grep -Fx "$server$(rpm --eval '%{?_isa}') >= 18.6" "$requires"
+	grep -Fx "$server$(rpm --eval '%{?_isa}') < 19" "$requires"
+	rpm -qp --provides "$package" >"$work_dir/provides"
+	grep -Fx 'bundled(jansson) = 2.15.1' "$work_dir/provides"
+	grep -Fx 'bundled(libjwt) = 3.3.3' "$work_dir/provides"
+	if grep -E 'lib(jwt|jansson)' "$requires"; then
+		echo 'error: embedded dependencies became runtime requirements' >&2
+		exit 1
+	fi
+
+	# The SRPM must carry all three actual source archives, not only download URLs.
+	srpm=$(find "$work_dir/rpmbuild/SRPMS" -type f -name '*.src.rpm')
+	test -n "$srpm" && test "$(printf '%s\n' "$srpm" | wc -l)" -eq 1
+	mkdir "$work_dir/srpm"
+	rpm2cpio "$srpm" >"$work_dir/source.cpio"
+	(cd "$work_dir/srpm" && cpio --extract --quiet <"$work_dir/source.cpio")
+	(cd "$work_dir/srpm" && sha256sum --check SHA256SUMS)
+	cmp "$inputs/SPECS/pg_oauth_validator.spec" "$work_dir/srpm/pg_oauth_validator.spec"
+
+	printf '%s\n' "$package" >"$work_dir/package-path"
+)
+
 chmod 0755 "$work_dir"
-runuser -u nobody -- env SOURCE_DATE_EPOCH="$source_epoch" \
-	rpmbuild -ba \
-	--define "_topdir $work_dir/rpmbuild" \
-	--define "_tmppath $work_dir/tmp" \
-	--define '_buildhost pg-oauth-rpm-builder.invalid' \
-	--define 'use_source_date_epoch_as_buildtime 1' \
-	--define 'clamp_mtime_to_source_date_epoch 1' \
-	"$work_dir/rpmbuild/SPECS/pg_oauth_validator.spec"
-
+build_package "$inputs" "$work_dir/baseline"
+package=$(cat "$work_dir/baseline/package-path")
 package_name=postgresql18-pg_oauth_validator
-package=$(find "$work_dir/rpmbuild/RPMS" -type f -name "$package_name-[0-9]*.rpm")
-test -n "$package" && test "$(printf '%s\n' "$package" | wc -l)" -eq 1
-test "$(rpm -qp --qf '%{NAME}' "$package")" = "$package_name"
-test "$(rpm -qp --qf '%{ARCH}' "$package")" = "$(rpm --eval '%{_arch}')"
-test -z "$(rpm -qp --scripts "$package")"
-requires=$work_dir/requires
-rpm -qp --requires "$package" >"$requires"
-case "$PG_CONFIG_PATH" in
-	/usr/bin/pg_server_config)
-		server=postgresql-server
-		grep -Fx 'postgresql-server(:MODULE_COMPAT_18)' "$requires"
-		;;
-	/usr/pgsql-18/bin/pg_config) server=postgresql18-server ;;
-	*) echo 'error: unexpected PostgreSQL selector' >&2; exit 1 ;;
-esac
-grep -Fx "$server$(rpm --eval '%{?_isa}') >= 18.6" "$requires"
-grep -Fx "$server$(rpm --eval '%{?_isa}') < 19" "$requires"
-rpm -qp --provides "$package" >"$work_dir/provides"
-grep -Fx 'bundled(jansson) = 2.15.1' "$work_dir/provides"
-grep -Fx 'bundled(libjwt) = 3.3.3' "$work_dir/provides"
-if grep -E 'lib(jwt|jansson)' "$requires"; then
-	echo 'error: embedded dependencies became runtime requirements' >&2
-	exit 1
-fi
-
-# The SRPM must carry all three actual source archives, not only download URLs.
-srpm=$(find "$work_dir/rpmbuild/SRPMS" -type f -name '*.src.rpm')
-test -n "$srpm" && test "$(printf '%s\n' "$srpm" | wc -l)" -eq 1
-mkdir "$work_dir/srpm"
-rpm2cpio "$srpm" >"$work_dir/source.cpio"
-(cd "$work_dir/srpm" && cpio --extract --quiet <"$work_dir/source.cpio")
-(cd "$work_dir/srpm" && sha256sum --check SHA256SUMS)
-cmp "$inputs/SPECS/pg_oauth_validator.spec" "$work_dir/srpm/pg_oauth_validator.spec"
 
 # Install with normal dependency/conflict checking; never use --nodeps.
 library="$($PG_CONFIG_PATH --pkglibdir)/pg_oauth_validator.so"
