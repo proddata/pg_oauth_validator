@@ -35,7 +35,9 @@ Explicitly enable auditing in the disposable cloud guest. Temporarily disable
 `dontaudit` suppression to expose diagnostic denials and restore it on exit;
 this changes logging, not access permissions. Remove the cloud image's explicit
 `never,task` audit rule so newly created tasks can produce evidence. Check the
-lost-record counter; an empty audit log alone is not evidence of allowed access.
+lost-record counter and an explicit write/read marker. Select auditd's files
+with `ausearch --input-logs`; a non-interactive invocation otherwise reads stdin.
+An empty query result alone is not evidence of allowed access.
 
 Do not disable enforcement, make PostgreSQL permissive, or generate an allow
 module blindly from audit logs. Investigate actual AVC evidence before adding
@@ -87,3 +89,6 @@ PostgreSQL logs are not published as artifacts.
   describes the `never,task` rule and per-task audit suppression.
 - [SELinux CIL access-vector rules](https://github.com/SELinuxProject/selinux/blob/main/secilc/docs/cil_access_vector_rules.md)
   documents the explicit single-permission grant.
+
+- [ausearch input selection](https://github.com/linux-audit/audit-userspace/blob/master/docs/ausearch.8)
+  documents `--input-logs` for non-interactive log searches.

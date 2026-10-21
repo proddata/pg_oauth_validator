@@ -15,7 +15,8 @@ def require(condition, code):
 
 
 def audit_records():
-    result = run("ausearch", "-m", "AVC", "--raw", check=False)
+    # Non-interactive ausearch otherwise reads inherited stdin instead of logs.
+    result = run("ausearch", "--input-logs", "-m", "AVC", "--raw", check=False)
     require(result.returncode in (0, 1), "audit_unavailable")
     return set(result.stdout.splitlines())
 

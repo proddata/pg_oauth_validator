@@ -289,7 +289,7 @@ PostgreSQL is confined as `postgresql_t`.
 Review recent denials with:
 
 ```sh
-ausearch -m AVC,USER_AVC -ts recent
+ausearch --input-logs -m AVC,USER_AVC -ts recent
 ```
 
 If the distribution policy blocks required discovery or JWKS traffic, add the
