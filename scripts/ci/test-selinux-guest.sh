@@ -34,7 +34,9 @@ export CACHE_PROBE="$($PG_CONFIG_PATH --pkglibdir)/oauth_test_cache_probe.so"
 export OAUTH_TEST_SELINUX=1 PYTHONPYCACHEPREFIX=/source/.pycache
 # Keep policy evidence even when the suite fails. Never upload provider keys,
 # token files, raw PostgreSQL logs, or pytest locals.
+uname -r
+rpm -q selinux-policy selinux-policy-targeted policycoreutils postgresql-server
 trap 'getenforce; semanage permissive -l; ausearch -m AVC,USER_AVC -ts boot -i || true' EXIT
-python3 -m pytest -q -p no:cacheprovider tests/integration
+python3 -m pytest -q --maxfail=1 --capture=tee-sys -p no:cacheprovider tests/integration
 rpm --verify postgresql18-pg_oauth_validator
 test "$(getenforce)" = Enforcing

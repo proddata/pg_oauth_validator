@@ -52,8 +52,10 @@ class LauncherTest(unittest.TestCase):
                     mock.patch.object(selinux_support, "label_port") as label, \
                     mock.patch.object(selinux_support, "run") as run:
                 launcher = selinux_support.ConfinedPostgres(cluster)
-                run.side_effect = [None, None, subprocess.CalledProcessError(1, "systemd-run")]
-                with self.assertRaises(subprocess.CalledProcessError):
+                run.side_effect = [None, None,
+                                   subprocess.CalledProcessError(1, "systemd-run", stderr="failed"),
+                                   subprocess.CompletedProcess([], 0, "startup journal", "")]
+                with self.assertRaisesRegex(RuntimeError, "startup journal"):
                     launcher.start()
                 label.assert_called_once_with(54321, "postgresql_port_t")
                 run.side_effect = None

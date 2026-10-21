@@ -153,7 +153,9 @@ debug-package checks, verifies complete source archives in the SRPM, and install
 with normal dependency checking. It runs the full local OAuth suite against the
 RPM-installed module, verifies package file digests, and removes the package.
 The test container must have no active non-loopback interface. No package is
-published or retained by this disposable gate.
+published. By default no artifact is retained; `RPM_TEST_EXPORT_DIR` may name
+an existing directory in the disposable test environment to retain the exact
+tested baseline as `validator.rpm` for the VM confinement gate.
 
 During `rpmbuild`, both embedded libraries are rebuilt in a private prefix from
 the supplied archives; neither compilation nor dependency testing may reuse the
