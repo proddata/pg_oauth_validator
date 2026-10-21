@@ -331,7 +331,10 @@ remove their port overrides and systemd units. Installed binaries and modules
 retain distribution labels. Confined services send stderr to journald; the
 existing diagnostic/redaction assertions read only their specific unit's journal.
 The cache probe is separate test instrumentation.
-The guest prints AVC evidence on failure; it never uploads bearer-token files,
+The disposable guest explicitly enables kernel auditing and temporarily disables
+`dontaudit` suppression for diagnosis, restoring suppression on exit. This changes
+audit visibility without granting access or relaxing enforcement. The guest
+prints AVC evidence on failure; it never uploads bearer-token files,
 provider keys, or raw PostgreSQL logs as artifacts. This gate initially tests
 the unchanged distribution policy; successful container tests do not imply
 that this enforcing gate passes. Enterprise Linux and ARM64 VM coverage remain

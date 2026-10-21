@@ -9,6 +9,12 @@ cd /opt/pg-oauth-validator
 sh scripts/ci/install-rpm-dependencies.sh fedora44
 dnf install -y rpm-build cpio elfutils policycoreutils-python-utils audit iproute
 systemctl start auditd
+# Cloud images may boot with auditing disabled. Enable records explicitly in
+# this disposable guest; keep SELinux enforcing and reveal dontaudit denials.
+auditctl -e 1
+auditctl -s
+cat /proc/cmdline
+semodule -DB
 export PG_CONFIG_PATH=/usr/bin/pg_server_config
 export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig
 export LD_LIBRARY_PATH=/usr/local/lib
@@ -36,7 +42,7 @@ export OAUTH_TEST_SELINUX=1 PYTHONPYCACHEPREFIX=/source/.pycache
 # token files, raw PostgreSQL logs, or pytest locals.
 uname -r
 rpm -q selinux-policy selinux-policy-targeted policycoreutils postgresql-server
-trap 'getenforce; semanage permissive -l; ausearch -m AVC,USER_AVC -ts boot -i || true' EXIT
+trap 'getenforce; semanage permissive -l; ausearch -m AVC,USER_AVC -ts boot -i || true; semodule -B' EXIT
 python3 -m pytest -q --maxfail=1 --capture=tee-sys -p no:cacheprovider tests/integration
 rpm --verify postgresql18-pg_oauth_validator
 test "$(getenforce)" = Enforcing
