@@ -21,6 +21,23 @@ if grep -Fxq -- '-a never,task' /tmp/pg-oauth-audit-rules; then
 	auditctl -d never,task
 fi
 cat /proc/cmdline
+# Verify the whole producer/consumer path before spending time on a build.
+grep -E '^(write_logs|local_events|log_file|log_format)[[:space:]]*=' /etc/audit/auditd.conf || true
+auditctl -m pg_oauth_audit_probe
+audit_ready=false
+for attempt in $(seq 1 30); do
+	if ausearch -m USER --raw 2>/dev/null | grep -Fq pg_oauth_audit_probe; then
+		audit_ready=true
+		break
+	fi
+	sleep 0.1
+done
+if test "$audit_ready" != true; then
+	journalctl -u auditd --no-pager -n 40
+	ls -l /var/log/audit
+	echo 'error: audit write/read preflight failed' >&2
+	exit 1
+fi
 semodule -DB
 trap 'getenforce; semanage permissive -l; ausearch -m AVC,USER_AVC -i || true; journalctl -k --grep=avc: --no-pager -n 80 || true; auditctl -s; semodule -B' EXIT
 export PG_CONFIG_PATH=/usr/bin/pg_server_config

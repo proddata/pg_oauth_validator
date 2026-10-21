@@ -51,6 +51,13 @@ def main():
             descriptor = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
                 stream.write(token)
+            # Port-label transactions may rebuild policy. Establish diagnostic
+            # visibility after the last transaction, without adding permissions.
+            run("semodule", "-DB")
+            print(run("auditctl", "-l").stdout, flush=True)
+            print(run("sesearch", "--dontaudit", "-s", "postgresql_t",
+                      "-t", "http_port_t", "-c", "tcp_socket", "-p", "name_connect").stdout,
+                  flush=True)
             previous = audit_records()
             conninfo = (
                 f"host=localhost hostaddr=127.0.0.1 port={cluster.port} "
