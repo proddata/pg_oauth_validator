@@ -332,10 +332,52 @@ retain distribution labels. Confined services send stderr to journald; the
 existing diagnostic/redaction assertions read only their specific unit's journal.
 The cache probe is separate test instrumentation.
 The disposable guest explicitly enables kernel auditing and temporarily disables
-`dontaudit` suppression for diagnosis, restoring suppression on exit. This changes
+`dontaudit` suppression for diagnosis, restoring suppression on exit. It removes
+only the image's explicit `never,task` audit rule, which otherwise suppresses new
+tasks' audit processing even with auditing enabled. This changes
 audit visibility without granting access or relaxing enforcement. The guest
 prints AVC evidence on failure; it never uploads bearer-token files,
 provider keys, or raw PostgreSQL logs as artifacts. This gate initially tests
-the unchanged distribution policy; successful container tests do not imply
-that this enforcing gate passes. Enterprise Linux and ARM64 VM coverage remain
-separate work.
+the distribution policy without an added grant, requires a valid token to be
+denied with a fresh `name_connect` AVC to the provider's `http_port_t` port,
+then installs the optional policy below and runs the full suite. It removes the
+module and repeats the denial check in a fresh cluster, then verifies the RPM
+payload and that the kernel lost no audit records. Fresh clusters prevent cached
+keys from masking removal. Enterprise Linux and ARM64 VM coverage remain separate
+work.
+
+
+### Optional HTTP-port policy
+
+The shipped example `docs/selinux/pg_oauth_https.cil` adds exactly one permission:
+`postgresql_t` may initiate TCP connections to ports labeled `http_port_t`.
+Installation of the RPM does not load this policy. After reviewing it against
+the host's requirements, an administrator can load the RPM-owned copy:
+
+```sh
+semodule -i /usr/share/doc/postgresql18-pg_oauth_validator/docs/selinux/pg_oauth_https.cil
+```
+
+This permission applies to **every process in `postgresql_t`**, including other
+PostgreSQL instances and extensions, and **every port of that type**. The type
+also includes HTTP ports; it does not enforce TLS, a hostname, or an individual
+library. The validator continues to enforce its configured issuer host, HTTPS,
+certificate verification, and redirect/proxy prohibitions. Review other code
+running in this domain and any host egress controls. Inspect custom provider
+port labels before changing them; do not overwrite another service's mapping
+blindly. This example does not grant DNS, general filesystem, arbitrary-port,
+or unconfined-domain access.
+
+To remove the added permission:
+
+```sh
+semodule -r pg_oauth_https
+```
+
+Removal prevents the additional network access; it does not revoke keys already
+in the validator's cache. Follow the documented cache/outage policy, or restart
+the server when immediate cache invalidation is required. An absent, rejected,
+or removed module must leave a fresh validator unable to retrieve keys; the VM
+regression checks this denial and secret redaction before installation and after
+removal. Kernel/audit visibility changes in the disposable test VM are diagnostic
+steps, not operator prerequisites for the module.

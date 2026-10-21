@@ -7,15 +7,22 @@ test "$(getenforce)" = Enforcing
 test "$ID" = fedora && test "$VERSION_ID" = 44
 cd /opt/pg-oauth-validator
 sh scripts/ci/install-rpm-dependencies.sh fedora44
-dnf install -y rpm-build cpio elfutils policycoreutils-python-utils audit iproute strace setools-console
+dnf install -y rpm-build cpio elfutils policycoreutils-python-utils audit iproute setools-console
 systemctl start auditd
 # Cloud images may boot with auditing disabled. Enable records explicitly in
 # this disposable guest; keep SELinux enforcing and reveal dontaudit denials.
 auditctl -e 1
 auditctl -s
-auditctl -l
+auditctl -l >/tmp/pg-oauth-audit-rules
+cat /tmp/pg-oauth-audit-rules
+# auditctl(8), DISABLED BY DEFAULT: this rule suppresses every new task's
+# audit processing even when the global enabled flag is 1.
+if grep -Fxq -- '-a never,task' /tmp/pg-oauth-audit-rules; then
+	auditctl -d never,task
+fi
 cat /proc/cmdline
 semodule -DB
+trap 'getenforce; semanage permissive -l; ausearch -m AVC,USER_AVC -i || true; journalctl -k --grep=avc: --no-pager -n 80 || true; auditctl -s; semodule -B' EXIT
 export PG_CONFIG_PATH=/usr/bin/pg_server_config
 export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig
 export LD_LIBRARY_PATH=/usr/local/lib
@@ -43,9 +50,19 @@ export OAUTH_TEST_SELINUX=1 PYTHONPYCACHEPREFIX=/source/.pycache
 # token files, raw PostgreSQL logs, or pytest locals.
 uname -r
 rpm -q selinux-policy selinux-policy-targeted policycoreutils postgresql-server
-trap 'getenforce; semanage permissive -l; ausearch -m AVC,USER_AVC -i || true; journalctl -k --grep=avc: --no-pager -n 80 || true; auditctl -s; semodule -B' EXIT
 sesearch -A -s postgresql_t -t http_port_t -c tcp_socket -p name_connect
-export OAUTH_TEST_NETWORK_TRACE=1
+# A new valid token must be denied with a fresh, exact HTTPS AVC before
+# permission is added. Never infer a policy grant from a generic HTTP error.
+python3 tests/integration/selinux_denial.py
+policy=/usr/share/doc/postgresql18-pg_oauth_validator/docs/selinux/pg_oauth_https.cil
+cmp docs/selinux/pg_oauth_https.cil "$policy"
+semodule -i "$policy"
 python3 -m pytest -q --maxfail=1 --capture=tee-sys -p no:cacheprovider tests/integration
+# A fresh cluster prevents cached keys from masking the effect of removal.
+semodule -r pg_oauth_https
+python3 tests/integration/selinux_denial.py
 rpm --verify postgresql18-pg_oauth_validator
+auditctl -s >/tmp/pg-oauth-audit-status
+cat /tmp/pg-oauth-audit-status
+grep -Fx 'lost 0' /tmp/pg-oauth-audit-status
 test "$(getenforce)" = Enforcing

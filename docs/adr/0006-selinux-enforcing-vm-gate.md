@@ -33,13 +33,34 @@ systemd additional file access merely to open a fixture's private log path.
 
 Explicitly enable auditing in the disposable cloud guest. Temporarily disable
 `dontaudit` suppression to expose diagnostic denials and restore it on exit;
-this changes logging, not access permissions.
+this changes logging, not access permissions. Remove the cloud image's explicit
+`never,task` audit rule so newly created tasks can produce evidence. Check the
+lost-record counter; an empty audit log alone is not evidence of allowed access.
 
 Do not disable enforcement, make PostgreSQL permissive, or generate an allow
 module blindly from audit logs. Investigate actual AVC evidence before adding
 any narrowly scoped, separately reviewed network permission. An absent required
 permission must leave authentication denied; it cannot justify a validator
-fallback. No operator policy is installed by the RPM or its scriptlets.
+fallback. No operator policy is loaded by the RPM or its scriptlets.
+
+Provide an optional CIL document with one permission: `postgresql_t` may
+`name_connect` to TCP ports labeled `http_port_t`. The kernel socket trace in
+[diagnostic run 39639693821](https://github.com/proddata/pg_oauth_validator/actions/runs/39639693821)
+showed `EACCES` for IPv4 and IPv6 provider connections while the postmaster was
+confined; its audit-rule listing exposed the suppressing `never,task` rule.
+The permanent gate must produce a fresh matching enforcing AVC before installing
+the module, run the complete suite with it, then remove it and prove denial in a
+fresh cluster. An unexpected failure stage or missing evidence stops the gate
+before any grant is loaded.
+
+This grant affects the entire PostgreSQL domain and every port of that type,
+including HTTP ports. SELinux does not distinguish this library or enforce its
+trusted hostname/TLS policy. Keep those application checks and require explicit
+operator review of other extensions, instances, and egress controls. Do not
+enable broad networking booleans or grant unrelated permissions. The shipped
+text is RPM-owned documentation; loading it is a separate administrator action.
+Removal affects future network access, while cached-key behavior remains governed
+by ADR 0002. The absence/removal tests use fresh clusters to avoid masking denial.
 
 ## Limits
 
@@ -61,3 +82,8 @@ PostgreSQL logs are not published as artifacts.
   defines the distribution domain and its existing resource permissions.
 - [ADR 0005](0005-experimental-rpm-packaging.md) describes the RPM artifact and
   offline build boundary.
+
+- [auditctl: disabled by default](https://github.com/linux-audit/audit-userspace/blob/master/docs/auditctl.8)
+  describes the `never,task` rule and per-task audit suppression.
+- [SELinux CIL access-vector rules](https://github.com/SELinuxProject/selinux/blob/main/secilc/docs/cil_access_vector_rules.md)
+  documents the explicit single-permission grant.

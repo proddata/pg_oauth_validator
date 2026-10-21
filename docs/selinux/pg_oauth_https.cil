@@ -1,0 +1,5 @@
+; Optional operator policy. Never loaded by the RPM or its scriptlets.
+; Applies to every postgresql_t process and every TCP port labeled http_port_t.
+; Host, TLS, redirects, and proxies remain enforced by the validator.
+; See docs/adr/0006-selinux-enforcing-vm-gate.md for evidence and scope.
+(allow postgresql_t http_port_t (tcp_socket (name_connect)))
