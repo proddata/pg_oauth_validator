@@ -18,7 +18,10 @@ LIBJWT_SOURCE_ARCHIVE=/opt/rpm-dependencies/libjwt.tar.gz sh scripts/ci/install-
 python3 scripts/ci/prepare-rpm-sources.py prepare 0.0.0 "$(git -c safe.directory=/opt/pg-oauth-validator rev-parse HEAD)" /opt/rpm-dependencies /opt/rpm-inputs
 mkdir /source /opt/tested-rpm
 export RPM_TEST_EXPORT_DIR=/opt/tested-rpm
-unshare --net /bin/sh -c 'ip link set lo up; exec sh scripts/ci/test-rpm-package.sh /opt/rpm-inputs'
+# sysfs is tied to its mount's network namespace. Remount it privately so
+# the existing offline gate observes this namespace, not the VM's NIC.
+unshare --mount --net --fork --propagation private /bin/sh -c \
+	'mount -t sysfs sysfs /sys; ip link set lo up; exec sh scripts/ci/test-rpm-package.sh /opt/rpm-inputs'
 rpm --install /opt/tested-rpm/validator.rpm
 library="$($PG_CONFIG_PATH --pkglibdir)/pg_oauth_validator.so"
 restorecon -v "$library"
