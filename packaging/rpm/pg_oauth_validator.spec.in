@@ -1,0 +1,115 @@
+# Experimental PostgreSQL 18 packaging. Generated from an explicit Git commit.
+%global source_revision @SOURCE_REVISION@
+%global source_epoch @SOURCE_DATE_EPOCH@
+
+%if 0%{?fedora} == 43 || 0%{?fedora} == 44
+%global pg_config /usr/bin/pg_server_config
+%global pg_server postgresql-server
+%global pg_devel postgresql-server-devel
+%elif 0%{?rhel} == 10
+%global pg_config /usr/pgsql-18/bin/pg_config
+%global pg_server postgresql18-server
+%global pg_devel postgresql18-devel
+%else
+%{error:Only Fedora 43/44 and Enterprise Linux 10 are packaging targets}
+%endif
+%global pg_pkglibdir %(%{pg_config} --pkglibdir)
+
+Name:           postgresql18-pg_oauth_validator
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Strict OAuth JWT access-token validator for PostgreSQL 18
+License:        PostgreSQL AND MPL-2.0 AND MIT
+URL:            https://github.com/proddata/pg_oauth_validator
+Source0:        pg_oauth_validator-%{version}.tar.gz
+Source1:        jansson.tar.gz
+Source2:        libjwt.tar.gz
+Source3:        SHA256SUMS
+
+ExclusiveArch:  x86_64 aarch64
+BuildRequires:  gcc make cmake binutils diffutils findutils gzip tar
+BuildRequires:  clang llvm redhat-rpm-config
+BuildRequires:  pkgconf-pkg-config openssl-devel libcurl-devel krb5-devel python3
+BuildRequires:  %{pg_devel} >= 18.6
+BuildRequires:  %{pg_devel} < 19
+Requires:       %{pg_server}%{?_isa} >= 18.6
+Requires:       %{pg_server}%{?_isa} < 19
+%if 0%{?fedora}
+# The ABI capability also excludes a future 19~beta version, which RPM sorts
+# below 19 and which a numeric version range alone would otherwise admit.
+Requires:       postgresql-server(:MODULE_COMPAT_18)
+%endif
+Requires:       libcurl%{?_isa} >= 7.87.0
+Provides:       bundled(jansson) = 2.15.1
+Provides:       bundled(libjwt) = 3.3.3
+
+%description
+Validates signed OAuth JWT access tokens for an explicitly trusted issuer and
+PostgreSQL resource. Installation does not enable OAuth, edit configuration,
+or restart PostgreSQL. RPM-family support remains experimental.
+
+%prep
+# RPM Source entries are included in the SRPM (RPM spec manual, Source tag).
+cd %{_sourcedir}
+sha256sum --check SHA256SUMS
+%setup -q -n pg_oauth_validator-%{version}
+case "$(%{pg_config} --version)" in
+    'PostgreSQL 18.'*) ;;
+    *) echo 'error: PostgreSQL 18 is required' >&2; exit 1 ;;
+esac
+
+%build
+export SOURCE_DATE_EPOCH=%{source_epoch}
+export PKG_CONFIG_PATH="$PWD/deps/lib/pkgconfig:$PWD/deps/lib64/pkgconfig"
+export CMAKE_PREFIX_PATH="$PWD/deps"
+# Never resolve the embedded libraries from the image's /usr/local prefix.
+export PKG_CONFIG_LIBDIR=%{_libdir}/pkgconfig:%{_datadir}/pkgconfig
+export JANSSON_SOURCE_ARCHIVE=%{SOURCE1}
+export LIBJWT_SOURCE_ARCHIVE=%{SOURCE2}
+export JANSSON_INSTALL_PREFIX="$PWD/deps"
+export LIBJWT_INSTALL_PREFIX="$PWD/deps"
+# Keep dependency diagnostics outside the project's fatal-warning LTO link.
+# PGXS still uses the distribution's LTO settings for the module's own code.
+export CFLAGS="%{optflags} -fno-lto -ffile-prefix-map=$PWD=/usr/src/pg_oauth_validator"
+sh scripts/ci/install-jansson.sh
+sh scripts/ci/install-libjwt.sh
+test "$(pkg-config --modversion jansson)" = 2.15.1
+test "$(pkg-config --modversion libjwt)" = 3.3.3
+test "$(pkg-config --variable=prefix jansson)" = "$PWD/deps"
+test "$(pkg-config --variable=prefix libjwt)" = "$PWD/deps"
+# The module uses system curl/OpenSSL, so PGDG's private libpq RPATH is not
+# needed. Disable it through PGXS rather than bypass RPM's RPATH checks.
+make PG_CONFIG=%{pg_config} EXPECTED_PG_MAJOR=18 enable_rpath=no all
+mkdir THIRD-PARTY-LICENSES
+cp deps/share/doc/jansson/LICENSE THIRD-PARTY-LICENSES/JANSSON
+cp deps/share/doc/libjwt/LICENSE THIRD-PARTY-LICENSES/LIBJWT-MPL-2.0
+{
+    echo 'format-version: 1'
+    echo 'source-revision: %{source_revision}'
+    echo 'release-version: %{version}'
+    echo 'source-date-epoch: %{source_epoch}'
+    echo "postgresql-version: $(%{pg_config} --version)"
+    echo "compiler: $(gcc --version | head -n 1)"
+    echo 'source-sha256:'
+    cat %{SOURCE3}
+    echo 'rpm-build-packages:'
+    rpm -qa --qf '  %%{NAME} %%{VERSION}-%%{RELEASE}.%%{ARCH}\n' | LC_ALL=C sort
+} > BUILD-SOURCE
+
+%install
+export PKG_CONFIG_PATH="$PWD/deps/lib/pkgconfig:$PWD/deps/lib64/pkgconfig"
+export PKG_CONFIG_LIBDIR=%{_libdir}/pkgconfig:%{_datadir}/pkgconfig
+# Own documentation in the package directory, not PGXS's shared contrib path.
+make PG_CONFIG=%{pg_config} EXPECTED_PG_MAJOR=18 enable_rpath=no install DOCS= DESTDIR=%{buildroot}
+find %{buildroot}%{pg_pkglibdir} -type f | LC_ALL=C sort | \
+    sed 's|^%{buildroot}||' > module-files
+
+%check
+export PKG_CONFIG_PATH="$PWD/deps/lib/pkgconfig:$PWD/deps/lib64/pkgconfig"
+export PKG_CONFIG_LIBDIR=%{_libdir}/pkgconfig:%{_datadir}/pkgconfig
+export LD_LIBRARY_PATH="$PWD/deps/lib:$PWD/deps/lib64"
+make PG_CONFIG=%{pg_config} EXPECTED_PG_MAJOR=18 enable_rpath=no verify-dev packagecheck
+
+%files -f module-files
+%license LICENSE THIRD-PARTY-LICENSES
+%doc README.md FEATURES.md PROVIDER-COMPATIBILITY.md THIRD-PARTY-NOTICES.md docs BUILD-SOURCE

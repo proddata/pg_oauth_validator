@@ -11,8 +11,11 @@ COPY scripts/ci/install-rpm-dependencies.sh ./scripts/ci/install-rpm-dependencie
 RUN ./scripts/ci/install-rpm-dependencies.sh "$RPM_PLATFORM" \
     && dnf clean all
 COPY scripts/ci/install-jansson.sh scripts/ci/install-libjwt.sh ./scripts/ci/
-RUN ./scripts/ci/install-jansson.sh \
-    && ./scripts/ci/install-libjwt.sh \
+COPY scripts/ci/prepare-rpm-sources.py ./scripts/ci/prepare-rpm-sources.py
+RUN python3 scripts/ci/prepare-rpm-sources.py fetch /opt/rpm-dependencies \
+    && JANSSON_SOURCE_ARCHIVE=/opt/rpm-dependencies/jansson.tar.gz ./scripts/ci/install-jansson.sh \
+    && LIBJWT_SOURCE_ARCHIVE=/opt/rpm-dependencies/libjwt.tar.gz ./scripts/ci/install-libjwt.sh \
+    && dnf install --assumeyes rpm-build cpio elfutils \
     && dnf clean all
 COPY tools/dev/run-tests.sh ./tools/dev/run-tests.sh
 

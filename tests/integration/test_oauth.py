@@ -40,6 +40,9 @@ def test_real_oauth_connection_fails_closed(integration_environment, policy):
 
     try:
         cluster.start()
+        assert psql(cluster, "SHOW unix_socket_directories").stdout.strip() == str(cluster.root)
+        assert psql(cluster, "SHOW logging_collector").stdout.strip() == "off"
+        assert psql(cluster, "SHOW log_destination").stdout.strip() == "stderr"
         result = attempt_oauth(cluster, client)
         logs = cluster.logs()
 

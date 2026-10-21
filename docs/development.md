@@ -27,8 +27,12 @@ preview while it remains a prerelease. The build rejects headers from other
 major versions.
 
 Experimental Fedora and Enterprise Linux compatibility builds are documented
-in [`rpm-platforms.md`](rpm-platforms.md). They are build and staged-install
-signals only; they are not release artifacts or production-support claims.
+in [`rpm-platforms.md`](rpm-platforms.md). They exercise strict builds, staged
+installation, and real OAuth connections against the installed module. They are
+not release artifacts or production-support claims. The separate offline RPM
+gate builds a complete SRPM and tests package installation, real OAuth, and
+removal. SELinux enforcement and upgrade/rollback testing remain separate
+requirements.
 
 ## Build and verify
 
