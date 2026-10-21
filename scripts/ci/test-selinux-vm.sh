@@ -46,7 +46,7 @@ for attempt in $(seq 1 90); do
 	sleep 2
 done
 if test "$ready" != true; then cat "$work/console.log"; exit 1; fi
-ssh_guest 'sudo cloud-init status --wait >/dev/null && sudo mkdir /opt/pg-oauth-validator && sudo chown ci /opt/pg-oauth-validator'
+ssh_guest 'sudo cloud-init status --wait --long && sudo mkdir /opt/pg-oauth-validator && sudo chown ci /opt/pg-oauth-validator'
 # Checkout disables persisted credentials. Include Git metadata for the existing
 # exact-commit source preparation; omit local build outputs.
 git archive --format=tar HEAD >"$work/source.tar"
