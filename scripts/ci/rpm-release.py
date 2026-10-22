@@ -147,7 +147,11 @@ def compare_evidence(first, second, baseline):
     for root in (first, second):
         verify(root / "candidate")
         receipt = read_object(root / "rehearsal.json", 65536)
-        require(isinstance(receipt, dict) and all(receipt.get(k) == v for k, v in expected.items()),
+        require(isinstance(receipt, dict) and type(receipt.get("format_version")) is int and
+                set(receipt) == set(expected) | {
+                    "candidate_rpm_sha256", "candidate_bundle_manifest_sha256",
+                    "restored_library_sha256", "restored_configuration_sha256",
+                } and all(receipt.get(k) == v for k, v in expected.items()),
                 "missing or inconsistent lifecycle evidence")
         require(receipt.get("candidate_rpm_sha256") ==
                 hashlib.sha256(package(root / "candidate").read_bytes()).hexdigest() and

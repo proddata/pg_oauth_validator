@@ -172,6 +172,10 @@ class ReleaseTest(unittest.TestCase):
             (second / "rehearsal.json").write_text(json.dumps(corrupt))
             with self.subTest(key=key), self.assertRaises(ValueError):
                 release.compare_evidence(first, second, baseline)
+        for corrupt in ({**receipt, "format_version": True}, {**receipt, "unexpected": "field"}):
+            (second / "rehearsal.json").write_text(json.dumps(corrupt))
+            with self.assertRaises(ValueError):
+                release.compare_evidence(first, second, baseline)
         (second / "rehearsal.json").write_text(json.dumps(receipt))
         (second / "SOURCE-REVISION").write_text("d" * 40)
         with self.assertRaises(ValueError):
