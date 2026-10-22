@@ -856,16 +856,30 @@ def test_fast_shutdown_interrupts_provider_fetch(integration_environment):
                     assert time.monotonic() < deadline, "metadata fetch did not begin"
                     time.sleep(0.01)
                 started = time.monotonic()
-                stopped = subprocess.run(
+                stopping = subprocess.Popen(
                     ["runuser", "-u", "postgres", "--",
                      str(cluster.bindir / "pg_ctl"), "-D", str(cluster.data),
                      "-m", "fast", "-w", "stop"],
-                    capture_output=True, text=True, timeout=4,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                 )
-                elapsed = time.monotonic() - started
-                assert stopped.returncode == 0, stopped.stderr
-                assert elapsed < 2.5, "shutdown waited for the provider response"
-                assert connection.result(timeout=4).returncode != 0
+                try:
+                    # Measure the fetching backend's exit, not the subsequent
+                    # shutdown checkpoint/fsync. Preserve both deadlines: the
+                    # authentication attempt must end within 2.5s and pg_ctl
+                    # must finish within 4s, before the delayed response.
+                    denied = connection.result(timeout=2.5)
+                    assert time.monotonic() - started < 2.5, "shutdown waited for the provider response"
+                    assert denied.returncode != 0
+                finally:
+                    try:
+                        _stdout, stderr = stopping.communicate(
+                            timeout=max(0.001, 4 - (time.monotonic() - started)),
+                        )
+                    except subprocess.TimeoutExpired:
+                        stopping.kill()
+                        stopping.communicate()
+                        raise
+                assert stopping.returncode == 0, stderr
             assert token not in cluster.logs()
         finally:
             cluster.stop()
