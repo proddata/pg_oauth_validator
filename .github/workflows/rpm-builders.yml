@@ -98,6 +98,17 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      - name: Retain small dependency review records
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpm-builder-review-${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+          path: |
+            ${{ runner.temp }}/frozen-builder/payload/packages.tsv
+            ${{ runner.temp }}/frozen-builder/payload/tools.txt
+            ${{ runner.temp }}/frozen-builder/payload/image.json
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Bind the lock to immutable artifact and workflow IDs
         env:
           ARTIFACT_ID: ${{ steps.archive.outputs.artifact-id }}
