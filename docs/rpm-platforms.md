@@ -279,6 +279,12 @@ input, or build-package inventory blocks artifact upload.
 The isolated build root is `/var/tmp/pg-oauth-rpm-build`, created exclusively
 and removed on exit; a pre-existing path fails. Its fixed location is a build
 input because RPM embeds expanded build paths in SRPM headers.
+The spec also sets `JANSSON_BUILD_ROOT` and `LIBJWT_BUILD_ROOT` under its build
+tree. These optional installer settings require new absolute paths, created
+exclusively and removed on exit. Normal developer installs retain random
+temporary directories. Fixed dependency paths keep Annobin's source-path notes
+stable without suppressing hardening annotations or changing cryptographic
+build options; GCC's prefix mapping alone does not normalize those notes.
 
 Successful runs retain both unsigned bundles for 14 days, the local build-image
 inspection record, full source revision, installed package/tool versions, and

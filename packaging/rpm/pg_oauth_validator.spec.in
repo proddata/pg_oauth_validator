@@ -68,6 +68,11 @@ export JANSSON_SOURCE_ARCHIVE=%{SOURCE1}
 export LIBJWT_SOURCE_ARCHIVE=%{SOURCE2}
 export JANSSON_INSTALL_PREFIX="$PWD/deps"
 export LIBJWT_INSTALL_PREFIX="$PWD/deps"
+# Annobin records source paths independently of GCC's file-prefix mapping.
+# Keep its hardening notes intact by using exclusive, fixed dependency roots.
+# https://sourceware.org/annobin/annobin.html/Plugins.html
+export JANSSON_BUILD_ROOT="$PWD/jansson-build"
+export LIBJWT_BUILD_ROOT="$PWD/libjwt-build"
 # Keep dependency diagnostics outside the project's fatal-warning LTO link.
 # PGXS still uses the distribution's LTO settings for the module's own code.
 export CFLAGS="%{optflags} -fno-lto -ffile-prefix-map=$PWD=/usr/src/pg_oauth_validator"

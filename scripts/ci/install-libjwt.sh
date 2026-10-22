@@ -7,7 +7,14 @@ LIBJWT_SHA256=47e3d5d00fd60141dbacbcb9a0c2e1b277740364ac1d15b50728dccb7afdf23c
 LIBJWT_URL="https://codeload.github.com/benmcollins/libjwt/tar.gz/${LIBJWT_COMMIT}"
 INSTALL_PREFIX=${LIBJWT_INSTALL_PREFIX:-/usr/local}
 
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/pg-oauth-libjwt.XXXXXX")
+if test -n "${LIBJWT_BUILD_ROOT:-}"; then
+	work_dir=$LIBJWT_BUILD_ROOT
+	case "$work_dir" in /*) ;; *) echo 'error: LIBJWT_BUILD_ROOT must be absolute' >&2; exit 1 ;; esac
+	# Exclusive creation prevents reuse/deletion of an existing path or symlink.
+	mkdir -m 0755 "$work_dir"
+else
+	work_dir=$(mktemp -d "${TMPDIR:-/tmp}/pg-oauth-libjwt.XXXXXX")
+fi
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
 archive="$work_dir/libjwt.tar.gz"

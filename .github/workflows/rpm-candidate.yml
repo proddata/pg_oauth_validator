@@ -7,6 +7,9 @@ on:
       - 'scripts/ci/*rpm*'
       - 'packaging/rpm/**'
       - 'tests/ci/test_rpm_candidates.py'
+      - 'scripts/ci/install-jansson.sh'
+      - 'scripts/ci/install-libjwt.sh'
+      - 'tests/ci/test_dependency_build_roots.py'
   workflow_dispatch:
     inputs:
       version:
@@ -70,6 +73,7 @@ jobs:
         run: |
           python3 -c 'import os,re; assert re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", os.environ["CANDIDATE_VERSION"]), "MAJOR.MINOR.PATCH required"'
           python3 tests/ci/test_rpm_candidates.py
+          python3 tests/ci/test_dependency_build_roots.py
 
       - name: Build and record the shared build image
         env:
