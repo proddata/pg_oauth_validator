@@ -26,9 +26,20 @@ jobs:
       - name: Test confinement preflight
         run: python3 tests/ci/test_selinux_support.py
       - name: Install VM tooling
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
+          # The Azure mirror stalled pre-test setup. Keep Ubuntu's signed archive
+          # and use its primary HTTPS endpoint for this disposable test host.
+          for apt_source in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            test -f "$apt_source" || continue
+            sudo sed -i -E 's|https?://azure[.]archive[.]ubuntu[.]com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+          done
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 --error-on=any update
+          # This guest boots local qcow2 disks with SeaBIOS and -nographic.
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=2 \
+            -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+            install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils seabios
           sudo chmod a+rw /dev/kvm
       - name: Build and test RPM in enforcing VM
         run: sh scripts/ci/test-selinux-vm.sh
