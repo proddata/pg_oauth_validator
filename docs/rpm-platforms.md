@@ -276,6 +276,9 @@ inputs in two fresh, offline containers from that image. Both executions run
 the full existing RPM build, installed-path OAuth, payload verification, and
 removal gate. Any unequal RPM (including debug packages), SRPM, source/spec
 input, or build-package inventory blocks artifact upload.
+The isolated build root is `/var/tmp/pg-oauth-rpm-build`, created exclusively
+and removed on exit; a pre-existing path fails. Its fixed location is a build
+input because RPM embeds expanded build paths in SRPM headers.
 
 Successful runs retain both unsigned bundles for 14 days, the local build-image
 inspection record, full source revision, installed package/tool versions, and

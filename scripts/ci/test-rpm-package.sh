@@ -11,7 +11,11 @@ test "$#" -ge 1 && test "$#" -le 2 || {
 test "$(id -u)" -eq 0
 inputs=$(CDPATH= cd -- "$1" && pwd)
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-work_dir=$(mktemp -d)
+# RPM embeds the expanded spec (including build paths) in the SRPM header.
+# A fixed path is a recorded build input inside each disposable container/VM.
+# Atomic mkdir rejects a pre-existing path, including links; never reuse it.
+work_dir=/var/tmp/pg-oauth-rpm-build
+mkdir -m 0755 "$work_dir"
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
 # The container network namespace enforces offline building. Check it here so
