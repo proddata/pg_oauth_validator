@@ -1,0 +1,142 @@
+name: Freeze RPM builders
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, reopened]
+    paths:
+      - '.github/workflows/rpm-builders.yml'
+      - 'scripts/ci/rpm-builder.py'
+      - 'tests/ci/test_rpm_builder.py'
+      - 'tools/rpm/Containerfile'
+      - 'scripts/ci/install-rpm-dependencies.sh'
+      - 'scripts/ci/install-jansson.sh'
+      - 'scripts/ci/install-libjwt.sh'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rpm-builders-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Freeze / ${{ matrix.distribution.image_name }} / ${{ matrix.architecture.image_suffix }}
+    runs-on: ${{ matrix.architecture.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        distribution:
+          - name: Fedora 43
+            image_name: fedora43
+            base_image: fedora:43@sha256:a651ddf48ea28a06ed4e1e6519f51c9f47e7a5a138722ade87369b8fbb7e5b42
+            rpm_platform: fedora43
+            pg_config: /usr/bin/pg_server_config
+          - name: Fedora 44
+            image_name: fedora44
+            base_image: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+            rpm_platform: fedora44
+            pg_config: /usr/bin/pg_server_config
+          - name: Rocky Linux 10 / PGDG
+            image_name: rocky10
+            base_image: rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
+            rpm_platform: el10
+            pg_config: /usr/pgsql-18/bin/pg_config
+        architecture:
+          - name_suffix: ''
+            runner: ubuntu-24.04
+            platform: linux/amd64
+            host_arch: x86_64
+            image_suffix: amd64
+          - name_suffix: ' / arm64'
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            host_arch: aarch64
+            image_suffix: arm64
+
+
+    steps:
+      - name: Check out capture source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Test lock validation
+        run: python3 tests/ci/test_rpm_builder.py
+
+      - name: Build capture image
+        env:
+          BASE_IMAGE: ${{ matrix.distribution.base_image }}
+          RPM_PLATFORM: ${{ matrix.distribution.rpm_platform }}
+          PG_CONFIG_PATH: ${{ matrix.distribution.pg_config }}
+          DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
+          EXPECTED_HOST_ARCH: ${{ matrix.architecture.host_arch }}
+        run: |
+          test "$(uname -m)" = "$EXPECTED_HOST_ARCH"
+          docker build --platform "$DOCKER_PLATFORM" --file tools/rpm/Containerfile \
+            --build-arg BASE_IMAGE="$BASE_IMAGE" --build-arg RPM_PLATFORM="$RPM_PLATFORM" \
+            --build-arg PG_CONFIG_PATH="$PG_CONFIG_PATH" \
+            --build-arg BUILD_SOURCE_REVISION="$GITHUB_SHA" --tag frozen-rpm-builder .
+
+      - name: Capture all layers, exact packages, licenses and tool versions
+        env:
+          BASE_IMAGE: ${{ matrix.distribution.base_image }}
+          TARGET: ${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+        run: |
+          python3 scripts/ci/rpm-builder.py capture frozen-rpm-builder "$TARGET" \
+            "$BASE_IMAGE" "$RUNNER_TEMP/frozen-builder"
+
+      - name: Retain complete immutable builder archive
+        id: archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpm-builder-${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+          path: ${{ runner.temp }}/frozen-builder/payload
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Bind the lock to immutable artifact and workflow IDs
+        env:
+          ARTIFACT_ID: ${{ steps.archive.outputs.artifact-id }}
+        run: |
+          python3 scripts/ci/rpm-builder.py register "$RUNNER_TEMP/frozen-builder" \
+            "$ARTIFACT_ID" "$GITHUB_RUN_ID"
+
+      - name: Retain reviewable builder lock
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpm-builder-lock-${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+          path: ${{ runner.temp }}/frozen-builder/builder-lock.json
+          if-no-files-found: error
+          retention-days: 90
+
+  lock:
+    name: Complete six-target builder lock
+    needs: capture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out lock validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Download only the six lock records
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: rpm-builder-lock-*
+          path: ${{ runner.temp }}/builder-locks
+      - name: Require complete, distinct, valid builder identities
+        run: |
+          python3 scripts/ci/rpm-builder.py collect "$RUNNER_TEMP/builder-locks" \
+            "$RUNNER_TEMP/rpm-builders.lock.json"
+          python3 scripts/ci/rpm-builder.py matrix "$RUNNER_TEMP/rpm-builders.lock.json"
+      - name: Retain combined lock for review and commit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpm-builders-lock
+          path: ${{ runner.temp }}/rpm-builders.lock.json
+          if-no-files-found: error
+          retention-days: 90
