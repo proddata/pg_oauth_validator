@@ -312,14 +312,14 @@ tests were not run locally.
 ## Required work before support
 
 The `RPM candidate rehearsal` workflow accepts an explicit `MAJOR.MINOR.PATCH`
-version on manual dispatch and runs all six distribution/architecture cells.
-Pull requests changing its workflow, RPM tooling/spec, or comparator tests also
-run it with disposable version `0.0.0`.
-It builds one image per cell, then builds and tests the same immutable source
-inputs in two fresh, offline containers from that image. Both executions run
-the full existing RPM build, installed-path OAuth, payload verification, and
-removal gate. Any unequal RPM (including debug packages), SRPM, source/spec
-input, or build-package inventory blocks artifact upload.
+version on manual dispatch; relevant pull requests use provisional `0.1.3`.
+It loads each target's complete locked builder archive rather than resolving
+repositories. Six baseline jobs retain rebuilt v0.1.2 packages. Two fresh native
+candidate runners per target each build/test current inputs offline, then
+consume the same retained baseline for the real-version A -> B -> A rehearsal.
+Comparison jobs require complete byte equality of the candidate RPMs (including
+debug packages), SRPMs, source/spec inputs and build inventories, and validate
+the lifecycle receipts against the actual retained files.
 The isolated build root is `/var/tmp/pg-oauth-rpm-build`, created exclusively
 and removed on exit; a pre-existing path fails. Its fixed location is a build
 input because RPM embeds expanded build paths in SRPM headers.
@@ -330,17 +330,15 @@ temporary directories. Fixed dependency paths keep Annobin's source-path notes
 stable without suppressing hardening annotations or changing cryptographic
 build options; GCC's prefix mapping alone does not normalize those notes.
 
-Successful runs retain both unsigned bundles for 14 days, the local build-image
-inspection record, full source revision, installed package/tool versions, and
-`SHA256SUMS` for the first bundle. `BUILD-SOURCE` inside the RPM records source
-digests and compiler/PostgreSQL versions. This is a rehearsal, not a published
-release: the workflow creates no tag, signature, or GitHub Release. Use a unique
-reviewed candidate version; the `0.0.0` compatibility packages remain disposable.
-An independently rebuilt image from mutable repositories can still differ;
-this gate proves two-container equality for a recorded image, not reproducible
-build-environment reconstruction or a vulnerability approval. CI artifact
-digests and checksum files are not release signatures. Retain approved evidence
-outside the short-lived CI store before publication.
+Successful runs retain both unsigned candidate/evidence bundles, baseline RPMs,
+source inputs and exact builder records for 90 days. Each candidate is sealed
+with its complete `SHA256SUMS`; `BUILD-SOURCE` inside the RPM records source
+revision/digests and compiler/PostgreSQL versions. No tag, signature or GitHub
+Release is created. The archived environment is reproducible input for these
+fresh runners; rebuilding the online image from mutable repositories is not
+claimed to reproduce it. Retain approved evidence durably before CI expiry and
+resolve the findings in the [dependency review](rpm-dependency-review.md) before
+production approval. The `0.0.0` compatibility packages remain disposable.
 
 Locally, pass `RPM_CANDIDATE_EXPORT_DIR` as an empty mounted directory to the
 one-input `test-rpm-package.sh` gate in each offline container, then compare:
@@ -353,9 +351,11 @@ python3 scripts/ci/check-rpm-candidates.py /path/to/first /path/to/second
 The comparator rejects missing artifacts, changed bytes, symlinks, and special
 files and never replaces an existing checksum manifest. Candidate exports
 contain only built packages, prepared source inputs, and an environment record;
-provider keys, token files, and PostgreSQL logs are excluded. They do not run
-the two-version upgrade gate or establish SELinux confinement. Those separate
-release checks must use these actual artifacts on every target platform.
+provider keys, token files, and PostgreSQL logs are excluded. The export helper
+alone does not run a two-version rehearsal. The candidate workflow adds that
+retained-artifact gate on all six targets. SELinux evidence remains scoped to
+the existing Fedora 44 x86-64 enforcing VM, as accepted for this work; no
+confinement result is asserted for the other five targets.
 
 An RPM-family platform becomes supported only after all of the following are
 complete for an exact distribution release and architecture:
