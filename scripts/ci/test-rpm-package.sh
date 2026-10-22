@@ -170,7 +170,9 @@ if test -n "${RPM_CANDIDATE_EXPORT_DIR:-}"; then
 	test -d "$RPM_CANDIDATE_EXPORT_DIR"
 	test -z "$(ls -A "$RPM_CANDIDATE_EXPORT_DIR")"
 	cp -R "$work_dir/baseline/rpmbuild/RPMS" "$work_dir/baseline/rpmbuild/SRPMS" "$RPM_CANDIDATE_EXPORT_DIR/"
-	cp -R "$inputs" "$RPM_CANDIDATE_EXPORT_DIR/inputs"
+	mkdir "$RPM_CANDIDATE_EXPORT_DIR/inputs"
+	cp -R "$inputs/." "$RPM_CANDIDATE_EXPORT_DIR/inputs/"
+	cmp "$inputs/INPUTS.sha256" "$RPM_CANDIDATE_EXPORT_DIR/inputs/INPUTS.sha256"
 	{
 		echo 'Experimental unsigned RPM candidate; not release approval.'
 		echo 'Passed: offline unprivileged build, SRPM integrity, installed OAuth suite, RPM verification, removal.'

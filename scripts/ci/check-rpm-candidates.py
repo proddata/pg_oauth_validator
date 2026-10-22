@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import pathlib
 import re
-import sys
 
 
 def inventory(root):
@@ -31,7 +30,8 @@ def inventory(root):
     for name in ("inputs/INPUTS.sha256", "inputs/SOURCES/SHA256SUMS",
                  "inputs/SPECS/pg_oauth_validator.spec"):
         if name not in files:
-            raise ValueError(f"missing candidate input: {name}")
+            raise ValueError(f"missing candidate input: {name}; observed: " +
+                             ", ".join(sorted(files)))
     environment = root / "BUILD-ENVIRONMENT.txt"
     if environment.is_symlink() or not environment.is_file():
         raise ValueError("missing build environment record")
