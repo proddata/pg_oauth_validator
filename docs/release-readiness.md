@@ -77,6 +77,12 @@ PGDG development version, and exact security-relevant runtime packages.
 
 ## PostgreSQL-specific artifacts
 
+RPM candidates have a separate manual `RPM candidate rehearsal` workflow for
+Fedora 43/44 and Rocky Linux 10, on x86-64 and ARM64. See
+[`rpm-platforms.md`](rpm-platforms.md#required-work-before-support) for its
+retained unsigned bundles, two-container comparison, and remaining release
+requirements. The tag-triggered draft workflow below does not publish RPMs.
+
 PostgreSQL does not provide cross-major server-module ABI compatibility. Build,
 test, name, stage, publish, install, and roll back PostgreSQL 18 and 19 artifacts
 separately. Never rename one major's package to serve the other.

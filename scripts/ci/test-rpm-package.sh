@@ -159,3 +159,22 @@ if rpm -q "$package_name"; then
 	exit 1
 fi
 echo 'RPM offline build, source integrity, install, OAuth, and removal checks passed'
+# Candidate export happens only after every install/runtime/removal check passed.
+# This is separate from the single-artifact handoff used by the SELinux VM.
+if test -n "${RPM_CANDIDATE_EXPORT_DIR:-}"; then
+	test "$#" -eq 1
+	test -d "$RPM_CANDIDATE_EXPORT_DIR"
+	test -z "$(ls -A "$RPM_CANDIDATE_EXPORT_DIR")"
+	cp -R "$work_dir/baseline/rpmbuild/RPMS" "$work_dir/baseline/rpmbuild/SRPMS" "$RPM_CANDIDATE_EXPORT_DIR/"
+	cp -R "$inputs" "$RPM_CANDIDATE_EXPORT_DIR/inputs"
+	{
+		echo 'Experimental unsigned RPM candidate; not release approval.'
+		echo 'Passed: offline unprivileged build, SRPM integrity, installed OAuth suite, RPM verification, removal.'
+		echo 'Not covered: SELinux confinement, cross-release upgrade/rollback, signing, vulnerability approval.'
+		"$PG_CONFIG_PATH" --version
+		gcc --version | head -n 1
+		rpm --version
+		echo 'Installed build environment:'
+		rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort
+	} >"$RPM_CANDIDATE_EXPORT_DIR/BUILD-ENVIRONMENT.txt"
+fi

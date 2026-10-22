@@ -1,0 +1,120 @@
+name: RPM candidate rehearsal
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/rpm-candidate.yml'
+      - 'scripts/ci/*rpm*'
+      - 'packaging/rpm/**'
+      - 'tests/ci/test_rpm_candidates.py'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Unsigned candidate version (MAJOR.MINOR.PATCH; no publication)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rpm-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CANDIDATE_VERSION: ${{ inputs.version || '0.0.0' }}
+
+jobs:
+  candidate:
+    name: Candidate / ${{ matrix.distribution.name }}${{ matrix.architecture.name_suffix }}
+    runs-on: ${{ matrix.architecture.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        distribution:
+          - name: Fedora 43
+            image_name: fedora43
+            base_image: fedora:43@sha256:a651ddf48ea28a06ed4e1e6519f51c9f47e7a5a138722ade87369b8fbb7e5b42
+            rpm_platform: fedora43
+            pg_config: /usr/bin/pg_server_config
+          - name: Fedora 44
+            image_name: fedora44
+            base_image: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+            rpm_platform: fedora44
+            pg_config: /usr/bin/pg_server_config
+          - name: Rocky Linux 10 / PGDG
+            image_name: rocky10
+            base_image: rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
+            rpm_platform: el10
+            pg_config: /usr/pgsql-18/bin/pg_config
+        architecture:
+          - name_suffix: ''
+            runner: ubuntu-24.04
+            platform: linux/amd64
+            host_arch: x86_64
+            image_suffix: amd64
+          - name_suffix: ' / arm64'
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            host_arch: aarch64
+            image_suffix: arm64
+
+    steps:
+      - name: Check out exact candidate revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Validate candidate version and comparison tests
+        run: |
+          python3 -c 'import os,re; assert re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", os.environ["CANDIDATE_VERSION"]), "MAJOR.MINOR.PATCH required"'
+          python3 tests/ci/test_rpm_candidates.py
+
+      - name: Build and record the shared build image
+        env:
+          BASE_IMAGE: ${{ matrix.distribution.base_image }}
+          RPM_PLATFORM: ${{ matrix.distribution.rpm_platform }}
+          PG_CONFIG_PATH: ${{ matrix.distribution.pg_config }}
+          DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
+          EXPECTED_HOST_ARCH: ${{ matrix.architecture.host_arch }}
+        run: |
+          test "$(uname -m)" = "$EXPECTED_HOST_ARCH"
+          docker build --platform "$DOCKER_PLATFORM" --file tools/rpm/Containerfile \
+            --build-arg BASE_IMAGE="$BASE_IMAGE" --build-arg RPM_PLATFORM="$RPM_PLATFORM" \
+            --build-arg PG_CONFIG_PATH="$PG_CONFIG_PATH" --tag rpm-candidate .
+          mkdir -p "$RUNNER_TEMP/candidate-evidence"
+          docker image inspect rpm-candidate > "$RUNNER_TEMP/candidate-evidence/build-image.json"
+          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/candidate-evidence/SOURCE-REVISION"
+
+      - name: Prepare immutable inputs offline
+        run: |
+          docker run --rm --network=none --entrypoint python3 \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" --volume "$RUNNER_TEMP:/output" \
+            rpm-candidate /workspace/scripts/ci/prepare-rpm-sources.py prepare \
+            "$CANDIDATE_VERSION" "$GITHUB_SHA" /opt/rpm-dependencies /output/candidate-inputs
+
+      - name: Build and test twice in separate offline containers
+        run: |
+          for attempt in first second; do
+            mkdir "$RUNNER_TEMP/candidate-evidence/$attempt"
+            docker run --rm --network=none --tmpfs /source:exec --entrypoint /bin/sh \
+              --env RPM_CANDIDATE_EXPORT_DIR=/export \
+              --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+              --volume "$RUNNER_TEMP/candidate-inputs:/inputs:ro" \
+              --volume "$RUNNER_TEMP/candidate-evidence/$attempt:/export" \
+              rpm-candidate /workspace/scripts/ci/test-rpm-package.sh /inputs
+          done
+
+      - name: Require identical RPMs, SRPMs, inputs, and build inventories
+        run: |
+          python3 scripts/ci/check-rpm-candidates.py \
+            "$RUNNER_TEMP/candidate-evidence/first" "$RUNNER_TEMP/candidate-evidence/second"
+
+      - name: Retain unsigned candidate and rehearsal evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpm-candidate-${{ env.CANDIDATE_VERSION }}-${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
+          path: ${{ runner.temp }}/candidate-evidence
+          if-no-files-found: error
+          retention-days: 14
