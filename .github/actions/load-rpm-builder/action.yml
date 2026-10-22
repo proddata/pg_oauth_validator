@@ -1,0 +1,33 @@
+name: Load reviewed RPM builder
+description: Verify retained complete builder bytes before loading the pinned image
+inputs:
+  target:
+    required: true
+    description: Reviewed distribution and architecture key
+  artifact-id:
+    required: true
+    description: Immutable archive artifact ID
+  run-id:
+    required: true
+    description: Capture workflow run ID
+  token:
+    required: true
+    description: Read-only token for this repository's retained artifacts
+runs:
+  using: composite
+  steps:
+    - name: Download retained builder by immutable identity
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      with:
+        artifact-ids: ${{ inputs.artifact-id }}
+        run-id: ${{ inputs.run-id }}
+        repository: ${{ github.repository }}
+        github-token: ${{ inputs.token }}
+        path: ${{ runner.temp }}/frozen-builder
+    - name: Verify archive bytes and native image identity
+      shell: bash
+      env:
+        BUILDER_TARGET: ${{ inputs.target }}
+      run: |
+        python3 scripts/ci/rpm-builder.py load packaging/rpm/builders.lock.json \
+          "$BUILDER_TARGET" "$RUNNER_TEMP/frozen-builder"

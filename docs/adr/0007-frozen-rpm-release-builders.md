@@ -55,6 +55,14 @@ no published RPMs. Record this explicitly; it is source-release migration
 evidence, not compatibility with a previously published RPM. The provisional
 candidate is 0.1.3 and remains unsigned/unpublished until release approval.
 
+The baseline runs its exact release integration assertions with the current
+transport fixture (private Unix socket and protected stderr log collection).
+The candidate runs the full current security suite. This preserves v0.1.2's
+single `at+jwt` default and earlier diagnostic fields instead of requiring it
+to implement later features. Both artifacts additionally run the same current
+retained-cluster denial, redaction, rotation, outage and invalid-configuration
+recovery probes during A -> B -> A. No negative assertions are removed.
+
 The existing Fedora 44 x86-64 enforcing VM evidence remains the SELinux gate
 for this work, as requested by the maintainer. Record its scope; do not claim
 equivalent enforcing tests ran on all six targets. This changes no installed

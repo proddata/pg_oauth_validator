@@ -82,7 +82,7 @@ def fingerprint(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def verify_installed(package, library):
+def verify_installed(package, library, source_revision=None):
     expected = package_metadata(package)
     actual = command("rpm", "-q", "--qf", "%{NAME}\n%{VERSION}\n%{RELEASE}\n%{ARCH}\n",
                      PACKAGE).stdout.splitlines()
@@ -92,6 +92,8 @@ def verify_installed(package, library):
             "installed_owner")
     source = pathlib.Path(f"/usr/share/doc/{PACKAGE}/BUILD-SOURCE").read_text()
     require(f"release-version: {expected[1]}\n" in source, "installed_source_record")
+    if source_revision is not None:
+        require(f"source-revision: {source_revision}\n" in source, "installed_source_revision")
 
 
 def stop_server(cluster):
@@ -160,6 +162,27 @@ def check_phase(cluster, client, idp, audience, other_audience, phase, protected
     idp.set_fault("metadata", None)
     attempt(rotated, accepted=True)
 
+    # Exercise recovery from incomplete validator configuration without leaving
+    # ALTER SYSTEM edits behind or weakening any trust setting. Restore the
+    # exact protected configuration pair while the server is stopped.
+    saved = snapshot_configuration(cluster.data)
+    content, mode, uid, gid = saved["postgresql.conf"]
+    old = f"pg_oauth_validator.audiences = '{audience}'".encode()
+    require(content.count(old) == 1, f"{phase}_recovery_configuration")
+    invalid = {**saved, "postgresql.conf": (
+        content.replace(old, b"pg_oauth_validator.audiences = ''"), mode, uid, gid,
+    )}
+    stop_server(cluster)
+    restore_configuration(cluster.data, invalid)
+    resume_server(cluster)
+    attempt(rotated)
+    require(psql(cluster, "SELECT 1").stdout.strip() == "1", f"{phase}_configuration_recovery_path")
+    stop_server(cluster)
+    restore_configuration(cluster.data, saved)
+    resume_server(cluster)
+    attempt(rotated, accepted=True)
+    require(snapshot_configuration(cluster.data) == saved, f"{phase}_recovery_configuration_digest")
+
     require(psql(cluster, "SHOW pg_oauth_validator.audiences").stdout.strip() == audience,
             f"{phase}_audience")
     require(psql(cluster, "SELECT value FROM rpm_rehearsal_marker").stdout.strip() == "retained",
@@ -175,13 +198,18 @@ def check_phase(cluster, client, idp, audience, other_audience, phase, protected
             require(secret not in result.stdout + result.stderr, f"{phase}_client_redaction")
 
 
-def rehearse(baseline, candidate, pg_config, library, client):
+def rehearse(baseline, candidate, pg_config, library, client, source_revisions=None):
+    source_revisions = {} if source_revisions is None else source_revisions
+    require(not source_revisions or set(source_revisions) == {baseline, candidate}, "source_manifest")
+    require(all(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value)
+                for value in source_revisions.values()),
+            "source_revision")
     a, b = package_metadata(baseline), package_metadata(candidate)
     require(a[3] == b[3], "package_architecture")
     require(tuple(map(int, a[1].split("."))) < tuple(map(int, b[1].split("."))),
             "package_order")
     artifacts = {path: fingerprint(path) for path in (baseline, candidate)}
-    verify_installed(baseline, library)
+    verify_installed(baseline, library, source_revisions.get(baseline))
     original_library = fingerprint(library)
     with tempfile.TemporaryDirectory(prefix="rpm-upgrade-idp-") as directory:
         idp = LocalIdp(pathlib.Path(directory), cache_max_age=0)
@@ -206,7 +234,7 @@ def rehearse(baseline, candidate, pg_config, library, client):
             stop_server(cluster)
             require(fingerprint(candidate) == artifacts[candidate], "candidate_integrity")
             command("rpm", "--upgrade", candidate)
-            verify_installed(candidate, library)
+            verify_installed(candidate, library, source_revisions.get(candidate))
             require(snapshot_configuration(cluster.data) == saved_a, "upgrade_changed_configuration")
             restore_configuration(cluster.data, saved_b)
             resume_server(cluster)
@@ -218,11 +246,11 @@ def rehearse(baseline, candidate, pg_config, library, client):
             require(fingerprint(baseline) == artifacts[baseline], "baseline_integrity")
             denied = command("rpm", "--upgrade", "--test", baseline, check=False)
             require(denied.returncode != 0, "implicit_downgrade")
-            verify_installed(candidate, library)
+            verify_installed(candidate, library, source_revisions.get(candidate))
             # RPM's --oldpackage permits an explicit downgrade, preserving its
             # normal dependency, architecture, and conflict checks (rpm(8)).
             command("rpm", "--upgrade", "--oldpackage", baseline)
-            verify_installed(baseline, library)
+            verify_installed(baseline, library, source_revisions.get(baseline))
             require(fingerprint(library) == original_library, "rollback_library_digest")
             require(snapshot_configuration(cluster.data) == saved_b, "rollback_changed_configuration")
             restore_configuration(cluster.data, saved_a)
@@ -232,7 +260,19 @@ def rehearse(baseline, candidate, pg_config, library, client):
             check_phase(cluster, client, idp, AUDIENCE_A, AUDIENCE_B, "rollback", protected, results)
             require(snapshot_configuration(cluster.data) == saved_a, "rollback_configuration_digest")
             print("RPM A -> B -> A: restarts, retained data/configuration, authorization, "
-                  "rotation, outage/recovery, and redaction passed")
+                  "rotation, outage/configuration recovery, and redaction passed")
+            return {
+                "baseline_version": a[1], "candidate_version": b[1],
+                "baseline_rpm_sha256": artifacts[baseline],
+                "candidate_rpm_sha256": artifacts[candidate],
+                "restored_library_sha256": original_library,
+                "restored_configuration_sha256": {
+                    name: hashlib.sha256(record[0]).hexdigest() for name, record in saved_a.items()
+                },
+                "phases": ["baseline", "candidate", "rollback"],
+                "checks": ["retained_data", "restart", "authorization", "denial", "rotation",
+                           "provider_outage_recovery", "invalid_configuration_recovery", "redaction"],
+            }
         finally:
             cluster.stop()
             idp.close()

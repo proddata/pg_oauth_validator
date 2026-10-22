@@ -122,7 +122,8 @@ networking. Source0 is an archive of an explicit full Git commit, so uncommitted
 changes and generated files are excluded. The spec is generated from the current
 template as a separate input: `INPUTS.sha256` records its digest independently
 from that source commit. Only `MAJOR.MINOR.PATCH` versions are currently accepted;
-CI uses disposable version `0.0.0`.
+compatibility CI uses disposable version `0.0.0`. The release-candidate workflow
+uses the provisional real-version pair described below.
 
 To exercise one native arm64 cell after building its image:
 
@@ -192,9 +193,52 @@ working-tree edits, and verified download publication. External-network and
 unsupported-distribution rejection probes also passed. x86-64 CI and
 SELinux-enforcing VM checks were not run locally.
 
+## Locked release-candidate inputs
+
+`rpm-builders.yml` captures all six complete native Docker images separately
+from ordinary compatibility builds. The reviewed
+[`builders.lock.json`](../packaging/rpm/builders.lock.json) binds each compressed
+archive, RPM/license/source-package inventory, image configuration and tool
+record to hashes, sizes, capture source, immutable artifact ID and run ID.
+The consumer verifies these bytes before loading Docker, then checks native
+architecture, Linux OS, image ID and source/base labels. Missing or expired
+artifacts fail without an online rebuild fallback. See
+[ADR 0007](adr/0007-frozen-rpm-release-builders.md).
+
+The candidate workflow uses those retained builders on two fresh native runners
+per target, with pulling disabled and the container network disconnected. It
+retains the complete binary/debug RPMs, SRPM, source inputs, environment record
+and checksum manifest from each build, then requires byte equality across the
+two runners. Verified dependency records are available separately as
+`rpm-builder-review-TARGET`; the full archives remain the authority.
+
+The checked-in source-release baseline is v0.1.2 at
+`56dfb631718acd2a17d2608729f10bd015fe6f2d`; candidate version 0.1.3 is provisional.
+The workflow checks the signed annotated tag's verified GitHub signature and
+exact target. v0.1.2 did **not** publish RPMs: these are rebuilt source-release
+baseline RPMs, not previously shipped packages. Its exact release integration
+assertions use the current isolated transport fixture; the candidate runs the
+full current suite. Both additionally pass the shared lifecycle probes below.
+
+`rpm-release.py` seals/verifies retained bundles and consumes the actual retained
+baseline/candidate files for A -> B -> A. Its sanitized receipt binds versions,
+source commits, package and manifest digests, restored module/configuration
+digests and completed recovery checks. CI compares receipts against actual
+retained files. No logs, bearer tokens, signing keys or fixture private keys are
+uploaded. The recovery test starts with an empty audience, proves OAuth denial
+and protected local administration, restores exact configuration bytes while
+stopped, and proves valid authentication returns.
+
+Artifacts expire after 90 days. Transfer approved archives and package/evidence
+bundles to durable release storage before expiry. Hashes and successful tests
+are not signing, vulnerability approval or publication. Review vendor advisories
+against full RPM release versions (including backports), not upstream version
+strings alone. Existing Fedora 44 x86-64 enforcing tests remain the SELinux gate;
+this workflow does not establish enforcing coverage on the other five targets.
+
 ## Upgrade and rollback rehearsal
 
-The six-cell CI matrix additionally prepares disposable versions `0.0.0` (A)
+The compatibility six-cell CI matrix additionally prepares disposable versions `0.0.0` (A)
 and `0.0.1` (B) from its exact Git commit. Both packages pass the same offline
 build, complete-source, dependency/ABI, scriptlet, and licensing checks. The
 existing full installed-security suite runs on A before the rehearsal.
