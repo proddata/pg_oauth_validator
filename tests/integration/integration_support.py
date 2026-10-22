@@ -67,10 +67,15 @@ class TemporaryPostgres:
         self.refresh_wait_timeout = refresh_wait_timeout
         self.extra_config = extra_config
         self.port = unused_port()
-        self.root = pathlib.Path(tempfile.mkdtemp(prefix="pg-oauth-validator-"))
+        self.selinux = os.environ.get("OAUTH_TEST_SELINUX") == "1"
+        self.root = pathlib.Path(tempfile.mkdtemp(
+            prefix="pg-oauth-validator-",
+            dir="/var/lib/pgsql" if self.selinux else None,
+        ))
         self.data = self.root / "data"
         self.log = self.root / "postgres.log"
         self.started = False
+        self.confined = None
 
         postgres = pwd.getpwnam("postgres")
         os.chown(self.root, postgres.pw_uid, postgres.pw_gid)
@@ -162,19 +167,27 @@ class TemporaryPostgres:
                 f"oauthmap {identity} {role}\n", encoding="utf-8"
             )
 
-        command(
-            self.bindir / "pg_ctl",
-            "-D",
-            self.data,
-            "-l",
-            self.log,
-            "-w",
-            "start",
-            user="postgres",
-        )
+        if self.selinux:
+            from selinux_support import ConfinedPostgres
+            self.confined = ConfinedPostgres(self)
+            self.confined.start()
+        else:
+            command(
+                self.bindir / "pg_ctl",
+                "-D",
+                self.data,
+                "-l",
+                self.log,
+                "-w",
+                "start",
+                user="postgres",
+            )
         self.started = True
 
     def stop(self):
+        if self.confined is not None:
+            self.confined.stop()
+            self.started = False
         if self.started:
             command(
                 self.bindir / "pg_ctl",
@@ -191,6 +204,8 @@ class TemporaryPostgres:
         shutil.rmtree(self.root, ignore_errors=True)
 
     def logs(self):
+        if self.confined is not None:
+            return self.confined.logs()
         return self.log.read_text(encoding="utf-8", errors="replace")
 
 
@@ -333,6 +348,10 @@ class LocalIdp:
                 pass
 
         self.server = http.server.ThreadingHTTPServer(("localhost", 0), Handler)
+        self.selinux_port = os.environ.get("OAUTH_TEST_SELINUX") == "1"
+        if self.selinux_port:
+            from selinux_support import label_port
+            label_port(self.server.server_port, "http_port_t")
         tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         tls.load_cert_chain(self.tls_certificate, self.tls_key)
         self.server.socket = tls.wrap_socket(self.server.socket, server_side=True)
@@ -454,3 +473,7 @@ class LocalIdp:
             self.server.shutdown()
             self.thread.join()
         self.server.server_close()
+        if self.selinux_port:
+            from selinux_support import run
+            run("semanage", "port", "-d", "-p", "tcp", self.server.server_port)
+            self.selinux_port = False

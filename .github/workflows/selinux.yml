@@ -1,0 +1,34 @@
+name: SELinux enforcing VM
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selinux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fedora:
+    name: Fedora 44 / PostgreSQL 18 / enforcing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test confinement preflight
+        run: python3 tests/ci/test_selinux_support.py
+      - name: Install VM tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
+          sudo chmod a+rw /dev/kvm
+      - name: Build and test RPM in enforcing VM
+        run: sh scripts/ci/test-selinux-vm.sh

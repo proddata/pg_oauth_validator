@@ -153,7 +153,9 @@ debug-package checks, verifies complete source archives in the SRPM, and install
 with normal dependency checking. It runs the full local OAuth suite against the
 RPM-installed module, verifies package file digests, and removes the package.
 The test container must have no active non-loopback interface. No package is
-published or retained by this disposable gate.
+published. By default no artifact is retained; `RPM_TEST_EXPORT_DIR` may name
+an existing directory in the disposable test environment to retain the exact
+tested baseline as `validator.rpm` for the VM confinement gate.
 
 During `rpmbuild`, both embedded libraries are rebuilt in a private prefix from
 the supplied archives; neither compilation nor dependency testing may reuse the
@@ -287,7 +289,7 @@ PostgreSQL is confined as `postgresql_t`.
 Review recent denials with:
 
 ```sh
-ausearch -m AVC,USER_AVC -ts recent
+ausearch --input-logs -m AVC,USER_AVC -ts recent
 ```
 
 If the distribution policy blocks required discovery or JWKS traffic, add the
@@ -297,3 +299,85 @@ policy can constrain resource and port types; the validator must continue to
 enforce the exact administrator-configured issuer host, TLS verification, and
 redirect/proxy prohibitions. Absence or failure of required policy must remain
 a deterministic authentication denial.
+
+### Disposable enforcing VM gate
+
+The `SELinux enforcing VM` workflow boots the Fedora 44 x86-64 Cloud image
+in a disposable KVM guest. The image URL and SHA-256 are fixed in
+`scripts/ci/test-selinux-vm.sh`; the digest comes from Fedora's signed
+[44-1.7 Cloud checksum manifest](https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-44-1.7-x86_64-CHECKSUM).
+Guest package repositories remain mutable, as in the RPM compatibility jobs.
+The host requires Linux, writable `/dev/kvm`, QEMU, `cloud-localds`, curl,
+OpenSSH, and tar. Run from a clean checkout with no persisted Git credentials:
+
+```sh
+sh scripts/ci/test-selinux-vm.sh
+```
+
+The root-only guest script installs build dependencies, runs the existing
+network-isolated RPM build/install/removal gate, and retains its tested RPM.
+It installs that artifact normally, then runs the complete integration suite
+with `OAUTH_TEST_SELINUX=1`. Each temporary cluster lives under `/var/lib/pgsql`;
+its systemd unit explicitly starts the packaged PostgreSQL binary in
+`system_u:system_r:postgresql_t:s0`. Every successful startup checks the live
+postmaster's `/proc/PID/attr/current`, global enforcement, and absence of a
+per-domain permissive exception. Missing tools and confinement failures fail
+the test. The normal integration path does not use this launcher.
+
+Only temporary fixture files and ports receive test labels: database content
+uses `postgresql_db_t`, PostgreSQL listener ports
+use `postgresql_port_t`, and local provider ports use `http_port_t`. Tests
+remove their port overrides and systemd units. Installed binaries and modules
+retain distribution labels. Confined services send stderr to journald; the
+existing diagnostic/redaction assertions read only their specific unit's journal.
+The cache probe is separate test instrumentation.
+The disposable guest explicitly enables kernel auditing and temporarily disables
+`dontaudit` suppression for diagnosis, restoring suppression on exit. It removes
+only the image's explicit `never,task` audit rule, which otherwise suppresses new
+tasks' audit processing even with auditing enabled. This changes
+audit visibility without granting access or relaxing enforcement. The guest
+prints AVC evidence on failure; it never uploads bearer-token files,
+provider keys, or raw PostgreSQL logs as artifacts. This gate initially tests
+the distribution policy without an added grant, requires a valid token to be
+denied with a fresh `name_connect` AVC to the provider's `http_port_t` port,
+then installs the optional policy below and runs the full suite. It removes the
+module and repeats the denial check in a fresh cluster, then verifies the RPM
+payload and that the kernel lost no audit records. Fresh clusters prevent cached
+keys from masking removal. Enterprise Linux and ARM64 VM coverage remain separate
+work.
+
+
+### Optional HTTP-port policy
+
+The shipped example `docs/selinux/pg_oauth_https.cil` adds exactly one permission:
+`postgresql_t` may initiate TCP connections to ports labeled `http_port_t`.
+Installation of the RPM does not load this policy. After reviewing it against
+the host's requirements, an administrator can load the RPM-owned copy:
+
+```sh
+semodule -i /usr/share/doc/postgresql18-pg_oauth_validator/docs/selinux/pg_oauth_https.cil
+```
+
+This permission applies to **every process in `postgresql_t`**, including other
+PostgreSQL instances and extensions, and **every port of that type**. The type
+also includes HTTP ports; it does not enforce TLS, a hostname, or an individual
+library. The validator continues to enforce its configured issuer host, HTTPS,
+certificate verification, and redirect/proxy prohibitions. Review other code
+running in this domain and any host egress controls. Inspect custom provider
+port labels before changing them; do not overwrite another service's mapping
+blindly. This example does not grant DNS, general filesystem, arbitrary-port,
+or unconfined-domain access.
+
+To remove the added permission:
+
+```sh
+semodule -r pg_oauth_https
+```
+
+Removal prevents the additional network access; it does not revoke keys already
+in the validator's cache. Follow the documented cache/outage policy, or restart
+the server when immediate cache invalidation is required. An absent, rejected,
+or removed module must leave a fresh validator unable to retrieve keys; the VM
+regression checks this denial and secret redaction before installation and after
+removal. Kernel/audit visibility changes in the disposable test VM are diagnostic
+steps, not operator prerequisites for the module.

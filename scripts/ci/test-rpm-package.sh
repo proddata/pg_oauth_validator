@@ -145,6 +145,11 @@ if test -n "$candidate_package"; then
 		python3 /source/tests/integration/rpm_upgrade.py "$package" "$candidate_package"
 fi
 rpm --verify "$package_name"
+# A VM may consume this exact tested artifact for the separate confinement gate.
+if test -n "${RPM_TEST_EXPORT_DIR:-}"; then
+	test -d "$RPM_TEST_EXPORT_DIR"
+	cp "$package" "$RPM_TEST_EXPORT_DIR/validator.rpm"
+fi
 rpm --erase "$package_name"
 test ! -e "$library"
 test ! -e "/usr/share/doc/$package_name"
