@@ -135,6 +135,9 @@ release-approval requirement.
 
 ## Dependency, license, and vulnerability review
 
+The current [RPM review record](rpm-dependency-review.md) records findings and
+blocks production approval; it is not a clean security attestation.
+
 Perform and record a review for every release. This section defines the
 procedure and does **not** assert that a current review has been completed.
 
