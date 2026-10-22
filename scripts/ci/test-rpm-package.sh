@@ -11,7 +11,11 @@ test "$#" -ge 1 && test "$#" -le 2 || {
 test "$(id -u)" -eq 0
 inputs=$(CDPATH= cd -- "$1" && pwd)
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-work_dir=$(mktemp -d)
+# RPM embeds the expanded spec (including build paths) in the SRPM header.
+# A fixed path is a recorded build input inside each disposable container/VM.
+# Atomic mkdir rejects a pre-existing path, including links; never reuse it.
+work_dir=/var/tmp/pg-oauth-rpm-build
+mkdir -m 0755 "$work_dir"
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
 # The container network namespace enforces offline building. Check it here so
@@ -159,3 +163,24 @@ if rpm -q "$package_name"; then
 	exit 1
 fi
 echo 'RPM offline build, source integrity, install, OAuth, and removal checks passed'
+# Candidate export happens only after every install/runtime/removal check passed.
+# This is separate from the single-artifact handoff used by the SELinux VM.
+if test -n "${RPM_CANDIDATE_EXPORT_DIR:-}"; then
+	test "$#" -eq 1
+	test -d "$RPM_CANDIDATE_EXPORT_DIR"
+	test -z "$(ls -A "$RPM_CANDIDATE_EXPORT_DIR")"
+	cp -R "$work_dir/baseline/rpmbuild/RPMS" "$work_dir/baseline/rpmbuild/SRPMS" "$RPM_CANDIDATE_EXPORT_DIR/"
+	mkdir "$RPM_CANDIDATE_EXPORT_DIR/inputs"
+	cp -R "$inputs/." "$RPM_CANDIDATE_EXPORT_DIR/inputs/"
+	cmp "$inputs/INPUTS.sha256" "$RPM_CANDIDATE_EXPORT_DIR/inputs/INPUTS.sha256"
+	{
+		echo 'Experimental unsigned RPM candidate; not release approval.'
+		echo 'Passed: offline unprivileged build, SRPM integrity, installed OAuth suite, RPM verification, removal.'
+		echo 'Not covered: SELinux confinement, cross-release upgrade/rollback, signing, vulnerability approval.'
+		"$PG_CONFIG_PATH" --version
+		gcc --version | head -n 1
+		rpm --version
+		echo 'Installed build environment:'
+		rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort
+	} >"$RPM_CANDIDATE_EXPORT_DIR/BUILD-ENVIRONMENT.txt"
+fi

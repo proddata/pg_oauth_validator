@@ -10,7 +10,14 @@ JANSSON_SHA256=65084e4e43de9840d66a0604c8d9d9c499b2fc0db52c05730e3b6ac3c11ed66f
 JANSSON_URL="https://codeload.github.com/akheron/jansson/tar.gz/${JANSSON_COMMIT}"
 INSTALL_PREFIX=${JANSSON_INSTALL_PREFIX:-/usr/local}
 
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/pg-oauth-jansson.XXXXXX")
+if test -n "${JANSSON_BUILD_ROOT:-}"; then
+	work_dir=$JANSSON_BUILD_ROOT
+	case "$work_dir" in /*) ;; *) echo 'error: JANSSON_BUILD_ROOT must be absolute' >&2; exit 1 ;; esac
+	# Exclusive creation prevents reuse/deletion of an existing path or symlink.
+	mkdir -m 0755 "$work_dir"
+else
+	work_dir=$(mktemp -d "${TMPDIR:-/tmp}/pg-oauth-jansson.XXXXXX")
+fi
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
 archive="$work_dir/jansson.tar.gz"

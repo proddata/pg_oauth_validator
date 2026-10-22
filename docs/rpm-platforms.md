@@ -267,6 +267,52 @@ tests were not run locally.
 
 ## Required work before support
 
+The `RPM candidate rehearsal` workflow accepts an explicit `MAJOR.MINOR.PATCH`
+version on manual dispatch and runs all six distribution/architecture cells.
+Pull requests changing its workflow, RPM tooling/spec, or comparator tests also
+run it with disposable version `0.0.0`.
+It builds one image per cell, then builds and tests the same immutable source
+inputs in two fresh, offline containers from that image. Both executions run
+the full existing RPM build, installed-path OAuth, payload verification, and
+removal gate. Any unequal RPM (including debug packages), SRPM, source/spec
+input, or build-package inventory blocks artifact upload.
+The isolated build root is `/var/tmp/pg-oauth-rpm-build`, created exclusively
+and removed on exit; a pre-existing path fails. Its fixed location is a build
+input because RPM embeds expanded build paths in SRPM headers.
+The spec also sets `JANSSON_BUILD_ROOT` and `LIBJWT_BUILD_ROOT` under its build
+tree. These optional installer settings require new absolute paths, created
+exclusively and removed on exit. Normal developer installs retain random
+temporary directories. Fixed dependency paths keep Annobin's source-path notes
+stable without suppressing hardening annotations or changing cryptographic
+build options; GCC's prefix mapping alone does not normalize those notes.
+
+Successful runs retain both unsigned bundles for 14 days, the local build-image
+inspection record, full source revision, installed package/tool versions, and
+`SHA256SUMS` for the first bundle. `BUILD-SOURCE` inside the RPM records source
+digests and compiler/PostgreSQL versions. This is a rehearsal, not a published
+release: the workflow creates no tag, signature, or GitHub Release. Use a unique
+reviewed candidate version; the `0.0.0` compatibility packages remain disposable.
+An independently rebuilt image from mutable repositories can still differ;
+this gate proves two-container equality for a recorded image, not reproducible
+build-environment reconstruction or a vulnerability approval. CI artifact
+digests and checksum files are not release signatures. Retain approved evidence
+outside the short-lived CI store before publication.
+
+Locally, pass `RPM_CANDIDATE_EXPORT_DIR` as an empty mounted directory to the
+one-input `test-rpm-package.sh` gate in each offline container, then compare:
+
+```sh
+python3 tests/ci/test_rpm_candidates.py
+python3 scripts/ci/check-rpm-candidates.py /path/to/first /path/to/second
+```
+
+The comparator rejects missing artifacts, changed bytes, symlinks, and special
+files and never replaces an existing checksum manifest. Candidate exports
+contain only built packages, prepared source inputs, and an environment record;
+provider keys, token files, and PostgreSQL logs are excluded. They do not run
+the two-version upgrade gate or establish SELinux confinement. Those separate
+release checks must use these actual artifacts on every target platform.
+
 An RPM-family platform becomes supported only after all of the following are
 complete for an exact distribution release and architecture:
 

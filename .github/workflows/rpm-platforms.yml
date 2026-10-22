@@ -88,6 +88,8 @@ jobs:
         run: |
           python3 tests/ci/test_rpm_sources.py
           python3 tests/ci/test_rpm_upgrade.py
+          python3 tests/ci/test_rpm_candidates.py
+          python3 tests/ci/test_dependency_build_roots.py
 
       - name: Prepare immutable RPM inputs offline
         env:
