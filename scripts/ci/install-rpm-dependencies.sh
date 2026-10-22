@@ -64,6 +64,12 @@ case "$platform" in
 		;;
 esac
 
+# Installing build dependencies does not update unrelated packages inherited
+# from the pinned base (including the system CA bundle). Apply published vendor
+# security updates during online capture, before archiving the complete image.
+# Offline release consumers never run this installer or resolve repositories.
+dnf upgrade --assumeyes --security
+
 test -x "$pg_config" || {
 	echo "error: expected PostgreSQL configuration program at $pg_config" >&2
 	exit 1
