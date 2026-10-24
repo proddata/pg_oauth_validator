@@ -2,7 +2,9 @@
 
 Status: **production approval blocked**. This is a review record, not a signed
 release approval. Runtime tests and reproducible packages do not resolve vendor
-security findings. No exception has been granted for the findings below.
+security findings. The deployment owner authorized the scoped Rocky OpenSSL
+exception below on 2026-10-23; remaining review requirements still block
+production approval.
 
 ## Reviewed inputs and evidence
 
@@ -56,7 +58,7 @@ Both CPU inventories now record these corrected inherited dependencies:
 
 The direct libcurl, OpenSSL and PostgreSQL releases remain as listed above.
 The lock is accepted for reproducibility/lifecycle testing, **not production
-approval**. Rocky's OpenSSL finding remains open.
+approval**. Rocky's OpenSSL finding has the scoped deployment exception below.
 
 ## Embedded libraries and licensing
 
@@ -99,9 +101,9 @@ had no published entries at query time; that is not a guarantee of safety.
   describes certificate-processing memory exhaustion before 3.5.9; the
   [RHEL 10 tracker](https://access.redhat.com/security/cve/cve-2026-35189)
   lists OpenSSL as affected. The fresh Rocky security-update query offered no
-  OpenSSL fix. **Rocky production approval remains blocked** until a supported
-  vendor fix is verified in the retained RPM/source patch set. Do not dismiss
-  this certificate-processing path based on successful JWT or TLS unit tests.
+  OpenSSL fix. The package remains affected; the controlled-endpoint deployment
+  has the scoped exception below. Successful JWT or TLS tests do not establish
+  that certificate processing is unaffected.
 - curl upstream version matching alone overstates some findings because Fedora
   and Rocky backport fixes. For example, Fedora's
   [8.18.0-14 changelog](https://packages.fedoraproject.org/pkgs/curl/curl/fedora-44-updates.html)
@@ -128,12 +130,48 @@ GitHub dependency, code-scanning and secret-scanning alert APIs returned no open
 alerts on 2026-10-22. Secret values were not requested. New CI results and alert
 status must be checked for the final candidate source revision.
 
+## Controlled-endpoint exception: CVE-2026-35189
+
+Decision date: **2026-10-23**. Reviewer/accepting owner: **proddata**, by explicit
+instruction in the repository work session. This is owner review, not independent
+review. Scope: the intended Rocky Linux 10 deployment on x86-64 and ARM64 using
+the reviewed `1:3.5.8-2.el10_2` OpenSSL packages.
+
+The owner controls the discovery/JWKS servers and their TLS certificates and
+considers this CVE not relevant to that intended deployment. Treat it as a
+**scoped risk acceptance**, removing this finding as a release blocker for that
+deployment while the exception is valid. This is not a global not-affected
+assessment or a claim that the vendor package contains a fix.
+
+The rationale is the restricted TLS peer set: discovery and JWKS destinations
+are administrator-controlled and host-allowlisted, redirects and implicit proxies
+are disabled, and peer/hostname verification remains enabled
+(`src/http_transport.c`). Ordinary login clients cannot choose a TLS endpoint
+through token claims. These controls reduce exposure; they do not eliminate the
+vulnerable certificate-processing path. A compromised endpoint or an attacker
+able to intercept its TLS connection can still supply certificate bytes before
+trust validation completes. The owner's decision accepts that residual
+availability risk. HTTP body limits and request timeouts are not a proven bound
+on certificate-processing memory. No exploit regression or deployment-specific
+non-exploitability proof has been produced.
+
+Expiry/review deadline: **2026-11-22**, or earlier if endpoint ownership,
+certificates/trust configuration, or the deployment threat model changes. The
+exception does not automatically apply to other installations, additional
+providers, or other software using system OpenSSL. If it expires, this finding
+blocks promotion until a fix is verified or a new explicit review is recorded.
+Follow-up: [issue #28](https://github.com/proddata/pg_oauth_validator/issues/28).
+Recheck signed Rocky packages and vendor/source patch evidence; when a fix is
+available, capture and review fresh builders for both architectures and rerun
+the affected release gates. Retain the old inputs and evidence.
+
 ## Approval requirements still open
 
 The refreshed six-target capture and record verification are complete. Inspect
 the retained security-update transactions and finish vendor/upstream applicability
 review against those exact versions.
-Resolve Rocky OpenSSL and every other applicable unpatched runtime finding,
+Honor the scope and expiry of the Rocky OpenSSL exception and resolve every
+other applicable unpatched runtime finding,
 complete the transitive dependency/license review, retain approved inputs and
 package/evidence bundles durably before CI expiry, and rerun the retained real
 version upgrade/rollback matrix on that exact lock. No RPM is tagged, signed or
