@@ -1,0 +1,161 @@
+{
+  "builders": {
+    "fedora43-amd64": {
+      "artifact_id": 12456116697,
+      "base_image": "fedora:43@sha256:a651ddf48ea28a06ed4e1e6519f51c9f47e7a5a138722ade87369b8fbb7e5b42",
+      "capture_revision": "8851e33eab053798137599c6b46d1d27dfbb7d33",
+      "files": {
+        "builder.tar.gz": {
+          "bytes": 501637384,
+          "sha256": "6bc3a2e00c1e5c7ffa82a7008187df5aa34ccd1b05968deedec159e39d7dbe6a"
+        },
+        "image.json": {
+          "bytes": 3115,
+          "sha256": "e4c419c148ce806136dc626360321acf9bfcdfa3a866d9adec6ecd48d2a7a4bb"
+        },
+        "packages.tsv": {
+          "bytes": 56114,
+          "sha256": "904be3dea6aa46bb138d4f6fa1e837cd2d7c5fdc73b1b61e7acc49e4396e30de"
+        },
+        "tools.txt": {
+          "bytes": 758,
+          "sha256": "d4d5f79a189a6840b3654fc1a2c9c6ef1691d6bfbd2fd43cd891e2228fca5117"
+        }
+      },
+      "image_id": "sha256:6b62e7451a680257339bbbce5e044e6c753f7648153bb78221bbb21a425ae326",
+      "run_id": 39846491722,
+      "target": "fedora43-amd64"
+    },
+    "fedora43-arm64": {
+      "artifact_id": 12455976161,
+      "base_image": "fedora:43@sha256:a651ddf48ea28a06ed4e1e6519f51c9f47e7a5a138722ade87369b8fbb7e5b42",
+      "capture_revision": "8851e33eab053798137599c6b46d1d27dfbb7d33",
+      "files": {
+        "builder.tar.gz": {
+          "bytes": 472793509,
+          "sha256": "9cf93bbf3a0704e8f7caf1a851274c0e9d0900be6ba9069b38723450ceac1bc8"
+        },
+        "image.json": {
+          "bytes": 3116,
+          "sha256": "2e56b67fff0f5c058185607620a8214da92facd6b1b13db1d3cf2e39450b973e"
+        },
+        "packages.tsv": {
+          "bytes": 58015,
+          "sha256": "6e4af1d8a9c4beacb3bb345265067ef898d192d4a19e3fdeb6d1141220717ef1"
+        },
+        "tools.txt": {
+          "bytes": 758,
+          "sha256": "d4d5f79a189a6840b3654fc1a2c9c6ef1691d6bfbd2fd43cd891e2228fca5117"
+        }
+      },
+      "image_id": "sha256:9f9e7587c85a52de747146110a15d9dcdeea6148235bd801b2f14403f9170809",
+      "run_id": 39846491722,
+      "target": "fedora43-arm64"
+    },
+    "fedora44-amd64": {
+      "artifact_id": 12455682129,
+      "base_image": "fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
+      "capture_revision": "8851e33eab053798137599c6b46d1d27dfbb7d33",
+      "files": {
+        "builder.tar.gz": {
+          "bytes": 530591918,
+          "sha256": "1d7b2f1c01508ad6689b7a3d51073b2d61201db41b99476d62728414e25fd8e4"
+        },
+        "image.json": {
+          "bytes": 3115,
+          "sha256": "1b940bfc8239f160714e2b2de5fb2fec9ebf06bd8cafa21198b450adcc18e9b1"
+        },
+        "packages.tsv": {
+          "bytes": 58482,
+          "sha256": "5d0d3c6d3eb48ef95423378ff892cd8235cb9d301eb06b87c13ca91adf24781d"
+        },
+        "tools.txt": {
+          "bytes": 758,
+          "sha256": "12d0e9e99737f58e213d6f9faff8fdb9aad99c3de265e2429f8472ac2789d576"
+        }
+      },
+      "image_id": "sha256:a924ea8e1395cba543b417bc6cf59c4b83edfe205c73c96fb6f4c84982352168",
+      "run_id": 39846491722,
+      "target": "fedora44-amd64"
+    },
+    "fedora44-arm64": {
+      "artifact_id": 12455288387,
+      "base_image": "fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
+      "capture_revision": "8851e33eab053798137599c6b46d1d27dfbb7d33",
+      "files": {
+        "builder.tar.gz": {
+          "bytes": 498408489,
+          "sha256": "4e63f0e609564e730e70c9bf89413769ab3a0fd8293e188120661148a90b7644"
+        },
+        "image.json": {
+          "bytes": 3116,
+          "sha256": "fb45e62dc92c96ab2713c9a396095828af1d95156c68b98b104d4fc5e16e1b3b"
+        },
+        "packages.tsv": {
+          "bytes": 60395,
+          "sha256": "238b49062dd9f5e058af08b130f8f7115456c11ef45fcad28b4814a4652decfa"
+        },
+        "tools.txt": {
+          "bytes": 758,
+          "sha256": "12d0e9e99737f58e213d6f9faff8fdb9aad99c3de265e2429f8472ac2789d576"
+        }
+      },
+      "image_id": "sha256:f9e57ad6277e98b8a2f16ad0a26edfc6962bb32a31da353057c722745cab2d39",
+      "run_id": 39846491722,
+      "target": "fedora44-arm64"
+    },
+    "rocky10-amd64": {
+      "artifact_id": 12454714131,
+      "base_image": "rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834",
+      "capture_revision": "8851e33eab053798137599c6b46d1d27dfbb7d33",
+      "files": {
+        "builder.tar.gz": {
+          "bytes": 584583312,
+          "sha256": "a9f57ed4445839b28daa03882555611e956a4bfe73791e17ca54d96e7636bedf"
+        },
+        "image.json": {
+          "bytes": 3718,
+          "sha256": "c7476543c2653d2b91d84c62c3153df88038387b97272923881da440311a33f3"
+        },
+        "packages.tsv": {
+          "bytes": 67751,
+          "sha256": "a4417ea03e3d53756572784fdfc4e838d77b29041024d1066416dfef77d22eb9"
+        },
+        "tools.txt": {
+          "bytes": 760,
+          "sha256": "1fedccadda4ce330cc119e4341a98d5d844577b20b43840e105bdd25291ed04e"
+        }
+      },
+      "image_id": "sha256:1bbaf954373e1f533a2be669402b00d5a3c469e3f8e66ba9f7cb952c743d9f1b",
+      "run_id": 39846491722,
+      "target": "rocky10-amd64"
+    },
+    "rocky10-arm64": {
+      "artifact_id": 12456295066,
+      "base_image": "rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834",
+      "capture_revision": "8851e33eab053798137599c6b46d1d27dfbb7d33",
+      "files": {
+        "builder.tar.gz": {
+          "bytes": 550335606,
+          "sha256": "e8722007ddfb93569a75b15ea1654222a96867cf3b145416bc0ef875215d2bb6"
+        },
+        "image.json": {
+          "bytes": 3718,
+          "sha256": "4063ae45dcbb7c48ef1f27e748e7d9ce31a2da35fb81a06669e02500c389e899"
+        },
+        "packages.tsv": {
+          "bytes": 69737,
+          "sha256": "479608c1d6514161dae3818855f08ee6ef7f07f8d7782d6672977a10b5508aba"
+        },
+        "tools.txt": {
+          "bytes": 760,
+          "sha256": "1fedccadda4ce330cc119e4341a98d5d844577b20b43840e105bdd25291ed04e"
+        }
+      },
+      "image_id": "sha256:37fd733939f815fe495e45b71acd8322ef733acc0c0bcbefeaf3bdf0b84a80f9",
+      "run_id": 39846491722,
+      "target": "rocky10-arm64"
+    }
+  },
+  "format_version": 1
+}

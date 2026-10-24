@@ -135,9 +135,18 @@ if find "/usr/share/doc/$package_name" "/usr/share/licenses/$package_name" \
 	exit 1
 fi
 
-# Use the current security suite to test the RPM's library; do not overwrite it
+# Use the versioned security suite to test the RPM's library; do not overwrite it
 # with `make install` or build-tree module bytes.
-cp -a "$repo_root/." /source/
+if test "${RPM_RELEASE_BASELINE:-0}" = 1; then
+	# Older releases have a different documented type/configuration contract.
+	# Only the checked-in exact source/version baseline may select its own suite.
+	python3 "$repo_root/scripts/ci/rpm-release.py" baseline-suite "$inputs" /source
+	# The current harness handles distribution socket/logging defaults. Keep
+	# the release's assertions while using the same isolated transport fixture.
+	cp "$repo_root/tests/integration/integration_support.py" /source/tests/integration/
+else
+	cp -a "$repo_root/." /source/
+fi
 make -C /source clean PG_CONFIG="$PG_CONFIG_PATH" >/dev/null
 make -C /source integrationcheck PG_CONFIG="$PG_CONFIG_PATH" \
 	VALIDATOR_LIBRARY="$library"
@@ -175,7 +184,7 @@ if test -n "${RPM_CANDIDATE_EXPORT_DIR:-}"; then
 	cmp "$inputs/INPUTS.sha256" "$RPM_CANDIDATE_EXPORT_DIR/inputs/INPUTS.sha256"
 	{
 		echo 'Experimental unsigned RPM candidate; not release approval.'
-		echo 'Passed: offline unprivileged build, SRPM integrity, installed OAuth suite, RPM verification, removal.'
+		echo 'Passed: offline unprivileged build, SRPM integrity, versioned installed OAuth suite, RPM verification, removal.'
 		echo 'Not covered: SELinux confinement, cross-release upgrade/rollback, signing, vulnerability approval.'
 		"$PG_CONFIG_PATH" --version
 		gcc --version | head -n 1

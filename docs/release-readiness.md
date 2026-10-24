@@ -77,11 +77,18 @@ PGDG development version, and exact security-relevant runtime packages.
 
 ## PostgreSQL-specific artifacts
 
-RPM candidates have a separate manual `RPM candidate rehearsal` workflow for
-Fedora 43/44 and Rocky Linux 10, on x86-64 and ARM64. See
-[`rpm-platforms.md`](rpm-platforms.md#required-work-before-support) for its
-retained unsigned bundles, two-container comparison, and remaining release
-requirements. The tag-triggered draft workflow below does not publish RPMs.
+RPM candidates use a separate `RPM candidate rehearsal` workflow for all six
+Fedora 43/44 and Rocky 10 architecture pairs. It loads reviewed complete builder
+archives from the checked-in lock, builds on two fresh native runners, compares
+complete retained bundles, and rehearses the exact rebuilt v0.1.2 source-release
+baseline -> provisional 0.1.3 candidate -> retained baseline. See
+[`rpm-platforms.md`](rpm-platforms.md#locked-release-candidate-inputs) for
+versioned test contracts, sanitized evidence and retention requirements.
+The baseline was not a previously published RPM. Dependency/vendor-advisory
+review, durable retention and release signing remain explicit approval gates;
+these tests alone do not establish production readiness. Existing Fedora 44
+x86-64 enforcing evidence retains its documented scope. The tag-triggered draft
+workflow below does not publish RPMs.
 
 PostgreSQL does not provide cross-major server-module ABI compatibility. Build,
 test, name, stage, publish, install, and roll back PostgreSQL 18 and 19 artifacts
@@ -127,6 +134,9 @@ in `RELEASE-EVIDENCE.md`. The separate fresh-environment rehearsal remains a
 release-approval requirement.
 
 ## Dependency, license, and vulnerability review
+
+The current [RPM review record](rpm-dependency-review.md) records findings and
+blocks production approval; it is not a clean security attestation.
 
 Perform and record a review for every release. This section defines the
 procedure and does **not** assert that a current review has been completed.

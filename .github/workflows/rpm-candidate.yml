@@ -4,121 +4,224 @@ on:
   pull_request:
     paths:
       - '.github/workflows/rpm-candidate.yml'
+      - '.github/actions/load-rpm-builder/**'
       - 'scripts/ci/*rpm*'
       - 'packaging/rpm/**'
-      - 'tests/ci/test_rpm_candidates.py'
-      - 'scripts/ci/install-jansson.sh'
-      - 'scripts/ci/install-libjwt.sh'
-      - 'tests/ci/test_dependency_build_roots.py'
+      - 'tests/ci/test_rpm*.py'
+      - 'tests/integration/**'
+      - 'src/**'
+      - 'Makefile'
+      - 'scripts/ci/install-*.sh'
   workflow_dispatch:
     inputs:
       version:
-        description: Unsigned candidate version (MAJOR.MINOR.PATCH; no publication)
+        description: Provisional unsigned candidate version (MAJOR.MINOR.PATCH)
+        default: '0.1.3'
         required: true
         type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: rpm-candidate-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  CANDIDATE_VERSION: ${{ inputs.version || '0.0.0' }}
+  CANDIDATE_VERSION: ${{ inputs.version || '0.1.3' }}
 
 jobs:
-  candidate:
-    name: Candidate / ${{ matrix.distribution.name }}${{ matrix.architecture.name_suffix }}
-    runs-on: ${{ matrix.architecture.runner }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        distribution:
-          - name: Fedora 43
-            image_name: fedora43
-            base_image: fedora:43@sha256:a651ddf48ea28a06ed4e1e6519f51c9f47e7a5a138722ade87369b8fbb7e5b42
-            rpm_platform: fedora43
-            pg_config: /usr/bin/pg_server_config
-          - name: Fedora 44
-            image_name: fedora44
-            base_image: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
-            rpm_platform: fedora44
-            pg_config: /usr/bin/pg_server_config
-          - name: Rocky Linux 10 / PGDG
-            image_name: rocky10
-            base_image: rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834
-            rpm_platform: el10
-            pg_config: /usr/pgsql-18/bin/pg_config
-        architecture:
-          - name_suffix: ''
-            runner: ubuntu-24.04
-            platform: linux/amd64
-            host_arch: x86_64
-            image_suffix: amd64
-          - name_suffix: ' / arm64'
-            runner: ubuntu-24.04-arm
-            platform: linux/arm64
-            host_arch: aarch64
-            image_suffix: arm64
-
+  prepare:
+    name: Validate reviewed builders and release pair
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.inputs.outputs.matrix }}
+      baseline_version: ${{ steps.inputs.outputs.baseline_version }}
+      baseline_source_revision: ${{ steps.inputs.outputs.baseline_source_revision }}
     steps:
-      - name: Check out exact candidate revision
+      - name: Check out exact source and release tags
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-
-      - name: Validate candidate version and comparison tests
+          fetch-depth: 0
+      - name: Test retained-input boundaries
         run: |
-          python3 -c 'import os,re; assert re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", os.environ["CANDIDATE_VERSION"]), "MAJOR.MINOR.PATCH required"'
+          python3 tests/ci/test_rpm_builder.py
+          python3 tests/ci/test_rpm_release.py
           python3 tests/ci/test_rpm_candidates.py
-          python3 tests/ci/test_dependency_build_roots.py
-
-      - name: Build and record the shared build image
+          python3 tests/ci/test_rpm_upgrade.py
+      - name: Validate full builder lock and version ordering
+        id: inputs
+        run: |
+          python3 scripts/ci/rpm-builder.py matrix packaging/rpm/builders.lock.json >> "$GITHUB_OUTPUT"
+          python3 scripts/ci/rpm-release.py policy packaging/rpm/release-baseline.json \
+            "$CANDIDATE_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Verify retained previous release tag and exact source
         env:
-          BASE_IMAGE: ${{ matrix.distribution.base_image }}
-          RPM_PLATFORM: ${{ matrix.distribution.rpm_platform }}
-          PG_CONFIG_PATH: ${{ matrix.distribution.pg_config }}
-          DOCKER_PLATFORM: ${{ matrix.architecture.platform }}
-          EXPECTED_HOST_ARCH: ${{ matrix.architecture.host_arch }}
+          GH_TOKEN: ${{ github.token }}
+          BASELINE_TAG: ${{ steps.inputs.outputs.baseline_tag }}
+          BASELINE_SOURCE: ${{ steps.inputs.outputs.baseline_source_revision }}
         run: |
-          test "$(uname -m)" = "$EXPECTED_HOST_ARCH"
-          docker build --platform "$DOCKER_PLATFORM" --file tools/rpm/Containerfile \
-            --build-arg BASE_IMAGE="$BASE_IMAGE" --build-arg RPM_PLATFORM="$RPM_PLATFORM" \
-            --build-arg PG_CONFIG_PATH="$PG_CONFIG_PATH" --tag rpm-candidate .
-          mkdir -p "$RUNNER_TEMP/candidate-evidence"
-          docker image inspect rpm-candidate > "$RUNNER_TEMP/candidate-evidence/build-image.json"
-          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/candidate-evidence/SOURCE-REVISION"
+          test "$(git rev-parse "$BASELINE_TAG^{commit}")" = "$BASELINE_SOURCE"
+          tag_object=$(git rev-parse "refs/tags/$BASELINE_TAG")
+          test "$(git cat-file -t "$tag_object")" = tag
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object" \
+            --jq '.verification.verified' | grep -Fx true
 
-      - name: Prepare immutable inputs offline
-        run: |
-          docker run --rm --network=none --entrypoint python3 \
-            --volume "$GITHUB_WORKSPACE:/workspace:ro" --volume "$RUNNER_TEMP:/output" \
-            rpm-candidate /workspace/scripts/ci/prepare-rpm-sources.py prepare \
-            "$CANDIDATE_VERSION" "$GITHUB_SHA" /opt/rpm-dependencies /output/candidate-inputs
-
-      - name: Build and test twice in separate offline containers
-        run: |
-          for attempt in first second; do
-            mkdir "$RUNNER_TEMP/candidate-evidence/$attempt"
-            docker run --rm --network=none --tmpfs /source:exec --entrypoint /bin/sh \
-              --env RPM_CANDIDATE_EXPORT_DIR=/export \
-              --volume "$GITHUB_WORKSPACE:/workspace:ro" \
-              --volume "$RUNNER_TEMP/candidate-inputs:/inputs:ro" \
-              --volume "$RUNNER_TEMP/candidate-evidence/$attempt:/export" \
-              rpm-candidate /workspace/scripts/ci/test-rpm-package.sh /inputs
-          done
-
-      - name: Require identical RPMs, SRPMs, inputs, and build inventories
-        run: |
-          python3 scripts/ci/check-rpm-candidates.py \
-            "$RUNNER_TEMP/candidate-evidence/first" "$RUNNER_TEMP/candidate-evidence/second"
-
-      - name: Retain unsigned candidate and rehearsal evidence
+  baseline:
+    name: Retain baseline / ${{ matrix.builder.target }}
+    needs: prepare
+    runs-on: ${{ matrix.builder.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        builder: ${{ fromJSON(needs.prepare.outputs.matrix).include }}
+    steps:
+      - name: Check out packaging and exact prior source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Load reviewed complete builder
+        uses: ./.github/actions/load-rpm-builder
+        with:
+          target: ${{ matrix.builder.target }}
+          artifact-id: ${{ matrix.builder.artifact_id }}
+          run-id: ${{ matrix.builder.run_id }}
+          token: ${{ github.token }}
+      - name: Retain verified dependency review records
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: rpm-candidate-${{ env.CANDIDATE_VERSION }}-${{ matrix.distribution.image_name }}-${{ matrix.architecture.image_suffix }}
-          path: ${{ runner.temp }}/candidate-evidence
+          name: rpm-builder-review-${{ matrix.builder.target }}
+          path: |
+            ${{ runner.temp }}/frozen-builder/packages.tsv
+            ${{ runner.temp }}/frozen-builder/tools.txt
+            ${{ runner.temp }}/frozen-builder/image.json
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 90
+      - name: Prepare previous source-release inputs offline
+        env:
+          IMAGE: ${{ matrix.builder.image_id }}
+          BASELINE_VERSION: ${{ needs.prepare.outputs.baseline_version }}
+          BASELINE_SOURCE: ${{ needs.prepare.outputs.baseline_source_revision }}
+        run: |
+          docker run --rm --pull=never --network=none --entrypoint python3 \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" --volume "$RUNNER_TEMP:/output" \
+            "$IMAGE" /workspace/scripts/ci/prepare-rpm-sources.py prepare \
+            "$BASELINE_VERSION" "$BASELINE_SOURCE" /opt/rpm-dependencies /output/baseline-inputs
+      - name: Build, test and seal the retained baseline
+        env:
+          IMAGE: ${{ matrix.builder.image_id }}
+        run: |
+          mkdir "$RUNNER_TEMP/baseline"
+          docker run --rm --pull=never --network=none --tmpfs /source:exec --entrypoint /bin/sh \
+            --env RPM_CANDIDATE_EXPORT_DIR=/baseline --env RPM_RELEASE_BASELINE=1 \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --volume "$RUNNER_TEMP/baseline-inputs:/inputs:ro" \
+            --volume "$RUNNER_TEMP/baseline:/baseline" "$IMAGE" -eu -c \
+            'sh /workspace/scripts/ci/test-rpm-package.sh /inputs; python3 /workspace/scripts/ci/rpm-release.py seal /baseline'
+      - name: Retain actual baseline RPMs and sources
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpm-baseline-${{ matrix.builder.target }}
+          path: ${{ runner.temp }}/baseline
+          if-no-files-found: error
+          retention-days: 90
+
+  candidate:
+    name: Candidate / ${{ matrix.builder.target }} / ${{ matrix.attempt }}
+    needs: [prepare, baseline]
+    runs-on: ${{ matrix.builder.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        builder: ${{ fromJSON(needs.prepare.outputs.matrix).include }}
+        attempt: [first, second]
+    steps:
+      - name: Check out exact candidate and current security suite
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Load reviewed complete builder on this fresh runner
+        uses: ./.github/actions/load-rpm-builder
+        with:
+          target: ${{ matrix.builder.target }}
+          artifact-id: ${{ matrix.builder.artifact_id }}
+          run-id: ${{ matrix.builder.run_id }}
+          token: ${{ github.token }}
+      - name: Download the retained baseline
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: rpm-baseline-${{ matrix.builder.target }}
+          path: ${{ runner.temp }}/baseline
+      - name: Verify baseline and prepare candidate inputs offline
+        env:
+          IMAGE: ${{ matrix.builder.image_id }}
+        run: |
+          python3 scripts/ci/rpm-release.py verify "$RUNNER_TEMP/baseline"
+          docker run --rm --pull=never --network=none --entrypoint python3 \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" --volume "$RUNNER_TEMP:/output" \
+            "$IMAGE" /workspace/scripts/ci/prepare-rpm-sources.py prepare \
+            "$CANDIDATE_VERSION" "$GITHUB_SHA" /opt/rpm-dependencies /output/candidate-inputs
+      - name: Build/test candidate and rehearse retained A to B to A
+        env:
+          IMAGE: ${{ matrix.builder.image_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/evidence/candidate"
+          cp packaging/rpm/builders.lock.json "$RUNNER_TEMP/evidence/builders.lock.json"
+          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/evidence/SOURCE-REVISION"
+          docker run --rm --pull=never --network=none --tmpfs /source:exec --entrypoint /bin/sh \
+            --env RPM_CANDIDATE_EXPORT_DIR=/evidence/candidate --env RPM_RELEASE_REHEARSAL=1 \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --volume "$RUNNER_TEMP/candidate-inputs:/inputs:ro" \
+            --volume "$RUNNER_TEMP/baseline:/baseline:ro" \
+            --volume "$RUNNER_TEMP/evidence:/evidence" "$IMAGE" -eu -c \
+            'sh /workspace/scripts/ci/test-rpm-package.sh /inputs; python3 /workspace/scripts/ci/rpm-release.py seal /evidence/candidate; python3 /workspace/scripts/ci/rpm-release.py rehearse /baseline /evidence/candidate /evidence/rehearsal.json'
+      - name: Retain candidate and sanitized lifecycle evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpm-candidate-${{ env.CANDIDATE_VERSION }}-${{ matrix.builder.target }}-${{ matrix.attempt }}
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
+          retention-days: 90
+
+  compare:
+    name: Fresh-runner reproducibility / ${{ matrix.builder.target }}
+    needs: [prepare, candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        builder: ${{ fromJSON(needs.prepare.outputs.matrix).include }}
+    steps:
+      - name: Check out candidate verifier
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Download first fresh-runner result
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: rpm-candidate-${{ env.CANDIDATE_VERSION }}-${{ matrix.builder.target }}-first
+          path: ${{ runner.temp }}/first
+      - name: Download second fresh-runner result
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: rpm-candidate-${{ env.CANDIDATE_VERSION }}-${{ matrix.builder.target }}-second
+          path: ${{ runner.temp }}/second
+      - name: Require complete candidate byte equality and lifecycle consistency
+        # Both jobs must have used the same retained previous-release artifact.
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: rpm-baseline-${{ matrix.builder.target }}
+          path: ${{ runner.temp }}/baseline
+      - name: Verify byte equality and complete lifecycle receipts
+        run: |
+          python3 scripts/ci/rpm-release.py compare \
+            "$RUNNER_TEMP/first/candidate" "$RUNNER_TEMP/second/candidate"
+          python3 scripts/ci/rpm-release.py compare-evidence \
+            "$RUNNER_TEMP/first" "$RUNNER_TEMP/second" "$RUNNER_TEMP/baseline"
