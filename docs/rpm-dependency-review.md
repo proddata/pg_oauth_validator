@@ -1,10 +1,11 @@
 # RPM dependency review, 2026-10-22
 
-Status: **production approval blocked**. This is a review record, not a signed
-release approval. Runtime tests and reproducible packages do not resolve vendor
-security findings. The deployment owner authorized the scoped Rocky OpenSSL
-exception below on 2026-10-23; remaining review requirements still block
-production approval.
+Status: **dependency/security and license review reported complete by the
+deployment owner on 2026-10-24; final release approval pending**. This is a review
+record, not a signed release approval. Runtime tests and reproducible packages
+do not resolve vendor security findings. The deployment owner authorized the
+scoped Rocky OpenSSL exception below on 2026-10-23. Durable retention, validation
+of the final release revision, and release signing/approval remain separate gates.
 
 ## Reviewed inputs and evidence
 
@@ -165,14 +166,26 @@ Recheck signed Rocky packages and vendor/source patch evidence; when a fix is
 available, capture and review fresh builders for both architectures and rerun
 the affected release gates. Retain the old inputs and evidence.
 
+## Owner review completion, 2026-10-24
+
+The deployment owner (`proddata`) reported completion of the remaining
+dependency/security and license review in the repository work session. This
+records the owner's completion statement for the reviewed inputs above; it is
+not an independently reproduced audit or an assertion that all dependencies
+are free of vulnerabilities. No additional itemized findings, license evidence,
+or review artifacts were supplied with that statement. The controlled-endpoint
+Rocky exception remains scoped and time-limited as recorded above.
+
 ## Approval requirements still open
 
-The refreshed six-target capture and record verification are complete. Inspect
-the retained security-update transactions and finish vendor/upstream applicability
-review against those exact versions.
-Honor the scope and expiry of the Rocky OpenSSL exception and resolve every
-other applicable unpatched runtime finding,
-complete the transitive dependency/license review, retain approved inputs and
-package/evidence bundles durably before CI expiry, and rerun the retained real
-version upgrade/rollback matrix on that exact lock. No RPM is tagged, signed or
-published by this work.
+Retain approved inputs and package/evidence bundles durably before CI expiry.
+Record the storage location and verify the transferred files against the reviewed
+lock and sealed manifests. Local ignored `dist/` copies alone do not establish
+backup or durable retention.
+
+Select the final release source revision and rerun the affected release gates
+on that exact revision and reviewed builder lock. Honor the scope and expiry of
+the Rocky OpenSSL exception. Obtain final release approval, sign and verify the
+release artifacts, and follow the publication procedure. The owner's review
+completion does not authorize tagging or publication by the agent. No RPM is
+tagged, signed or published by this work.

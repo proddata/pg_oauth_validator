@@ -135,8 +135,10 @@ release-approval requirement.
 
 ## Dependency, license, and vulnerability review
 
-The current [RPM review record](rpm-dependency-review.md) records findings and
-blocks production approval; it is not a clean security attestation.
+The current [RPM review record](rpm-dependency-review.md) records owner-reported
+completion of dependency/security and license review and a scoped Rocky
+exception. Durable retention and final release gates remain open; it is not a
+clean security attestation or signed release approval.
 
 Perform and record a review for every release. This section defines the
 procedure and does **not** assert that a current review has been completed.
