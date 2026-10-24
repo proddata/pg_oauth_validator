@@ -37,7 +37,11 @@ must never receive production credentials or copy checkout authentication into
 the image. The Containerfile copies only explicit public build/test inputs.
 
 Keep archives for 90 days in CI and transfer approved builder/candidate/evidence
-bundles to durable release storage before expiry. CI checksums and artifact IDs
+bundles to durable release storage before expiry. The owner explicitly deferred
+additional durable storage for the provisional 0.1.3 prerelease on 2026-10-24;
+see the scoped [retention decision](../release-readiness.md#limited-prerelease-retention-decision-2026-10-24).
+Production promotion still requires durable retention and a verified restore.
+CI checksums and artifact IDs
 are integrity records, not release signatures or vulnerability approval. Review
 the complete runtime dependency inventory and upstream/vendor advisories before
 approving a builder; freeze a new input set for relevant security updates.
