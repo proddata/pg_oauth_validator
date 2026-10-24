@@ -4,8 +4,9 @@ Status: **dependency/security and license review reported complete by the
 deployment owner on 2026-10-24; final release approval pending**. This is a review
 record, not a signed release approval. Runtime tests and reproducible packages
 do not resolve vendor security findings. The deployment owner authorized the
-scoped Rocky OpenSSL exception below on 2026-10-23. Durable retention, validation
-of the final release revision, and release signing/approval remain separate gates.
+scoped Rocky OpenSSL exception below on 2026-10-23. Validation of the final release revision and release signing/approval remain
+separate gates; additional durable storage is deferred for the 0.1.3 prerelease
+as recorded in the release-readiness checklist.
 
 ## Reviewed inputs and evidence
 
@@ -178,10 +179,12 @@ Rocky exception remains scoped and time-limited as recorded above.
 
 ## Approval requirements still open
 
-Retain approved inputs and package/evidence bundles durably before CI expiry.
-Record the storage location and verify the transferred files against the reviewed
-lock and sealed manifests. Local ignored `dist/` copies alone do not establish
-backup or durable retention.
+For the 0.1.3 prerelease, the owner accepts existing CI retention instead of
+additional durable storage; see the limited prerelease decision in
+[release readiness](release-readiness.md#limited-prerelease-retention-decision-2026-10-24).
+Durable retention and a verified restore remain requirements before production
+promotion. Local ignored `dist/` copies alone do not establish backup or durable
+retention.
 
 Select the final release source revision and rerun the affected release gates
 on that exact revision and reviewed builder lock. Honor the scope and expiry of

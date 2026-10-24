@@ -48,6 +48,31 @@ release approver. Then
 publish the draft without replacing the reviewed tag or artifacts. A rejected
 candidate gets a new version and tag; do not move the existing tag.
 
+## Limited prerelease retention decision, 2026-10-24
+
+For the provisional **0.1.3 prerelease**, the deployment owner (`proddata`)
+explicitly deferred additional durable storage while the project is not yet
+production-ready. Existing CI retention is accepted for this prerelease:
+RPM builder/candidate/evidence artifacts have a 90-day retention setting;
+PostgreSQL release-candidate archives have a 14-day retention setting. Each
+artifact's actual expiry is determined by its upload time and GitHub policy.
+The locked builder capture predates the candidate, so a candidate rebuild does
+not extend builder retention. Local copies are convenience copies, not a
+verified backup.
+
+This is a prerelease-only exception to the durable-retention gate below, not a
+claim of durable recovery or a relaxation of integrity/authentication tests.
+After expiry, archived inputs may be unavailable and exact reproduction or
+rollback may no longer be possible. Missing locked inputs must still fail
+closed; never substitute current repository packages. Before production
+promotion, arrange durable retention and verify a restore, or capture/review new
+inputs and rerun affected gates if the original inputs are unavailable.
+
+The dependency/security and license review is owner-reported complete, subject
+to the scoped Rocky exception in the RPM review record. Final candidate checks,
+source/version identity, signatures and release-owner approval still apply.
+No release tag or publication is authorized merely by preparing a candidate.
+
 ## Release record
 
 Create an immutable release record containing:

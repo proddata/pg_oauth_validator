@@ -230,7 +230,8 @@ and protected local administration, restores exact configuration bytes while
 stopped, and proves valid authentication returns.
 
 Artifacts expire after 90 days. Transfer approved archives and package/evidence
-bundles to durable release storage before expiry. Hashes and successful tests
+bundles to durable release storage before expiry, except for the explicitly
+accepted [0.1.3 prerelease retention limitation](release-readiness.md#limited-prerelease-retention-decision-2026-10-24). Hashes and successful tests
 are not signing, vulnerability approval or publication. Review vendor advisories
 against full RPM release versions (including backports), not upstream version
 strings alone. Existing Fedora 44 x86-64 enforcing tests remain the SELinux gate;
