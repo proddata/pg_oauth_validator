@@ -1,12 +1,11 @@
 # RPM dependency review, 2026-10-22
 
-Status: **dependency/security and license review reported complete by the
-deployment owner on 2026-10-24; final release approval pending**. This is a review
-record, not a signed release approval. Runtime tests and reproducible packages
-do not resolve vendor security findings. The deployment owner authorized the
-scoped Rocky OpenSSL exception below on 2026-10-23. Validation of the final release revision and release signing/approval remain
-separate gates; additional durable storage is deferred for the 0.1.3 prerelease
-as recorded in the release-readiness checklist.
+Historical review: dependency/security and license review was reported complete
+by the deployment owner on 2026-10-24. Subsequent validation, signing and
+prerelease approval are recorded in the [published 0.1.3 release](releases/0.1.3-prerelease.md).
+This dependency review is not itself a signed release approval and does not
+resolve vendor security findings. The scoped Rocky exception and production
+retention requirements below still apply.
 
 ## Reviewed inputs and evidence
 
@@ -177,7 +176,7 @@ are free of vulnerabilities. No additional itemized findings, license evidence,
 or review artifacts were supplied with that statement. The controlled-endpoint
 Rocky exception remains scoped and time-limited as recorded above.
 
-## Approval requirements still open
+## Requirements recorded before publication
 
 For the 0.1.3 prerelease, the owner accepts existing CI retention instead of
 additional durable storage; see the limited prerelease decision in
@@ -185,6 +184,9 @@ additional durable storage; see the limited prerelease decision in
 Durable retention and a verified restore remain requirements before production
 promotion. Local ignored `dist/` copies alone do not establish backup or durable
 retention.
+
+The following preparation requirements were subsequently completed for the
+published 0.1.3 prerelease; future releases need their own evidence and approval.
 
 Select the final release source revision and rerun the affected release gates
 on that exact revision and reviewed builder lock. Honor the scope and expiry of

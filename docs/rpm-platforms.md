@@ -126,7 +126,9 @@ against actual retained files. Exports exclude tokens, keys and raw server logs.
 
 The recorded baseline is rebuilt v0.1.2 source at
 `56dfb631718acd2a17d2608729f10bd015fe6f2d`, not previously published RPMs;
-0.1.3 is provisional. Baseline assertions use its exact release contract with
+0.1.3 was [published as a prerelease](releases/0.1.3-prerelease.md); workflow
+defaults still name that historical candidate. Select a new version for future
+release preparation. Baseline assertions use its exact release contract with
 the current isolated transport fixture. The candidate runs the current suite;
 both run shared lifecycle, denial, redaction and recovery probes. No negative
 assertions are removed. See [ADR 0007](adr/0007-frozen-rpm-release-builders.md).
