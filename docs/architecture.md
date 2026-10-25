@@ -1,119 +1,60 @@
-# Implemented architecture
+# Architecture
 
-This document summarizes the implementation currently present in the tree. For
-the security contract, see [`../FEATURES.md`](../FEATURES.md). Design
-decisions are in the [`ADR directory`](adr/).
+[FEATURES.md](../FEATURES.md) defines the security contract;
+[ADRs](adr/) explain design choices. This guide maps that contract to code.
 
-## Validation path
+## Validation path and trust boundaries
 
-The exported `_PG_oauth_validator_module_init` function registers one
-validation callback. For every token and requested role, the callback:
+`pg_oauth_validator.c` initializes callback outputs to denial/NULL and adapts
+PostgreSQL results and memory ownership. `hba_policy.c` isolates version-specific
+matched-HBA access and PostgreSQL 19's `validator.policy=default` selector.
+`config.c` and `policy.c` combine administrator/HBA inputs into validated policy.
+Token claims never select the trusted issuer.
 
-1. initializes `authorized` to `false`;
-2. initializes `authn_id` to `NULL`;
-3. reads issuer and required scopes from the matched OAuth HBA rule through an
-   isolated PostgreSQL compatibility layer;
-4. on PostgreSQL 19, accepts optional `validator.policy=default` and rejects
-   other values;
-5. combines those inputs with configured defaults into an immutable validation
-   policy;
-6. derives the standard OIDC discovery URL from the exact issuer;
-7. validates metadata, JWKS, signature, claims, audience, expiry, token type,
-   scopes, and stable identity through the shared cache;
-8. authorizes the PostgreSQL resource and returns the validated selected
-   identity claim as `authn_id` only after every stage succeeds.
+`validator.c` composes these boundaries, authorizing only when all succeed:
 
-Without delegation, PostgreSQL compares `authn_id` to the requested role or
-applies the HBA `map=` and `pg_ident.conf` entry. With
-`delegate_ident_mapping=1` and a configured `role_claim`, the callback checks
-that the requested role exactly matches the claim's string value or an entry
-in its bounded array. PostgreSQL then trusts the validator's authorization
-decision. The HBA `USER` field also limits reachable roles.
+| Boundary | Implementation |
+| --- | --- |
+| Bounded compact JWS, canonical Base64URL, duplicate JSON and header policy | `jwt_envelope.c`, `base64url.c` |
+| Issuer-derived discovery, exact issuer and allowed JWKS URL | `metadata.c`, `issuer_key.c` |
+| Bounded HTTPS, exact hosts, TLS verification, no redirects/implicit proxies | `http_transport.c` |
+| Unique trusted key and local algorithm/key constraints | `jwks.c` |
+| Signature under the selected key/algorithm | `signature.c`, reviewed libjwt/OpenSSL |
+| Post-signature issuer, audience, time, scope and identity/role claims | `claims.c` |
+| Bounded unchanged authenticated identity | `identity.c` |
 
-## Parsing, transport, and key retrieval
+Library parsing and time defaults do not establish project policy. Rejected
+results retain no authenticated identity. PostgreSQL gets generic client errors;
+protected logs get stable non-sensitive diagnostics.
 
-Discovery metadata has an independent strict parser. It bounds the JSON
-document and URLs, rejects duplicate members, requires exact equality with the
-administrator-configured issuer, and returns only an absolute validated
-`jwks_uri`. HTTPS is mandatory unless an explicit development-only policy
-allows HTTP.
+PostgreSQL applies exact identity comparison or `pg_ident.conf` unless HBA
+explicitly delegates mapping. Delegated mode additionally requires a configured
+role claim and exact requested-role membership; HBA independently limits roles.
+Examples and settings belong in [configuration](configuration.md).
 
-The transport adapter performs bounded JSON GETs with TLS verification, exact
-host allowlisting, redirect and implicit-proxy denial, strict timeouts, and
-response limits. Issuer-key retrieval fetches only the configured metadata URL,
-checks the exact issuer, retrieves JWKS under its own exact-host policy, and
-selects one locally permitted key and algorithm. Cache refresh and unknown-key
-retry are bounded and preserve typed, non-sensitive failure details.
+## Shared cache
 
-The validation orchestrator connects envelope parsing, issuer-bound key
-retrieval, signature verification, claim and scope policy, and stable identity
-construction. Every stage must succeed before the next can establish trust.
-Rejected tokens never retain an authenticated identity. The PostgreSQL callback
-returns only generic client errors and stable, non-sensitive protected-log
-diagnostics.
+`cache_key.c` builds versioned length-prefixed keys containing the exact resource
+and complete trust policy; equality compares full bytes rather than a hash.
+`cache_state.c` performs bounded, allocation-free transitions using injected
+monotonic time: fresh/stale lookup, single-owner refresh, unknown-key cooldown,
+failed-refresh preservation and deterministic expired-LRU eviction.
+`http_freshness.c` interprets bounded cache headers under local caps.
+[ADR 0002](adr/0002-metadata-jwks-cache-and-outage-policy.md) defines policy.
 
-## Shared metadata and JWKS cache
+`shared_cache.c` stores fixed-size validated payloads in a versioned named DSM
+segment, without preload configuration. PostgreSQL 18/19 compatibility branches
+isolate named-DSM initializer and tranche API differences. An LWLock protects
+bounded copies and state transitions; publication updates bytes/freshness
+atomically and rejects obsolete refresh owners. Network operations and bounded
+condition-variable waits happen after releasing the lock.
 
-The fixed-capacity cache state machine is independent of PostgreSQL shared
-memory. It uses exact bounded composite keys and payloads, injected monotonic
-timestamps, explicit fresh/stale lookup, single refresh ownership, unknown-key
-cooldown, failed-refresh preservation, `no-store` removal,
-revalidation-required stale denial, and expired least-recently-used eviction
-without evicting usable entries.
+`issuer_key.c` publishes metadata only after issuer/URL checks, and JWKS only
+after strict parsing and requested-key selection. Fresh entries avoid HTTP;
+unknown keys permit bounded refresh. Eligible stale JWKS fallback is explicitly
+configured; metadata is never used stale. Complete policy keys isolate reloads.
+No tokens, claims or authenticated identities enter the cache.
 
-The state machine performs no allocation, networking, sleeping, or internal
-locking. A successful refresh publishes validated bytes and freshness state
-together; failed refreshes and stale refresh-owner tokens cannot overwrite a
-previously eligible payload.
-
-The HTTP transport preserves only the bounded freshness headers used by this
-cache. A strict calculator combines `Cache-Control`, `Date`, `Expires`, and
-`Age` using injected response time, caps provider freshness by local policy,
-rejects ambiguous or malformed security-relevant values, and propagates
-`no-store`, `no-cache`, and `must-revalidate` without treating HTTP freshness as
-issuer trust.
-
-The module attaches this state to a versioned, fixed-size named dynamic
-shared-memory segment and protects transitions and bounded payload copies with
-one PostgreSQL LWLock. Refresh ownership is returned after the lock is released,
-so provider network work cannot occur through a lock-holding API. PostgreSQL 18
-and 19 have isolated compatibility branches for their different named-DSM
-initializer and dynamic-tranche signatures.
-
-Cache lookups use a bounded, versioned canonical key rather than a hash alone.
-The binary key length-prefixes every variable field, distinguishes metadata
-from JWKS resources, and includes every current trust-relevant policy input. A
-changed issuer, URL, audience, scope, algorithm, identity claim, host rule,
-validation bound, stale policy, or transport policy therefore cannot reuse an
-entry from the previous effective policy.
-
-Issuer-resource retrieval publishes metadata only after exact issuer and URL
-validation and publishes JWKS only after bounded parsing and requested-key
-selection. Fresh entries avoid HTTP, expired entries elect one refresh owner,
-unknown key identifiers obey a per-policy cooldown, and a failed JWKS refresh
-may fall back only to an explicitly enabled, still-eligible stale entry.
-
-## Claims and identity
-
-The post-signature claims stage enforces exact issuer and audience, integer
-expiry and optional activation/issuance times with bounded skew, a bounded
-stable identity claim, and every required HBA scope. The strict default uses
-the `scope` claim; alternatives such as `scp` are unsupported.
-
-The final PostgreSQL identity is the validated selected identity claim,
-returned directly. Both `iss` and `sub` remain mandatory even when another
-claim is selected. The returned identity is limited to 63 bytes.
-Operational examples are in
-[`configuration.md`](configuration.md).
-
-## Integration coverage
-
-A test-only PostgreSQL probe exercises the named DSM cache from independent
-server backends. While one backend simulates slow provider work after becoming
-refresh owner, another observes a cold miss and refresh suppression promptly;
-after publication, a third backend reads the validated payload. The probe is a
-separate test library and adds no SQL-callable surface to the production module.
-
-The broader integration suite exercises the callback and shared cache through
-real PostgreSQL OAuth connections. See [`development.md`](development.md) for
-the supported verification commands.
+A separate test-only library probes cache behavior across real backends; it adds
+no SQL surface to the production module. Real OAuth integration exercises the
+same cache and callback. Verification commands are in [development](development.md).

@@ -65,7 +65,7 @@ identity remain required and are recorded in `system_user` even with delegation.
 
 The [demo realm](demo/keycloak-realm.json) shows the RFC 9068 header option,
 audience mapper, and requested scope. Run `make interop-keycloak` for the pinned
-26.5.0 setup. Its [test description](docs/development.md#provider-interoperability)
+26.5.0 setup. Its [test description](docs/development.md#interoperability-and-test-limits)
 lists accepted and rejected connections, signing-key rotation, and outage
 behavior. The generic [demo tutorial](demo/README.md) shows how to connect.
 Keycloak documents the [audience protocol mapper](https://www.keycloak.org/admin-api/protocol-mappers).

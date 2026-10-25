@@ -165,31 +165,16 @@ Update documentation in the same change as behavior. Use precise OAuth and Postg
 
 Operator-facing behavior must document secure defaults, configuration validation, logging/redaction, cache and outage behavior, reload semantics, compatibility limits, and upgrade/rollback steps.
 
-## Canonical commands
+## Canonical commands and documentation ownership
 
-Use PostgreSQL 18 or 19's `pg_config`. The build rejects other major versions. PostgreSQL 19 support is preview-only until its stable release.
+Use [docs/development.md](docs/development.md) for prerequisites, canonical build
+and test commands, and CI parity. PostgreSQL 18/19 builds use separate trees;
+other majors are rejected. [docs/release-readiness.md](docs/release-readiness.md)
+defines additional publication gates.
 
-Use isolated per-major build trees for development and CI:
-
-```sh
-make test-pg18 PG18_CONFIG=/path/to/postgresql-18/bin/pg_config
-make test-pg19 PG19_CONFIG=/path/to/postgresql-19/bin/pg_config
-```
-
-The targets reject a `pg_config` from the wrong major version. Use `make verify-all` when both configured installations are available. Direct PGXS builds remain supported for downstream packaging.
-
-```sh
-make clean
-make verify
-make integrationcheck
-```
-
-Select a non-default PostgreSQL installation with:
-
-```sh
-make clean
-make verify PG_CONFIG=/path/to/postgresql/bin/pg_config
-make integrationcheck PG_CONFIG=/path/to/postgresql/bin/pg_config
-```
-
-`make verify` performs a strict C17 build, checks that the OAuth validator initialization symbol is exported, dynamically loads the module to verify its fail-closed callback behavior, and runs policy unit tests. `make integrationcheck` starts a temporary real server, drives the libpq OAuth hook with a protected dummy-token file, and checks denial and token redaction; it requires Python 3, pytest, `runuser`, and the PostgreSQL server and libpq programs. Add exact commands here as formatting, broader component tests, static analysis, sanitizers, and fuzzing are introduced. Documented local commands must remain close enough to CI for contributors to reproduce failures.
+Maintain each topic in its designated reference linked from the README. Keep the
+README tutorial runnable and concise; link to detailed settings and procedures
+instead of repeating them. ADRs record decisions and rationale, not incremental
+implementation reports. Dated release/security evidence records the reviewed
+inputs and limits at that time; do not keep old results synchronized with the
+current tree. Git history retains superseded development narratives.
