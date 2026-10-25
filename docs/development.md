@@ -8,7 +8,11 @@ Engineering and review rules are in [AGENTS.md](../AGENTS.md). Use PostgreSQL
 
 Docker with Compose provides the pinned toolchains without local PostgreSQL
 dependencies. Source is mounted read-only and separate named volumes retain
-incremental output for each major:
+incremental output for each major. The launcher copies Git-tracked files and
+non-ignored new files into a fresh temporary tree, reflecting local edits and
+deletions. Ignored release artifacts, caches, local profiles and Git metadata stay
+out. Git and Python 3 are included in the pinned toolchain; copying fails rather
+than falling back to the entire checkout:
 
 ```sh
 docker compose -f compose.test.yml build
@@ -43,7 +47,7 @@ removes compiler caches.
 
 ## Native builds
 
-Require C17, GNU Make/PGXS, PostgreSQL server headers, `nm`, pkg-config, system
+Require Git, C17, GNU Make/PGXS, PostgreSQL server headers, `nm`, pkg-config, system
 OpenSSL and libcurl, and the reviewed Jansson/libjwt sources. Integration also
 requires Python 3, pytest, `runuser`, server programs and matching libpq headers.
 The installers pin commits and archive hashes and install PIC static archives
