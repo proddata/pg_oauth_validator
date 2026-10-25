@@ -76,36 +76,12 @@ monotonic expiry inside a running server.
 - Never extend a provider's shorter explicit freshness lifetime up to the local
   default. The local setting is a fallback and upper bound, not a minimum.
 
-Initial configuration contract:
-
-```conf
-pg_oauth_validator.metadata_default_ttl = '5min'
-pg_oauth_validator.jwks_default_ttl = '5min'
-pg_oauth_validator.cache_max_ttl = '1h'
-pg_oauth_validator.jwks_stale_grace = '0s'
-pg_oauth_validator.unknown_kid_refresh_cooldown = '30s'
-pg_oauth_validator.refresh_wait_timeout = '5s'
-pg_oauth_validator.cache_max_entries = 32
-```
-
-The operator-facing ranges and reload contexts are:
-
-| Setting | Range | Context |
-|---|---:|---|
-| `metadata_default_ttl` | 1 second–1 hour | reload |
-| `jwks_default_ttl` | 1 second–1 hour | reload |
-| `cache_max_ttl` | 1 second–24 hours | reload |
-| `jwks_stale_grace` | 0–1 hour | reload |
-| `unknown_kid_refresh_cooldown` | 1 second–5 minutes | reload |
-| `refresh_wait_timeout` | 0–5 seconds | reload |
-| `cache_max_entries` | 8–256 | restart |
-
-`cache_max_ttl` must not be shorter than either fallback TTL. Invalid or
-internally inconsistent values fail closed rather than being silently clamped.
-Every reloadable trust-policy value participates in canonical cache-key
-separation. `refresh_wait_timeout` changes only backend scheduling and does not
-change whether a cached value is trusted. Cache capacity determines
-shared-memory layout and therefore cannot change on reload.
+Defaults and accepted ranges are maintained in
+[configuration](../configuration.md#metadata-and-jwks-cache).
+`cache_max_ttl` must be at least both fallback TTLs; inconsistent values fail
+closed. Reloadable trust inputs participate in canonical keys;
+`refresh_wait_timeout` affects scheduling only. Capacity determines shared-memory
+layout and requires restart.
 
 `jwks_stale_grace = 0s` is the fail-closed default. An operator may explicitly
 choose a short nonzero value, bounded to at most one hour, as an availability
@@ -169,97 +145,26 @@ stale use, eviction and failure. Logs use stable codes and exact configured
 issuer/profile identifiers only where PostgreSQL log policy permits. Never log
 tokens, signatures, JWK private material or response bodies.
 
-## Consequences
+## Consequences and rejected alternatives
 
-- Normal authentication does not contact the provider while validated cache
-  data is fresh.
-- Default outage behavior remains fail closed after freshness expires.
-- Operators who enable stale-key grace explicitly accept a bounded key-removal
-  delay and must document that risk.
-- The cache cannot silently bridge a changed trust configuration.
-- Fixed-size shared memory makes resource use reviewable and prevents
-  attacker-driven allocation growth.
-- A cold cache normally delays concurrent connections while one backend
-  refreshes; an owner failure or bounded wait expiry rejects them fail closed.
+Fixed shared memory bounds resource use and shares fresh keys across backends.
+Per-connection fetching amplifies attacker/provider load; process-local caching
+cannot serve new authentication backends. Indefinite or default stale reuse
+would silently extend removed-key trust. Holding locks during network work would
+let provider latency block unrelated backends. libjwt's cache cannot enforce
+this project's issuer, reload and outage rules.
 
-## Rejected alternatives
+## Verification
 
-### Fetch metadata and JWKS for every connection
-
-Rejected because it makes provider availability part of every login and permits
-connection attempts to amplify outbound requests.
-
-### Process-local cache
-
-Rejected because authentication backends do not provide a durable cache across
-new connections.
-
-### Unbounded or indefinite last-known-good keys
-
-Rejected because removed keys and broadened old policies could remain trusted
-without a reviewed time limit.
-
-### Stale reuse enabled by default
-
-Rejected because availability should not silently extend trust in keys the
-issuer may have removed. The operator must choose and bound this tradeoff.
-
-### Network access while holding an LWLock
-
-Rejected because provider or DNS latency would block unrelated PostgreSQL
-backends and create a denial-of-service boundary.
-
-### libjwt's remote JWKS cache
-
-Rejected by ADR 0001 because it cannot own this validator's exact issuer,
-reload, host, resource-bound and outage policy.
-
-## Implementation gates
-
-The PostgreSQL-independent cache state machine now covers exact bounded keys,
-fresh/stale boundaries, refresh ownership tokens, unknown-`kid` cooldown,
-failed-refresh preservation, revalidation-required stale denial, `no-store`
-removal, deterministic expired-LRU eviction, fixed capacity and injected time.
-The cache state machine now also stores a fixed maximum 64 KiB validated
-payload per entry and copies it into caller-owned memory under the adapter's
-future lock. Refresh completion publishes payload and freshness atomically;
-failed or obsolete refresh owners cannot replace an eligible payload.
-The HTTP freshness boundary parses bounded `Cache-Control`, `Date`,
-`Expires`, and `Age` values, applies local TTL caps, and preserves `no-store`,
-`no-cache`, and `must-revalidate` semantics. PostgreSQL shared-memory/lock
-integration now uses a versioned named DSM segment and an embedded LWLock,
-without requiring `shared_preload_libraries`. The adapter copies payloads and
-performs state transitions under the lock but returns refresh ownership before
-any caller can start network work. Its PostgreSQL 18 and 19 API branches build
-separately and segment attachment runs in both real OAuth integration suites.
-A versioned, length-prefixed canonical cache-key builder now separates metadata
-from JWKS resources and includes every current trust-relevant policy field;
-tests mutate each field independently and cover boundary ambiguity and size
-failure. Issuer-resource retrieval now uses the canonical keys, validated
-payload publication, HTTP freshness, single-owner refresh, unknown-key
-cooldown, and explicitly bounded stale-JWKS fallback through a cache operations
-interface implemented by the shared PostgreSQL adapter. Cross-backend
-integration tests now prove single-owner refresh suppression, fail-closed cold
-lookup during an in-flight refresh, prompt competing-backend return while the
-owner simulates slow network work outside the lock, and post-publication
-visibility from another backend. Callback-bound HTTPS validation and normal
-`pg_ident.conf` mapping now exercise the same shared cache in PostgreSQL 18 and
-19 integration tests.
-
-The PostgreSQL callback authorization path is gated by tests that prove:
-
-- fixed capacity and deterministic safe eviction;
-- exact composite-key and policy-field separation;
-- fresh, expired, `no-store`, `no-cache`, `must-revalidate`, malformed and
-  capped HTTP freshness behavior;
-- default fail-closed outage and explicitly bounded stale use;
-- unknown-`kid` single refresh and per-issuer cooldown under concurrency;
-- failed refresh preservation of eligible cached keys;
-- policy reload invalidation for every trust-relevant field;
-- no PostgreSQL lock held across mocked slow network operations;
-- PostgreSQL 18 and 19 shared-segment initialization and concurrent access;
-- bounded diagnostics and bearer-token/response redaction; and
-- deterministic tests using injected monotonic time rather than sleeps.
+Cache unit tests cover injected time, exact keys, capacity/expired-LRU eviction,
+ownership tokens, obsolete-owner denial, atomic publication, freshness directives,
+cooldown and failed-refresh preservation. Component tests cover HTTP freshness
+and issuer retrieval; real PostgreSQL tests cover cross-backend publication,
+bounded waits, network work outside locks, policy reload separation, rotation,
+outage/recovery and redaction on both majors. See
+[architecture](../architecture.md) for implementation and
+[development](../development.md) for commands. Detailed development progress is
+retained in Git history rather than maintained in this decision.
 
 ## References
 

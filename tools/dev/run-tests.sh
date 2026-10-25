@@ -13,7 +13,7 @@ fi
 # VPATH must not see compiler products left in the developer's working tree.
 # Each `compose run` gets a fresh tmpfs mirror; the separate /build volume keeps
 # the expensive, per-major compiler cache between runs.
-cp -a /workspace/. /source/
+python3 /workspace/tools/dev/copy-source.py /workspace /source
 make -C /source clean PG_CONFIG="$PG_CONFIG_PATH" >/dev/null
 
 exec make -C /source "$@" \

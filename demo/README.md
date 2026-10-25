@@ -1,46 +1,10 @@
-# Try PostgreSQL OAuth with Keycloak
+# Demo configuration
 
-In this quickstart, you will connect to PostgreSQL as `app_reader` using an
-access token from a local Keycloak realm. The stack uses Docker Compose and
-includes PostgreSQL 18, the validator, Keycloak, and a matching `psql` client.
-You need Docker with Compose and a browser; you do not need a local PostgreSQL
-installation or a provider account.
+Start with the [Keycloak tutorial in the README](../README.md#quickstart-connect-with-keycloak).
+This guide covers local certificates, customization and external providers.
+The stack contains published demo credentials and is for local evaluation only.
 
-1. From the repository root, build and start the stack:
-
-   ```sh
-   docker compose up --build -d
-   ```
-
-   The first build may take a few minutes. Check `docker compose ps` for a
-   healthy `postgres` service if startup is still in progress.
-
-2. Start a connection and request a query:
-
-   ```sh
-   docker compose run --rm psql -c 'SELECT current_user, system_user;'
-   ```
-
-   Keep this terminal open. `psql` prints a device code and waits while you
-   authorize the connection in your browser.
-
-3. Open `https://localhost:8443/realms/pg-oauth/device?user_code=CODE`, replacing
-   `CODE` with the value printed by `psql`. For example, code `ABCD-EFGH`
-   gives `https://localhost:8443/realms/pg-oauth/device?user_code=ABCD-EFGH`.
-   Use the complete URL with `user_code`; the separate Keycloak code-entry form
-   did not complete correctly in local testing with the pinned version.
-
-4. Sign in as **alice** with password **demo-alice-password**. Approve the
-   **Connect to the demo PostgreSQL database** scope on the consent page. Return
-   to the terminal; the query should complete with `current_user` set to
-   `app_reader` and `system_user` set to
-   `oauth:00000000-0000-0000-0000-000000000001`.
-
-Run `docker compose run --rm psql` for an interactive SQL session. Each new
-connection starts another device authorization. `psql` obtains an access
-token and presents it to PostgreSQL. The validator checks its signature,
-issuer, audience, expiry, and required scope before PostgreSQL applies the
-usermap.
+## Local certificates and lifecycle
 
 Your browser may warn about the locally generated HTTPS certificate. To trust
 this test CA explicitly, export it with
@@ -156,37 +120,11 @@ CA for both token validation and the bundled device flow.
 
 ### WorkOS AuthKit example
 
-The [WorkOS example](providers/workos.example.yml) follows a configuration
-that completed the device flow and connected to this demo on 2026-10-18. It
-uses a WorkOS Connect user access token with `scope=connect:postgres`, a
-`role` claim authorizing `app_reader`, and `sub` as the audited identity. The
-observed token omitted `typ`, so the example explicitly enables
-`allow_missing_token_type`. This records one staging-environment result; it
-does not establish compatibility for every WorkOS configuration.
-
-```sh
-mkdir -p demo/local
-cp demo/providers/workos.example.yml demo/local/provider.yml
-# Edit issuer, audience, and client_id in demo/local/provider.yml.
-docker compose -f compose.external.yml up --build -d
-docker compose -f compose.external.yml run --rm psql -c 'SELECT current_user, system_user;'
-```
-
-Use the exact `iss` and `aud` from the Connect **access token** issued for
-this database, and the public device-flow application's ID for `client_id`.
-These are distinct settings. The `role` claim must contain `app_reader`; if
-your Connect token uses a different claim name, change `role_claim`. If the
-claim is absent, configure a WorkOS JWT template to add the user's role slug;
-WorkOS also documents an array-valued `roles` template, which this validator
-can check with `role_claim: "roles"`. [WorkOS Connect token claims](https://workos.com/docs/authkit/connect/token-claims)
-documents that the audience can be a resource indicator or environment client
-ID, and that the OAuth application's granted scopes appear in `scope`. WorkOS
-[JWT templates](https://workos.com/docs/authkit/jwt-templates) also affect
-session tokens, so confirm that ID and session tokens cannot meet this
-example's audience **and** scope checks before using the missing-`typ` option.
-
-A successful query shows `app_reader` as `current_user` and a WorkOS user ID
-prefixed with `oauth:` as `system_user`, for example `oauth:user_...`.
+Copy `demo/providers/workos.example.yml` instead of the generic profile and edit
+issuer, audience and client ID. Follow the same startup/client commands above.
+The [provider compatibility record](../PROVIDER-COMPATIBILITY.md) documents the
+2026-10-18 staging result, token/role requirements, missing-`typ` exception and
+its ID/session-token substitution limits. Verify those limits for your own issuer.
 
 To keep profiles for several providers, create another ignored YAML file and
 select it with `OAUTH_PROFILE`:
@@ -216,7 +154,3 @@ This stack is for local evaluation. It includes known demo credentials and
 should not be exposed on a shared network or reused as production
 configuration. In particular, the local peer recovery rule, fixed demo role,
 and public device client are deliberate demo choices.
-
-This Compose setup replaces the former `playground/` scripts and images. Use
-`compose.yml` for the bundled Keycloak example or `compose.external.yml` with
-your own reviewed issuer profile.
